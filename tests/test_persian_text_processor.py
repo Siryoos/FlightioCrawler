@@ -4,9 +4,11 @@ import types
 import pytest
 
 # Provide a minimal stub for the config module required by persian_text
-stub = types.ModuleType("config")
-stub.config = object()
-sys.modules['config'] = stub
+@pytest.fixture(autouse=True)
+def patch_config(monkeypatch):
+    stub = types.ModuleType("config")
+    stub.config = object()
+    monkeypatch.setitem(sys.modules, "config", stub)
 
 from persian_text import PersianTextProcessor
 
@@ -32,4 +34,3 @@ def test_parse_time():
     assert isinstance(result, datetime.datetime)
     assert result.hour == 10
     assert result.minute == 30
-
