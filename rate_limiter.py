@@ -1,10 +1,12 @@
 import asyncio
 import random
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 from collections import defaultdict, deque
 import requests
 from urllib.robotparser import RobotFileParser
+import redis
+from datetime import datetime, timedelta
 
 class RespectfulRateLimiter:
     """Implements respectful rate limiting and anti-bot evasion"""
@@ -110,4 +112,65 @@ class ProxyRotator:
     
     def report_proxy_failure(self, proxy: str):
         """Report proxy failure"""
-        self.proxy_failures[proxy] += 1 
+        self.proxy_failures[proxy] += 1
+
+class RateLimiter:
+    """Rate limiter for crawler requests"""
+    
+    def __init__(self, redis_client: redis.Redis, max_requests: int = 10, period: int = 60):
+        self.redis = redis_client
+        self.max_requests = max_requests
+        self.period = period
+    
+    def _get_key(self, domain: str) -> str:
+        """Generate Redis key for rate limiting"""
+        return f"rate_limit:{domain}:{int(time.time() / self.period)}"
+    
+    async def check_rate_limit(self, domain: str) -> bool:
+        """Check if request is allowed under rate limit"""
+        key = self._get_key(domain)
+        current = self.redis.get(key)
+        
+        if current is None:
+            # First request in this period
+            self.redis.setex(key, self.period, 1)
+            return True
+        
+        current = int(current)
+        if current >= self.max_requests:
+            return False
+        
+        # Increment counter
+        self.redis.incr(key)
+        return True
+    
+    async def get_wait_time(self, domain: str) -> Optional[int]:
+        """Get time to wait before next request"""
+        key = self._get_key(domain)
+        current = self.redis.get(key)
+        
+        if current is None:
+            return 0
+        
+        current = int(current)
+        if current >= self.max_requests:
+            # Calculate time until next period
+            now = int(time.time())
+            next_period = ((now // self.period) + 1) * self.period
+            return next_period - now
+        
+        return 0
+    
+    def get_metrics(self, domain: str) -> Dict:
+        """Get rate limiting metrics"""
+        key = self._get_key(domain)
+        current = self.redis.get(key)
+        
+        return {
+            "domain": domain,
+            "current_requests": int(current) if current else 0,
+            "max_requests": self.max_requests,
+            "period_seconds": self.period,
+            "remaining_requests": max(0, self.max_requests - (int(current) if current else 0)),
+            "reset_time": datetime.now() + timedelta(seconds=self.period)
+        } 
