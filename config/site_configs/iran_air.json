@@ -1,0 +1,98 @@
+{
+  "site_id": "iran_air",
+  "name": "Iran Air",
+  "domain": "iranair.com",
+  "crawler_type": "persian_airline",
+  "language": "persian",
+  "search_url": "https://www.iranair.com/flight-search",
+  "rate_limit": {
+    "requests_per_second": 1,
+    "burst_limit": 5,
+    "respect_robots_txt": true,
+    "use_persian_ip": true
+  },
+  "extraction_config": {
+    "search_form": {
+      "origin_field": "input[name='origin']",
+      "destination_field": "input[name='destination']",
+      "date_field": "input[name='departure_date']",
+      "passengers_field": "select[name='passengers']",
+      "class_field": "select[name='cabin_class']",
+      "persian_calendar": true
+    },
+    "results_parsing": {
+      "container": ".flight-result",
+      "price": ".price-persian",
+      "airline": ".airline-persian",
+      "duration": ".duration-persian",
+      "departure_time": ".departure-time",
+      "arrival_time": ".arrival-time",
+      "flight_number": ".flight-number",
+      "seat_class": ".seat-class"
+    }
+  },
+  "persian_processing": {
+    "rtl_support": true,
+    "jalali_calendar": true,
+    "persian_numerals": true,
+    "text_normalization": true
+  },
+  "field_mappings": {
+    "مبدا": "origin",
+    "مقصد": "destination",
+    "قیمت": "price",
+    "ریال": "IRR",
+    "دلار": "USD",
+    "یورو": "EUR",
+    "ساعت": "hour",
+    "دقیقه": "minute",
+    "اکونومی": "economy",
+    "بیزنس": "business",
+    "فرست": "first"
+  },
+  "monitoring": {
+    "success_rate_threshold": 0.90,
+    "response_time_threshold": 60000,
+    "persian_text_validation": true
+  },
+  "error_handling": {
+    "max_retries": 3,
+    "retry_delay": 5000,
+    "circuit_breaker": {
+      "failure_threshold": 5,
+      "reset_timeout": 300000
+    }
+  },
+  "proxy_config": {
+    "use_proxy": true,
+    "proxy_type": "persian",
+    "rotation_interval": 3600
+  },
+  "browser_config": {
+    "headless": true,
+    "timeout": 30000,
+    "viewport_width": 1920,
+    "viewport_height": 1080,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  "data_validation": {
+    "required_fields": [
+      "airline",
+      "flight_number",
+      "origin",
+      "destination",
+      "departure_time",
+      "arrival_time",
+      "price",
+      "currency"
+    ],
+    "price_range": {
+      "min": 1000000,
+      "max": 100000000
+    },
+    "duration_range": {
+      "min": 30,
+      "max": 1440
+    }
+  }
+} 
