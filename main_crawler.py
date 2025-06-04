@@ -12,7 +12,16 @@ from persian_tools import digits
 import jdatetime
 from monitoring import CrawlerMonitor, ErrorHandler
 from data_manager import FlightDataManager, DataManager
-from site_crawlers import FlytodayCrawler, AlibabaCrawler, SafarmarketCrawler
+from site_crawlers import (
+    FlytodayCrawler,
+    AlibabaCrawler,
+    SafarmarketCrawler,
+    Mz724Crawler,
+    PartoCRSCrawler,
+    PartoTicketCrawler,
+    BookCharter724Crawler,
+    BookCharterCrawler,
+)
 from crawl4ai.cache_mode import CacheMode
 from rate_limiter import RateLimiter
 from persian_text import PersianTextProcessor
@@ -64,7 +73,7 @@ class IranianFlightCrawler:
         # Initialize site crawlers
         self.crawlers = {
             "flytoday.ir": FlytodayCrawler(
-                self.rate_limiter, self.text_processor, 
+                self.rate_limiter, self.text_processor,
                 self.monitor, self.error_handler
             ),
             "alibaba.ir": AlibabaCrawler(
@@ -72,6 +81,26 @@ class IranianFlightCrawler:
                 self.monitor, self.error_handler
             ),
             "safarmarket.com": SafarmarketCrawler(
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
+            ),
+            "mz724.ir": Mz724Crawler(
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
+            ),
+            "partocrs.com": PartoCRSCrawler(
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
+            ),
+            "parto-ticket.ir": PartoTicketCrawler(
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
+            ),
+            "bookcharter724.ir": BookCharter724Crawler(
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
+            ),
+            "bookcharter.ir": BookCharterCrawler(
                 self.rate_limiter, self.text_processor,
                 self.monitor, self.error_handler
             )

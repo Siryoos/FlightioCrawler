@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
@@ -24,23 +24,33 @@ class RedisConfig:
 
 @dataclass
 class CrawlerConfig:
-    DOMAINS: List[str] = [
+    DOMAINS: List[str] = field(default_factory=lambda: [
         'flytoday.ir',
         'alibaba.ir',
-        'safarmarket.com'
-    ]
+        'safarmarket.com',
+        'mz724.ir',
+        'partocrs.com',
+        'parto-ticket.ir',
+        'bookcharter724.ir',
+        'bookcharter.ir'
+    ])
     REQUEST_TIMEOUT: int = 30
     MAX_RETRIES: int = 3
-    RATE_LIMIT: Dict[str, int] = {
+    RATE_LIMIT: Dict[str, int] = field(default_factory=lambda: {
         'flytoday.ir': 2,  # requests per second
         'alibaba.ir': 2,
-        'safarmarket.com': 2
-    }
-    USER_AGENTS: List[str] = [
+        'safarmarket.com': 2,
+        'mz724.ir': 2,
+        'partocrs.com': 2,
+        'parto-ticket.ir': 2,
+        'bookcharter724.ir': 2,
+        'bookcharter.ir': 2
+    })
+    USER_AGENTS: List[str] = field(default_factory=lambda: [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
-    ]
+    ])
 
 @dataclass
 class MonitoringConfig:
@@ -54,22 +64,22 @@ class MonitoringConfig:
 class MLConfig:
     MODEL_PATH: str = 'models/flight_price_predictor.pkl'
     TRAINING_DATA_PATH: str = 'data/training_data.csv'
-    FEATURE_COLUMNS: List[str] = [
+    FEATURE_COLUMNS: List[str] = field(default_factory=lambda: [
         'departure_time',
         'arrival_time',
         'duration_minutes',
         'airline',
         'seat_class'
-    ]
+    ])
     TARGET_COLUMN: str = 'price'
 
 @dataclass
 class Config:
-    DATABASE: DatabaseConfig = DatabaseConfig()
-    REDIS: RedisConfig = RedisConfig()
-    CRAWLER: CrawlerConfig = CrawlerConfig()
-    MONITORING: MonitoringConfig = MonitoringConfig()
-    ML: MLConfig = MLConfig()
+    DATABASE: DatabaseConfig = field(default_factory=DatabaseConfig)
+    REDIS: RedisConfig = field(default_factory=RedisConfig)
+    CRAWLER: CrawlerConfig = field(default_factory=CrawlerConfig)
+    MONITORING: MonitoringConfig = field(default_factory=MonitoringConfig)
+    ML: MLConfig = field(default_factory=MLConfig)
     
     # API Configuration
     API_VERSION: str = 'v1'

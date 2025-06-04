@@ -20,7 +20,7 @@ This project is a comprehensive flight crawler system designed to aggregate flig
 
 ## Features | ویژگی‌ها
 
-- Multi-site crawling (Flytoday, Alibaba, Safarmarket)
+- Multi-site crawling (Flytoday, Alibaba, Safarmarket, MZ724, PartoCRS, Parto Ticket, BookCharter724, BookCharter)
 - Intelligent search optimization
 - Real-time price monitoring
 - Persian text processing

@@ -362,3 +362,138 @@ class SafarmarketCrawler(BaseSiteCrawler):
             self.logger.error(f"Error crawling Safarmarket: {e}")
             await self.error_handler.handle_error(self.domain, e)
             return [] 
+
+class Mz724Crawler(BaseSiteCrawler):
+    """Crawler for mz724.ir"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.domain = "mz724.ir"
+        self.base_url = "https://mz724.ir"
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on mz724.ir"""
+        start_time = datetime.now()
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            await self.crawler.goto(self.base_url)
+            # TODO: implement form submission and parsing
+            await self._take_screenshot("search_results")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error crawling {self.domain}: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []
+
+class PartoCRSCrawler(BaseSiteCrawler):
+    """Crawler for partocrs.com"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.domain = "partocrs.com"
+        self.base_url = "https://www.partocrs.com"
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on Parto CRS"""
+        start_time = datetime.now()
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            await self.crawler.goto(self.base_url)
+            # TODO: implement form submission and parsing
+            await self._take_screenshot("search_results")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error crawling {self.domain}: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []
+
+class PartoTicketCrawler(BaseSiteCrawler):
+    """Crawler for parto-ticket.ir"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.domain = "parto-ticket.ir"
+        self.base_url = "https://parto-ticket.ir"
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on Parto Ticket"""
+        start_time = datetime.now()
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            await self.crawler.goto(self.base_url)
+            # TODO: implement form submission and parsing
+            await self._take_screenshot("search_results")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error crawling {self.domain}: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []
+
+class BookCharter724Crawler(BaseSiteCrawler):
+    """Crawler for bookcharter724.ir"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.domain = "bookcharter724.ir"
+        self.base_url = "https://bookcharter724.ir"
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on BookCharter724"""
+        start_time = datetime.now()
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            await self.crawler.goto(self.base_url)
+            # TODO: implement form submission and parsing
+            await self._take_screenshot("search_results")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error crawling {self.domain}: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []
+
+class BookCharterCrawler(BaseSiteCrawler):
+    """Crawler for bookcharter.ir"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.domain = "bookcharter.ir"
+        self.base_url = "https://bookcharter.ir"
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on BookCharter"""
+        start_time = datetime.now()
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            await self.crawler.goto(self.base_url)
+            # TODO: implement form submission and parsing
+            await self._take_screenshot("search_results")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error crawling {self.domain}: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []
