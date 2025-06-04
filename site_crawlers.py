@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from crawl4ai import AsyncCrawler, BrowserConfig
+from crawl4ai import AsyncWebCrawler, BrowserConfig
 from crawl4ai.cache_mode import CacheMode
 from bs4 import BeautifulSoup
 from persian_text import PersianTextProcessor
@@ -29,12 +29,12 @@ class BaseSiteCrawler(StealthCrawler):
         # Configure browser
         self.browser_config = BrowserConfig(
             headless=True,
-            timeout=config.CRAWLER.CRAWLER_TIMEOUT,
-            retry_attempts=config.CRAWLER.CRAWLER_RETRY_ATTEMPTS,
-            retry_delay=config.CRAWLER.CRAWLER_RETRY_DELAY
+            timeout=config.CRAWLER_TIMEOUT,
+            viewport_width=1920,
+            viewport_height=1080
         )
         
-        self.crawler = AsyncCrawler(browser_config=self.browser_config)
+        self.crawler = AsyncWebCrawler(config=self.browser_config)
     
     async def check_rate_limit(self) -> bool:
         """Check rate limit for the site"""
@@ -49,8 +49,8 @@ class BaseSiteCrawler(StealthCrawler):
         return self.text_processor.process(text)
     
     async def search_flights(self, search_params: Dict) -> List[Dict]:
-        # Apply stealth techniques here (e.g., fingerprinting, human simulation)
-        raise NotImplementedError
+        """Search flights on the site"""
+        raise NotImplementedError("Subclasses must implement search_flights")
     
     async def _execute_js(self, script: str, **kwargs) -> Any:
         """Execute JavaScript with error handling"""

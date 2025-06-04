@@ -14,6 +14,9 @@ class ErrorHandler:
         # Initialize error tracking
         self.errors: Dict[str, List[Dict]] = {}
         self.circuit_breakers: Dict[str, Dict] = {}
+        self.error_counts = {}
+        self.max_errors = 5
+        self.circuit_timeout = 300  # 5 minutes
     
     def handle_error(self, domain: str, error: str) -> None:
         """Handle error for domain"""
@@ -132,12 +135,15 @@ class ErrorHandler:
             logger.error(f"Error getting error stats: {e}")
             return {}
     
-    def get_all_error_stats(self) -> Dict[str, Dict]:
+    def get_all_error_stats(self) -> Dict:
         """Get error statistics for all domains"""
         try:
             return {
-                domain: self.get_error_stats(domain)
-                for domain in config.SITES.keys()
+                "error_counts": self.error_counts,
+                "circuit_breaker": {
+                    domain: time.isoformat()
+                    for domain, time in self.circuit_breakers.items()
+                }
             }
             
         except Exception as e:
@@ -243,4 +249,32 @@ class ErrorHandler:
             
         except Exception as e:
             logger.error(f"Error getting all error timelines: {e}")
-            return {} 
+            return {}
+    
+    async def can_make_request(self, domain: str) -> bool:
+        """Check if we can make a request to domain"""
+        return not self.is_circuit_open(domain)
+
+    def handle_error(self, domain: str, error: str):
+        """Handle error for domain"""
+        if domain not in self.error_counts:
+            self.error_counts[domain] = 0
+            
+        self.error_counts[domain] += 1
+        
+        if self.error_counts[domain] >= self.max_errors:
+            self.circuit_breakers[domain] = {
+                'timestamp': datetime.now().isoformat(),
+                'error_count': self.error_counts[domain]
+            }
+            logger.error(f"Circuit breaker opened for {domain} due to {self.error_counts[domain]} errors")
+
+    def get_all_error_stats(self) -> Dict:
+        """Get error statistics for all domains"""
+        return {
+            "error_counts": self.error_counts,
+            "circuit_breaker": {
+                domain: time.isoformat()
+                for domain, time in self.circuit_breakers.items()
+            }
+        } 
