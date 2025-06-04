@@ -1,10 +1,10 @@
 import logging
 import json
 from typing import Dict, List, Optional
-from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, JSON
+from datetime import datetime, timedelta
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, JSON, func
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, Session
 from redis import Redis
 from config import config
 
@@ -315,4 +315,117 @@ class DataManager:
             return {}
         
         finally:
-            session.close() 
+            session.close()
+
+    async def get_cached_search(self, search_key: str) -> Optional[Dict]:
+        """Get cached search results"""
+        try:
+            cached = self.redis.get(f"search:{search_key}")
+            if cached:
+                return json.loads(cached)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting cached search: {e}")
+            return None
+
+    async def get_historical_prices(self, route: str, days_back: int = 365) -> List[Dict]:
+        """Get historical price data for ML training"""
+        try:
+            session = self.Session()
+            cutoff_date = datetime.now() - timedelta(days=days_back)
+            
+            results = session.query(FlightPriceHistory).join(Flight).filter(
+                Flight.origin + '-' + Flight.destination == route,
+                FlightPriceHistory.recorded_at >= cutoff_date
+            ).all()
+            
+            return [
+                {
+                    'date': r.recorded_at.date(),
+                    'price': float(r.price),
+                    'currency': r.currency
+                }
+                for r in results
+            ]
+        except Exception as e:
+            logger.error(f"Error getting historical prices: {e}")
+            return []
+        finally:
+            session.close()
+
+    async def get_current_price(self, route: str) -> float:
+        """Get current average price for route"""
+        try:
+            session = self.Session()
+            
+            # Parse route
+            origin, destination = route.split('-')
+            
+            # Get recent prices (last 24 hours)
+            cutoff = datetime.now() - timedelta(hours=24)
+            
+            result = session.query(func.avg(Flight.price)).filter(
+                Flight.origin == origin,
+                Flight.destination == destination,
+                Flight.scraped_at >= cutoff
+            ).scalar()
+            
+            return float(result) if result else 0.0
+            
+        except Exception as e:
+            logger.error(f"Error getting current price: {e}")
+            return 0.0
+        finally:
+            session.close()
+
+    async def get_search_count(self, route: str) -> int:
+        """Get search count for route popularity"""
+        try:
+            session = self.Session()
+            
+            # Parse route
+            origin, destination = route.split('-')
+            
+            count = session.query(SearchQuery).filter(
+                SearchQuery.origin == origin,
+                SearchQuery.destination == destination
+            ).count()
+            
+            return count
+            
+        except Exception as e:
+            logger.error(f"Error getting search count: {e}")
+            return 0
+        finally:
+            session.close()
+
+    async def store_flights(self, flights: Dict[str, List[Dict]]):
+        """Store flight data in database"""
+        try:
+            session = self.Session()
+            for site, site_flights in flights.items():
+                for flight_data in site_flights:
+                    flight = Flight(**flight_data)
+                    session.add(flight)
+            session.commit()
+        except Exception as e:
+            logger.error(f"Error storing flights: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    async def cache_search_results(self, search_params: Dict, results: Dict):
+        """Cache search results in Redis"""
+        try:
+            search_key = self._generate_search_key(search_params)
+            self.redis.setex(
+                f"search:{search_key}",
+                timedelta(hours=1),  # Cache for 1 hour
+                json.dumps(results)
+            )
+        except Exception as e:
+            logger.error(f"Error caching search results: {e}")
+
+    def _generate_search_key(self, search_params: Dict) -> str:
+        """Generate cache key for search"""
+        return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}" 

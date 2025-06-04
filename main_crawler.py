@@ -19,148 +19,141 @@ from rate_limiter import RateLimiter
 from persian_text import PersianTextProcessor
 from config import config
 from intelligent_search import IntelligentSearchEngine, SearchOptimization
-from price_monitor import PriceMonitor
+from price_monitor import PriceMonitor, WebSocketManager
 from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 
+logger = logging.getLogger(__name__)
+
+@dataclass
+class FlightData:
+    """Normalized flight data structure"""
+    flight_id: str
+    airline: str
+    flight_number: str
+    origin: str
+    destination: str
+    departure_time: datetime
+    arrival_time: datetime
+    price: float
+    currency: str
+    seat_class: str
+    aircraft_type: Optional[str]
+    duration_minutes: int
+    flight_type: str
+    scraped_at: datetime
+    source_url: str
+
 class IranianFlightCrawler:
-    """Main crawler class for Iranian flight booking sites"""
+    """Main crawler orchestrator for Iranian flight booking sites"""
     
-    def __init__(
-        self,
-        monitor: CrawlerMonitor,
-        error_handler: ErrorHandler,
-        data_manager: DataManager
-    ):
-        self.monitor = monitor
-        self.error_handler = error_handler
-        self.data_manager = data_manager
-        
-        # Initialize components
-        self.rate_limiter = RateLimiter(monitor.redis)
+    def __init__(self):
+        # Initialize core components
+        self.monitor = CrawlerMonitor()
+        self.error_handler = ErrorHandler()
+        self.data_manager = DataManager()
+        self.rate_limiter = RateLimiter()
         self.text_processor = PersianTextProcessor()
+        
+        # Initialize advanced features
+        self.intelligent_search = IntelligentSearchEngine(self, self.data_manager)
+        self.price_monitor = PriceMonitor(self.data_manager, self.data_manager.redis)
+        self.price_monitor.websocket_manager = WebSocketManager()
+        self.ml_predictor = FlightPricePredictor(self.data_manager, self.data_manager.redis)
+        self.multilingual = MultilingualProcessor()
         
         # Initialize site crawlers
         self.crawlers = {
             "flytoday.ir": FlytodayCrawler(
-                self.rate_limiter,
-                self.text_processor,
-                self.monitor,
-                self.error_handler
+                self.rate_limiter, self.text_processor, 
+                self.monitor, self.error_handler
             ),
             "alibaba.ir": AlibabaCrawler(
-                self.rate_limiter,
-                self.text_processor,
-                self.monitor,
-                self.error_handler
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
             ),
             "safarmarket.com": SafarmarketCrawler(
-                self.rate_limiter,
-                self.text_processor,
-                self.monitor,
-                self.error_handler
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
             )
         }
         
-        self.intelligent_search = IntelligentSearchEngine(self, self.data_manager)
-        self.price_monitor = PriceMonitor(self.data_manager, self.redis_client)
-        self.ml_predictor = FlightPricePredictor(self.data_manager, self.redis_client)
-        self.multilingual = MultilingualProcessor()
+        logger.info("Iranian Flight Crawler initialized successfully")
     
     async def crawl_all_sites(self, search_params: Dict) -> List[Dict]:
-        """Crawl all sites for flights"""
+        """Orchestrate crawling across all three sites"""
         try:
             # Check cache first
-            search_key = self._generate_search_key(search_params)
-            cached_results = await self.data_manager.get_cached_search(search_key)
-            
+            cached_results = self.data_manager.get_cached_results(search_params)
             if cached_results:
-                logger.info(f"Returning cached results for {search_key}")
+                logger.info("Returning cached results")
                 return cached_results
             
-            # Start time for response time calculation
-            start_time = datetime.now()
-            
-            # Crawl all sites concurrently
-            tasks = [
-                self._crawl_site(domain, crawler, search_params)
-                for domain, crawler in self.crawlers.items()
-            ]
+            # Start crawling all sites concurrently
+            tasks = []
+            for site_name, crawler in self.crawlers.items():
+                task = asyncio.create_task(
+                    self._crawl_site_safely(site_name, crawler, search_params),
+                    name=f"crawl_{site_name}"
+                )
+                tasks.append(task)
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             # Process results
-            flights = []
-            for domain, result in zip(self.crawlers.keys(), results):
+            all_flights = []
+            for site_name, result in zip(self.crawlers.keys(), results):
                 if isinstance(result, Exception):
-                    logger.error(f"Error crawling {domain}: {result}")
+                    logger.error(f"Error crawling {site_name}: {result}")
                     continue
-                
-                flights.extend(result)
+                all_flights.extend(result)
             
             # Store results
-            if flights:
-                await self.data_manager.store_flights(flights)
-                
-                # Cache results
-                await self.data_manager.cache_search_results(
-                    search_key,
-                    flights,
-                    config.CRAWLER.CACHE_TTL
-                )
+            if all_flights:
+                self.data_manager.store_flights({"all": all_flights})
+                self.data_manager.cache_search_results(search_params, {"all": all_flights})
             
-            # Store search query
-            response_time = (datetime.now() - start_time).total_seconds() * 1000
-            await self.data_manager.store_search_query(
-                search_params,
-                len(flights),
-                int(response_time)
-            )
-            
-            return flights
+            return all_flights
             
         except Exception as e:
-            logger.error(f"Error crawling sites: {e}")
+            logger.error(f"Error in crawl_all_sites: {e}")
             return []
     
-    async def _crawl_site(
-        self,
-        domain: str,
-        crawler: BaseSiteCrawler,
-        search_params: Dict
-    ) -> List[Dict]:
-        """Crawl a single site"""
+    async def _crawl_site_safely(self, site_name: str, crawler, search_params: Dict) -> List[Dict]:
+        """Safely crawl a single site with error handling"""
         try:
-            # Check if we can make request
-            if not await self.error_handler.can_make_request(domain):
-                logger.warning(f"Circuit breaker open for {domain}")
+            if self.error_handler.is_circuit_open(site_name):
+                logger.warning(f"Circuit breaker open for {site_name}")
                 return []
             
-            # Check rate limit
-            if not await self.rate_limiter.check_rate_limit(domain):
-                wait_time = await self.rate_limiter.get_wait_time(domain)
-                if wait_time:
-                    logger.info(f"Rate limit reached for {domain}, waiting {wait_time}s")
-                    await asyncio.sleep(wait_time)
-            
-            # Crawl site
+            start_time = datetime.now()
             flights = await crawler.search_flights(search_params)
             
-            # Add domain to flights
-            for flight in flights:
-                flight["domain"] = domain
+            # Record metrics
+            duration = (datetime.now() - start_time).total_seconds()
+            self.monitor.record_request(site_name, duration)
+            self.monitor.record_flights(site_name, len(flights))
             
             return flights
             
         except Exception as e:
-            logger.error(f"Error crawling {domain}: {e}")
-            await self.error_handler.handle_error(domain, e)
+            logger.error(f"Error crawling {site_name}: {e}")
+            self.error_handler.handle_error(site_name, str(e))
             return []
     
-    def _generate_search_key(self, search_params: Dict) -> str:
-        """Generate cache key for search"""
-        return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}"
+    async def intelligent_search_flights(self, search_params: Dict, optimization) -> Dict:
+        """Run intelligent search using optimization engine"""
+        return await self.intelligent_search.optimize_search_strategy(search_params, optimization)
     
+    def get_health_status(self) -> Dict:
+        """Get comprehensive crawler health status"""
+        return {
+            "crawler_metrics": self.monitor.get_all_metrics(),
+            "error_stats": self.error_handler.get_all_error_stats(),
+            "rate_limits": self.rate_limiter.get_all_rate_limit_stats(),
+            "timestamp": datetime.now().isoformat()
+        }
+
     async def get_health_status(self) -> Dict:
         """Get crawler health status"""
         try:
@@ -203,35 +196,10 @@ class IranianFlightCrawler:
         """Run intelligent search using the optimization engine."""
         return await self.intelligent_search.optimize_search_strategy(search_params, optimization)
 
-@dataclass
-class FlightData:
-    """Normalized flight data structure"""
-    flight_id: str
-    airline: str
-    flight_number: str
-    origin: str
-    destination: str
-    departure_time: datetime
-    arrival_time: datetime
-    price: float
-    currency: str
-    seat_class: str
-    aircraft_type: Optional[str]
-    duration_minutes: int
-    flight_type: str  # domestic/international
-    scraped_at: datetime
-    source_url: str
+    def _generate_search_key(self, search_params: Dict) -> str:
+        """Generate cache key for search"""
+        return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}"
 
-class IranianFlightCrawler:
-    """Main crawler orchestrator for Iranian flight booking sites"""
-    
-    def __init__(self):
-        self.setup_logging()
-        self.setup_persian_processing()
-        self.setup_database()
-        self.setup_redis()
-        self.setup_crawl4ai()
-        
     def setup_logging(self):
         logging.basicConfig(
             level=logging.INFO,
@@ -242,7 +210,7 @@ class IranianFlightCrawler:
             ]
         )
         self.logger = logging.getLogger(__name__)
-    
+
     def setup_persian_processing(self):
         """Initialize Persian text processing tools"""
         self.normalizer = Normalizer()
