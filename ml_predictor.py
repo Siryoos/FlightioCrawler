@@ -22,7 +22,7 @@ class ModelMetrics:
     """Model performance metrics"""
     mae: float  # Mean Absolute Error
     rmse: float  # Root Mean Square Error
-    mape: float  # Mean Absolute Percentage Error
+    MAPE: float  # Mean Absolute Percentage Error
     r2_score: float
     last_updated: datetime
 
@@ -90,7 +90,7 @@ class FlightPricePredictor:
         rmse = np.sqrt(np.mean((y - y_pred) ** 2))
         mape = np.mean(np.abs((y - y_pred) / y)) * 100
         r2_score = model.score(X, y)
-        return ModelMetrics(mae=mae, rmse=rmse, mape=mape, r2_score=r2_score, last_updated=datetime.now())
+        return ModelMetrics(mae=mae, rmse=rmse, MAPE=mape, r2_score=r2_score, last_updated=datetime.now())
 
     async def retrain_model_if_needed(self, route: str, performance_threshold: float = 0.8) -> bool:
         """Retrain the model if performance falls below the threshold."""
