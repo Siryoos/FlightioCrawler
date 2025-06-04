@@ -1,181 +1,318 @@
-import psycopg2
-import redis
+import logging
 import json
-from typing import List, Dict, Optional
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, JSON
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from redis import Redis
+from config import config
 
-class FlightDataManager:
-    """Manages flight data storage and retrieval"""
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Create SQLAlchemy base
+Base = declarative_base()
+
+# Database models
+class Flight(Base):
+    """Flight model"""
+    __tablename__ = 'flights'
     
-    def __init__(self, db_config: Dict, redis_config: Dict):
-        self.db_config = db_config
-        self.redis_client = redis.Redis(**redis_config, decode_responses=True)
-        self.setup_database()
+    id = Column(Integer, primary_key=True)
+    flight_id = Column(String, unique=True)
+    airline = Column(String)
+    flight_number = Column(String)
+    origin = Column(String)
+    destination = Column(String)
+    departure_time = Column(DateTime)
+    arrival_time = Column(DateTime)
+    price = Column(Float)
+    currency = Column(String)
+    seat_class = Column(String)
+    aircraft_type = Column(String)
+    duration_minutes = Column(Integer)
+    flight_type = Column(String)
+    scraped_at = Column(DateTime)
+    source_url = Column(String)
+    raw_data = Column(JSON)
     
-    def setup_database(self):
-        """Initialize database with proper Persian text handling"""
-        schema_sql = """
-        -- Enable UTF-8 support
-        SET client_encoding = 'UTF8';
-        
-        -- Main flights table
-        CREATE TABLE IF NOT EXISTS flights (
-            id BIGSERIAL PRIMARY KEY,
-            flight_id VARCHAR(100) UNIQUE,
-            airline VARCHAR(100),
-            flight_number VARCHAR(20),
-            origin VARCHAR(10),
-            destination VARCHAR(10),
-            departure_time TIMESTAMPTZ,
-            arrival_time TIMESTAMPTZ,
-            price DECIMAL(12,2),
-            currency VARCHAR(3),
-            seat_class VARCHAR(50),
-            aircraft_type VARCHAR(50),
-            duration_minutes INTEGER,
-            flight_type VARCHAR(20),
-            scraped_at TIMESTAMPTZ DEFAULT NOW(),
-            source_url TEXT,
-            raw_data JSONB
-        );
-        
-        -- Indexes for efficient querying
-        CREATE INDEX IF NOT EXISTS idx_flights_route_date 
-        ON flights (origin, destination, departure_time);
-        
-        CREATE INDEX IF NOT EXISTS idx_flights_airline 
-        ON flights (airline);
-        
-        CREATE INDEX IF NOT EXISTS idx_flights_price 
-        ON flights (price);
-        
-        CREATE INDEX IF NOT EXISTS idx_flights_scraped 
-        ON flights (scraped_at);
-        
-        -- Price history for tracking fluctuations
-        CREATE TABLE IF NOT EXISTS flight_price_history (
-            id BIGSERIAL PRIMARY KEY,
-            flight_id VARCHAR(100) REFERENCES flights(flight_id),
-            price DECIMAL(12,2),
-            currency VARCHAR(3),
-            scraped_at TIMESTAMPTZ DEFAULT NOW(),
-            source VARCHAR(50)
-        );
-        
-        -- Search queries log
-        CREATE TABLE IF NOT EXISTS search_queries (
-            id BIGSERIAL PRIMARY KEY,
-            origin VARCHAR(10),
-            destination VARCHAR(10),
-            departure_date DATE,
-            return_date DATE,
-            passengers INTEGER,
-            query_time TIMESTAMPTZ DEFAULT NOW(),
-            results_count INTEGER
-        );
-        """
-        
-        with psycopg2.connect(**self.db_config) as conn:
-            with conn.cursor() as cur:
-                cur.execute(schema_sql)
-                conn.commit()
+    # Relationships
+    price_history = relationship("FlightPriceHistory", back_populates="flight")
+
+class FlightPriceHistory(Base):
+    """Flight price history model"""
+    __tablename__ = 'flight_price_history'
     
-    async def store_flights(self, flights: List[FlightData]) -> int:
-        """Store flight data with deduplication"""
-        stored_count = 0
+    id = Column(Integer, primary_key=True)
+    flight_id = Column(String, ForeignKey('flights.flight_id'))
+    price = Column(Float)
+    currency = Column(String)
+    recorded_at = Column(DateTime)
+    
+    # Relationships
+    flight = relationship("Flight", back_populates="price_history")
+
+class SearchQuery(Base):
+    """Search query model"""
+    __tablename__ = 'search_queries'
+    
+    id = Column(Integer, primary_key=True)
+    origin = Column(String)
+    destination = Column(String)
+    departure_date = Column(String)
+    passengers = Column(Integer)
+    seat_class = Column(String)
+    query_time = Column(DateTime)
+    result_count = Column(Integer)
+    search_duration = Column(Float)
+    cached = Column(Integer)
+
+class DataManager:
+    """Manage data storage and retrieval"""
+    
+    def __init__(self):
+        # Initialize database
+        self.engine = create_engine(config.DATABASE_URL)
+        self.Session = sessionmaker(bind=self.engine)
         
-        with psycopg2.connect(**self.db_config) as conn:
-            with conn.cursor() as cur:
-                for flight in flights:
-                    try:
-                        # Check if flight already exists
-                        cur.execute(
-                            "SELECT id FROM flights WHERE flight_id = %s",
-                            (flight.flight_id,)
+        # Initialize Redis
+        self.redis = Redis.from_url(config.REDIS_URL)
+        
+        # Create tables
+        Base.metadata.create_all(self.engine)
+    
+    def store_flights(self, flights: Dict[str, List[Dict]]) -> None:
+        """Store flights in database"""
+        try:
+            # Create session
+            session = self.Session()
+            
+            # Get current time
+            now = datetime.now()
+            
+            # Store flights
+            for domain, domain_flights in flights.items():
+                for flight_data in domain_flights:
+                    # Generate flight ID
+                    flight_id = f"{flight_data['airline']}_{flight_data['flight_number']}_{flight_data['origin']}_{flight_data['destination']}_{flight_data['departure_time'].isoformat()}"
+                    
+                    # Check if flight exists
+                    existing_flight = session.query(Flight).filter_by(flight_id=flight_id).first()
+                    
+                    if existing_flight:
+                        # Update existing flight
+                        existing_flight.price = flight_data['price']
+                        existing_flight.currency = flight_data['currency']
+                        existing_flight.scraped_at = now
+                        existing_flight.raw_data = flight_data
+                        
+                        # Add price history
+                        if existing_flight.price != flight_data['price']:
+                            price_history = FlightPriceHistory(
+                                flight_id=flight_id,
+                                price=flight_data['price'],
+                                currency=flight_data['currency'],
+                                recorded_at=now
+                            )
+                            session.add(price_history)
+                    else:
+                        # Create new flight
+                        flight = Flight(
+                            flight_id=flight_id,
+                            airline=flight_data['airline'],
+                            flight_number=flight_data['flight_number'],
+                            origin=flight_data['origin'],
+                            destination=flight_data['destination'],
+                            departure_time=flight_data['departure_time'],
+                            arrival_time=flight_data['arrival_time'],
+                            price=flight_data['price'],
+                            currency=flight_data['currency'],
+                            seat_class=flight_data['seat_class'],
+                            aircraft_type=flight_data.get('aircraft_type'),
+                            duration_minutes=flight_data['duration_minutes'],
+                            flight_type=flight_data.get('flight_type'),
+                            scraped_at=now,
+                            source_url=flight_data['source_url'],
+                            raw_data=flight_data
                         )
+                        session.add(flight)
                         
-                        if cur.fetchone():
-                            # Update existing flight
-                            cur.execute("""
-                                UPDATE flights SET
-                                    price = %s,
-                                    scraped_at = %s
-                                WHERE flight_id = %s
-                            """, (flight.price, flight.scraped_at, flight.flight_id))
-                        else:
-                            # Insert new flight
-                            cur.execute("""
-                                INSERT INTO flights (
-                                    flight_id, airline, flight_number, origin, destination,
-                                    departure_time, arrival_time, price, currency, seat_class,
-                                    aircraft_type, duration_minutes, flight_type, scraped_at, source_url
-                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (
-                                flight.flight_id, flight.airline, flight.flight_number,
-                                flight.origin, flight.destination, flight.departure_time,
-                                flight.arrival_time, flight.price, flight.currency, flight.seat_class,
-                                flight.aircraft_type, flight.duration_minutes, flight.flight_type,
-                                flight.scraped_at, flight.source_url
-                            ))
-                            stored_count += 1
-                        
-                        # Store price history
-                        cur.execute("""
-                            INSERT INTO flight_price_history (flight_id, price, currency, source)
-                            VALUES (%s, %s, %s, %s)
-                        """, (flight.flight_id, flight.price, flight.currency, flight.source_url))
-                        
-                    except Exception as e:
-                        print(f"Error storing flight {flight.flight_id}: {e}")
-                        continue
-                
-                conn.commit()
+                        # Add price history
+                        price_history = FlightPriceHistory(
+                            flight_id=flight_id,
+                            price=flight_data['price'],
+                            currency=flight_data['currency'],
+                            recorded_at=now
+                        )
+                        session.add(price_history)
+            
+            # Commit changes
+            session.commit()
+            
+        except Exception as e:
+            logger.error(f"Error storing flights: {e}")
+            session.rollback()
+            raise
         
-        return stored_count
+        finally:
+            session.close()
     
-    def search_flights(self, search_params: Dict) -> List[Dict]:
-        """Search stored flight data"""
-        query = """
-        SELECT flight_id, airline, flight_number, origin, destination,
-               departure_time, arrival_time, price, currency, seat_class,
-               duration_minutes, flight_type, source_url
-        FROM flights
-        WHERE origin = %s AND destination = %s
-        """
-        params = [search_params['origin'], search_params['destination']]
+    def store_search_query(self, params: Dict, result_count: int, search_duration: float, cached: bool) -> None:
+        """Store search query in database"""
+        try:
+            # Create session
+            session = self.Session()
+            
+            # Create search query
+            query = SearchQuery(
+                origin=params['origin'],
+                destination=params['destination'],
+                departure_date=params['departure_date'],
+                passengers=params['passengers'],
+                seat_class=params['seat_class'],
+                query_time=datetime.now(),
+                result_count=result_count,
+                search_duration=search_duration,
+                cached=1 if cached else 0
+            )
+            
+            # Add and commit
+            session.add(query)
+            session.commit()
+            
+        except Exception as e:
+            logger.error(f"Error storing search query: {e}")
+            session.rollback()
+            raise
         
-        # Add date filter if provided
-        if 'departure_date' in search_params:
-            query += " AND DATE(departure_time) = %s"
-            params.append(search_params['departure_date'])
-        
-        # Add price range filter
-        if 'max_price' in search_params:
-            query += " AND price <= %s"
-            params.append(search_params['max_price'])
-        
-        # Order by price
-        query += " ORDER BY price ASC, departure_time ASC"
-        
-        with psycopg2.connect(**self.db_config) as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, params)
-                columns = [desc[0] for desc in cur.description]
-                results = [dict(zip(columns, row)) for row in cur.fetchall()]
-        
-        return results
+        finally:
+            session.close()
     
-    def cache_search_results(self, search_key: str, results: List[Dict], ttl: int = 3600):
+    def get_flight_price_history(self, flight_id: str) -> List[Dict]:
+        """Get flight price history"""
+        try:
+            # Create session
+            session = self.Session()
+            
+            # Get price history
+            history = session.query(FlightPriceHistory).filter_by(flight_id=flight_id).order_by(FlightPriceHistory.recorded_at).all()
+            
+            return [
+                {
+                    'price': h.price,
+                    'currency': h.currency,
+                    'recorded_at': h.recorded_at.isoformat()
+                }
+                for h in history
+            ]
+            
+        except Exception as e:
+            logger.error(f"Error getting flight price history: {e}")
+            return []
+        
+        finally:
+            session.close()
+    
+    def cache_search_results(self, params: Dict, results: Dict[str, List[Dict]]) -> None:
         """Cache search results in Redis"""
-        self.redis_client.setex(
-            f"search:{search_key}",
-            ttl,
-            json.dumps(results, default=str)
-        )
+        try:
+            # Generate cache key
+            key = self._generate_cache_key(params)
+            
+            # Cache results
+            self.redis.setex(
+                key,
+                config.CACHE_TTL,
+                json.dumps(results)
+            )
+            
+        except Exception as e:
+            logger.error(f"Error caching search results: {e}")
     
-    def get_cached_search(self, search_key: str) -> Optional[List[Dict]]:
-        """Retrieve cached search results"""
-        cached_data = self.redis_client.get(f"search:{search_key}")
-        if cached_data:
-            return json.loads(cached_data)
-        return None 
+    def get_cached_results(self, params: Dict) -> Optional[Dict[str, List[Dict]]]:
+        """Get cached search results from Redis"""
+        try:
+            # Generate cache key
+            key = self._generate_cache_key(params)
+            
+            # Get cached results
+            cached = self.redis.get(key)
+            
+            if cached:
+                return json.loads(cached)
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting cached results: {e}")
+            return None
+    
+    def _generate_cache_key(self, params: Dict) -> str:
+        """Generate cache key for search parameters"""
+        return f"search:{params['origin']}:{params['destination']}:{params['departure_date']}:{params['passengers']}:{params['seat_class']}"
+    
+    def get_search_stats(self) -> Dict:
+        """Get search statistics"""
+        try:
+            # Create session
+            session = self.Session()
+            
+            # Get total searches
+            total_searches = session.query(SearchQuery).count()
+            
+            # Get cached searches
+            cached_searches = session.query(SearchQuery).filter_by(cached=1).count()
+            
+            # Get average search duration
+            avg_duration = session.query(func.avg(SearchQuery.search_duration)).scalar() or 0
+            
+            # Get average results
+            avg_results = session.query(func.avg(SearchQuery.result_count)).scalar() or 0
+            
+            return {
+                'total_searches': total_searches,
+                'cached_searches': cached_searches,
+                'cache_hit_rate': (cached_searches / total_searches * 100) if total_searches > 0 else 0,
+                'avg_search_duration': avg_duration,
+                'avg_results': avg_results
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting search stats: {e}")
+            return {}
+        
+        finally:
+            session.close()
+    
+    def get_flight_stats(self) -> Dict:
+        """Get flight statistics"""
+        try:
+            # Create session
+            session = self.Session()
+            
+            # Get total flights
+            total_flights = session.query(Flight).count()
+            
+            # Get unique routes
+            unique_routes = session.query(Flight.origin, Flight.destination).distinct().count()
+            
+            # Get unique airlines
+            unique_airlines = session.query(Flight.airline).distinct().count()
+            
+            # Get average price
+            avg_price = session.query(func.avg(Flight.price)).scalar() or 0
+            
+            return {
+                'total_flights': total_flights,
+                'unique_routes': unique_routes,
+                'unique_airlines': unique_airlines,
+                'avg_price': avg_price
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting flight stats: {e}")
+            return {}
+        
+        finally:
+            session.close() 

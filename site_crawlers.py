@@ -1,16 +1,38 @@
 import asyncio
-from typing import List, Dict, Optional
+import logging
+from typing import List, Dict, Optional, Any
 from datetime import datetime
-from crawl4ai import AsyncCrawler
+from crawl4ai import AsyncCrawler, BrowserConfig
+from crawl4ai.cache_mode import CacheMode
+from bs4 import BeautifulSoup
 from persian_text import PersianTextProcessor
+from monitoring import CrawlerMonitor, ErrorHandler
+from config import config
+from playwright.async_api import async_playwright, Browser, Page
+from rate_limiter import RateLimiter
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class BaseSiteCrawler:
     """Base class for site-specific crawlers"""
     
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
         self.rate_limiter = rate_limiter
         self.text_processor = text_processor
-        self.crawler = AsyncCrawler()
+        self.monitor = monitor
+        self.error_handler = error_handler
+        self.logger = logging.getLogger(__name__)
+        
+        # Configure browser
+        self.browser_config = BrowserConfig(
+            headless=True,
+            timeout=config.CRAWLER.CRAWLER_TIMEOUT,
+            retry_attempts=config.CRAWLER.CRAWLER_RETRY_ATTEMPTS,
+            retry_delay=config.CRAWLER.CRAWLER_RETRY_DELAY
+        )
+        
+        self.crawler = AsyncCrawler(browser_config=self.browser_config)
     
     async def check_rate_limit(self) -> bool:
         """Check rate limit for the site"""
@@ -27,6 +49,29 @@ class BaseSiteCrawler:
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on the site"""
         raise NotImplementedError
+    
+    async def _execute_js(self, script: str, **kwargs) -> Any:
+        """Execute JavaScript with error handling"""
+        try:
+            return await self.crawler.execute_js(script, **kwargs)
+        except Exception as e:
+            self.logger.error(f"JavaScript execution error: {e}")
+            raise
+    
+    async def _wait_for_element(self, selector: str, timeout: int = 10) -> bool:
+        """Wait for element to be present"""
+        try:
+            return await self.crawler.wait_for_selector(selector, timeout=timeout)
+        except Exception as e:
+            self.logger.error(f"Wait for element error: {e}")
+            return False
+    
+    async def _take_screenshot(self, name: str) -> None:
+        """Take screenshot for debugging"""
+        try:
+            await self.crawler.screenshot(f"debug_{self.domain}_{name}.png")
+        except Exception as e:
+            self.logger.error(f"Screenshot error: {e}")
 
 class FlytodayCrawler(BaseSiteCrawler):
     """Crawler for Flytoday.ir"""
@@ -38,29 +83,90 @@ class FlytodayCrawler(BaseSiteCrawler):
     
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on Flytoday"""
-        if not await self.check_rate_limit():
-            wait_time = await self.get_wait_time()
-            if wait_time:
-                await asyncio.sleep(wait_time)
-        
-        # Implement Flytoday-specific crawling logic
-        # This is a placeholder - actual implementation would use the site's structure
-        search_url = f"{self.base_url}/search"
-        params = {
-            "origin": search_params["origin"],
-            "destination": search_params["destination"],
-            "departure_date": search_params["departure_date"],
-            "passengers": search_params["passengers"],
-            "class": search_params["seat_class"]
-        }
+        start_time = datetime.now()
         
         try:
-            response = await self.crawler.get(search_url, params=params)
-            # Parse response and extract flight data
-            # This is where you'd implement the actual parsing logic
-            return []
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            
+            # Navigate to search page
+            await self.crawler.goto(f"{self.base_url}/search")
+            
+            # Fill search form
+            await self._execute_js("""
+                document.querySelector('input[name="origin"]').value = arguments[0];
+                document.querySelector('input[name="destination"]').value = arguments[1];
+                document.querySelector('input[name="departure_date"]').value = arguments[2];
+                document.querySelector('select[name="passengers"]').value = arguments[3];
+                document.querySelector('select[name="class"]').value = arguments[4];
+            """, 
+            search_params["origin"],
+            search_params["destination"],
+            search_params["departure_date"],
+            search_params["passengers"],
+            search_params["seat_class"])
+            
+            # Submit form
+            await self._execute_js("""
+                document.querySelector('form').submit();
+            """)
+            
+            # Wait for results
+            if not await self._wait_for_element('.flight-list', timeout=30):
+                raise Exception("Flight results not found")
+            
+            # Take screenshot for debugging
+            await self._take_screenshot("search_results")
+            
+            # Extract flight data
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            flights = []
+            for flight_elem in soup.select('.flight-item'):
+                try:
+                    flight = {
+                        'airline': self.process_text(flight_elem.select_one('.airline-name').text),
+                        'flight_number': flight_elem.select_one('.flight-number').text.strip(),
+                        'origin': search_params["origin"],
+                        'destination': search_params["destination"],
+                        'departure_time': self.text_processor.parse_time(
+                            flight_elem.select_one('.departure-time').text
+                        ),
+                        'arrival_time': self.text_processor.parse_time(
+                            flight_elem.select_one('.arrival-time').text
+                        ),
+                        'price': self.text_processor.extract_price(
+                            flight_elem.select_one('.price').text
+                        )[0],
+                        'currency': 'IRR',
+                        'seat_class': self.text_processor.normalize_seat_class(
+                            flight_elem.select_one('.seat-class').text
+                        ),
+                        'duration': self.text_processor.extract_duration(
+                            flight_elem.select_one('.duration').text
+                        ),
+                        'source_url': self.base_url
+                    }
+                    flights.append(flight)
+                except Exception as e:
+                    self.logger.error(f"Error parsing flight: {e}")
+                    continue
+            
+            # Track successful request
+            await self.monitor.track_request(self.domain, start_time.timestamp())
+            
+            return flights
+            
         except Exception as e:
-            print(f"Error crawling Flytoday: {e}")
+            self.logger.error(f"Error crawling Flytoday: {e}")
+            await self.error_handler.handle_error(self.domain, e)
             return []
 
 class AlibabaCrawler(BaseSiteCrawler):
@@ -73,27 +179,90 @@ class AlibabaCrawler(BaseSiteCrawler):
     
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on Alibaba"""
-        if not await self.check_rate_limit():
-            wait_time = await self.get_wait_time()
-            if wait_time:
-                await asyncio.sleep(wait_time)
-        
-        # Implement Alibaba-specific crawling logic
-        search_url = f"{self.base_url}/flight/search"
-        params = {
-            "origin": search_params["origin"],
-            "destination": search_params["destination"],
-            "departure_date": search_params["departure_date"],
-            "adult": search_params["passengers"],
-            "cabin_class": search_params["seat_class"]
-        }
+        start_time = datetime.now()
         
         try:
-            response = await self.crawler.get(search_url, params=params)
-            # Parse response and extract flight data
-            return []
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            
+            # Navigate to search page
+            await self.crawler.goto(f"{self.base_url}/flight/search")
+            
+            # Fill search form
+            await self._execute_js("""
+                document.querySelector('#origin').value = arguments[0];
+                document.querySelector('#destination').value = arguments[1];
+                document.querySelector('#departure_date').value = arguments[2];
+                document.querySelector('#adult').value = arguments[3];
+                document.querySelector('#cabin_class').value = arguments[4];
+            """, 
+            search_params["origin"],
+            search_params["destination"],
+            search_params["departure_date"],
+            search_params["passengers"],
+            search_params["seat_class"])
+            
+            # Submit form
+            await self._execute_js("""
+                document.querySelector('form').submit();
+            """)
+            
+            # Wait for results
+            if not await self._wait_for_element('.flight-list', timeout=30):
+                raise Exception("Flight results not found")
+            
+            # Take screenshot for debugging
+            await self._take_screenshot("search_results")
+            
+            # Extract flight data
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            flights = []
+            for flight_elem in soup.select('.flight-item'):
+                try:
+                    flight = {
+                        'airline': self.process_text(flight_elem.select_one('.airline-name').text),
+                        'flight_number': flight_elem.select_one('.flight-number').text.strip(),
+                        'origin': search_params["origin"],
+                        'destination': search_params["destination"],
+                        'departure_time': self.text_processor.parse_time(
+                            flight_elem.select_one('.departure-time').text
+                        ),
+                        'arrival_time': self.text_processor.parse_time(
+                            flight_elem.select_one('.arrival-time').text
+                        ),
+                        'price': self.text_processor.extract_price(
+                            flight_elem.select_one('.price').text
+                        )[0],
+                        'currency': 'IRR',
+                        'seat_class': self.text_processor.normalize_seat_class(
+                            flight_elem.select_one('.seat-class').text
+                        ),
+                        'duration': self.text_processor.extract_duration(
+                            flight_elem.select_one('.duration').text
+                        ),
+                        'source_url': self.base_url
+                    }
+                    flights.append(flight)
+                except Exception as e:
+                    self.logger.error(f"Error parsing flight: {e}")
+                    continue
+            
+            # Track successful request
+            await self.monitor.track_request(self.domain, start_time.timestamp())
+            
+            return flights
+            
         except Exception as e:
-            print(f"Error crawling Alibaba: {e}")
+            self.logger.error(f"Error crawling Alibaba: {e}")
+            await self.error_handler.handle_error(self.domain, e)
             return []
 
 class SafarmarketCrawler(BaseSiteCrawler):
@@ -106,25 +275,88 @@ class SafarmarketCrawler(BaseSiteCrawler):
     
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on Safarmarket"""
-        if not await self.check_rate_limit():
-            wait_time = await self.get_wait_time()
-            if wait_time:
-                await asyncio.sleep(wait_time)
-        
-        # Implement Safarmarket-specific crawling logic
-        search_url = f"{self.base_url}/flight/search"
-        params = {
-            "from": search_params["origin"],
-            "to": search_params["destination"],
-            "date": search_params["departure_date"],
-            "passengers": search_params["passengers"],
-            "class": search_params["seat_class"]
-        }
+        start_time = datetime.now()
         
         try:
-            response = await self.crawler.get(search_url, params=params)
-            # Parse response and extract flight data
-            return []
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+            
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+            
+            # Navigate to search page
+            await self.crawler.goto(f"{self.base_url}/flight/search")
+            
+            # Fill search form
+            await self._execute_js("""
+                document.querySelector('#from').value = arguments[0];
+                document.querySelector('#to').value = arguments[1];
+                document.querySelector('#date').value = arguments[2];
+                document.querySelector('#passengers').value = arguments[3];
+                document.querySelector('#class').value = arguments[4];
+            """, 
+            search_params["origin"],
+            search_params["destination"],
+            search_params["departure_date"],
+            search_params["passengers"],
+            search_params["seat_class"])
+            
+            # Submit form
+            await self._execute_js("""
+                document.querySelector('form').submit();
+            """)
+            
+            # Wait for results
+            if not await self._wait_for_element('.flight-list', timeout=30):
+                raise Exception("Flight results not found")
+            
+            # Take screenshot for debugging
+            await self._take_screenshot("search_results")
+            
+            # Extract flight data
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            flights = []
+            for flight_elem in soup.select('.flight-item'):
+                try:
+                    flight = {
+                        'airline': self.process_text(flight_elem.select_one('.airline-name').text),
+                        'flight_number': flight_elem.select_one('.flight-number').text.strip(),
+                        'origin': search_params["origin"],
+                        'destination': search_params["destination"],
+                        'departure_time': self.text_processor.parse_time(
+                            flight_elem.select_one('.departure-time').text
+                        ),
+                        'arrival_time': self.text_processor.parse_time(
+                            flight_elem.select_one('.arrival-time').text
+                        ),
+                        'price': self.text_processor.extract_price(
+                            flight_elem.select_one('.price').text
+                        )[0],
+                        'currency': 'IRR',
+                        'seat_class': self.text_processor.normalize_seat_class(
+                            flight_elem.select_one('.seat-class').text
+                        ),
+                        'duration': self.text_processor.extract_duration(
+                            flight_elem.select_one('.duration').text
+                        ),
+                        'source_url': self.base_url
+                    }
+                    flights.append(flight)
+                except Exception as e:
+                    self.logger.error(f"Error parsing flight: {e}")
+                    continue
+            
+            # Track successful request
+            await self.monitor.track_request(self.domain, start_time.timestamp())
+            
+            return flights
+            
         except Exception as e:
-            print(f"Error crawling Safarmarket: {e}")
+            self.logger.error(f"Error crawling Safarmarket: {e}")
+            await self.error_handler.handle_error(self.domain, e)
             return [] 

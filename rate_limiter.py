@@ -7,6 +7,13 @@ import requests
 from urllib.robotparser import RobotFileParser
 import redis
 from datetime import datetime, timedelta
+import logging
+from redis import Redis
+
+from config import config
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class RespectfulRateLimiter:
     """Implements respectful rate limiting and anti-bot evasion"""
@@ -117,60 +124,177 @@ class ProxyRotator:
 class RateLimiter:
     """Rate limiter for crawler requests"""
     
-    def __init__(self, redis_client: redis.Redis, max_requests: int = 10, period: int = 60):
-        self.redis = redis_client
-        self.max_requests = max_requests
-        self.period = period
+    def __init__(self):
+        # Initialize Redis
+        self.redis = Redis.from_url(config.REDIS_URL)
     
-    def _get_key(self, domain: str) -> str:
-        """Generate Redis key for rate limiting"""
-        return f"rate_limit:{domain}:{int(time.time() / self.period)}"
-    
-    async def check_rate_limit(self, domain: str) -> bool:
-        """Check if request is allowed under rate limit"""
-        key = self._get_key(domain)
-        current = self.redis.get(key)
-        
-        if current is None:
-            # First request in this period
-            self.redis.setex(key, self.period, 1)
+    def check_rate_limit(self, domain: str) -> bool:
+        """Check if request is allowed"""
+        try:
+            # Get rate limit settings
+            rate_limit = config.SITES[domain]['rate_limit']
+            rate_period = config.SITES[domain]['rate_period']
+            
+            # Get current count
+            key = f"rate_limit:{domain}"
+            count = int(self.redis.get(key) or 0)
+            
+            # Check if limit exceeded
+            if count >= rate_limit:
+                return False
+            
+            # Increment count
+            pipe = self.redis.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, rate_period)
+            pipe.execute()
+            
             return True
-        
-        current = int(current)
-        if current >= self.max_requests:
-            return False
-        
-        # Increment counter
-        self.redis.incr(key)
-        return True
+            
+        except Exception as e:
+            logger.error(f"Error checking rate limit: {e}")
+            return True
     
-    async def get_wait_time(self, domain: str) -> Optional[int]:
+    def get_wait_time(self, domain: str) -> int:
         """Get time to wait before next request"""
-        key = self._get_key(domain)
-        current = self.redis.get(key)
-        
-        if current is None:
+        try:
+            # Get key TTL
+            key = f"rate_limit:{domain}"
+            ttl = self.redis.ttl(key)
+            
+            return max(0, ttl)
+            
+        except Exception as e:
+            logger.error(f"Error getting wait time: {e}")
             return 0
-        
-        current = int(current)
-        if current >= self.max_requests:
-            # Calculate time until next period
-            now = int(time.time())
-            next_period = ((now // self.period) + 1) * self.period
-            return next_period - now
-        
-        return 0
     
-    def get_metrics(self, domain: str) -> Dict:
-        """Get rate limiting metrics"""
-        key = self._get_key(domain)
-        current = self.redis.get(key)
-        
-        return {
-            "domain": domain,
-            "current_requests": int(current) if current else 0,
-            "max_requests": self.max_requests,
-            "period_seconds": self.period,
-            "remaining_requests": max(0, self.max_requests - (int(current) if current else 0)),
-            "reset_time": datetime.now() + timedelta(seconds=self.period)
-        } 
+    def reset_rate_limit(self, domain: str) -> None:
+        """Reset rate limit for domain"""
+        try:
+            # Delete key
+            key = f"rate_limit:{domain}"
+            self.redis.delete(key)
+            
+        except Exception as e:
+            logger.error(f"Error resetting rate limit: {e}")
+    
+    def get_rate_limit_stats(self, domain: str) -> Dict:
+        """Get rate limit statistics"""
+        try:
+            # Get rate limit settings
+            rate_limit = config.SITES[domain]['rate_limit']
+            rate_period = config.SITES[domain]['rate_period']
+            
+            # Get current count
+            key = f"rate_limit:{domain}"
+            count = int(self.redis.get(key) or 0)
+            
+            # Get TTL
+            ttl = self.redis.ttl(key)
+            
+            return {
+                'domain': domain,
+                'current_count': count,
+                'max_requests': rate_limit,
+                'period_seconds': rate_period,
+                'time_to_reset': ttl
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting rate limit stats: {e}")
+            return {}
+    
+    def get_all_rate_limit_stats(self) -> Dict[str, Dict]:
+        """Get rate limit statistics for all domains"""
+        try:
+            return {
+                domain: self.get_rate_limit_stats(domain)
+                for domain in config.SITES.keys()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting all rate limit stats: {e}")
+            return {}
+    
+    def is_rate_limited(self, domain: str) -> bool:
+        """Check if domain is rate limited"""
+        try:
+            # Get current count
+            key = f"rate_limit:{domain}"
+            count = int(self.redis.get(key) or 0)
+            
+            # Get rate limit
+            rate_limit = config.SITES[domain]['rate_limit']
+            
+            return count >= rate_limit
+            
+        except Exception as e:
+            logger.error(f"Error checking rate limit status: {e}")
+            return False
+    
+    def get_remaining_requests(self, domain: str) -> int:
+        """Get remaining requests for domain"""
+        try:
+            # Get current count
+            key = f"rate_limit:{domain}"
+            count = int(self.redis.get(key) or 0)
+            
+            # Get rate limit
+            rate_limit = config.SITES[domain]['rate_limit']
+            
+            return max(0, rate_limit - count)
+            
+        except Exception as e:
+            logger.error(f"Error getting remaining requests: {e}")
+            return 0
+    
+    def get_reset_time(self, domain: str) -> Optional[datetime]:
+        """Get time when rate limit resets"""
+        try:
+            # Get TTL
+            key = f"rate_limit:{domain}"
+            ttl = self.redis.ttl(key)
+            
+            if ttl > 0:
+                return datetime.now() + timedelta(seconds=ttl)
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting reset time: {e}")
+            return None
+    
+    def get_all_reset_times(self) -> Dict[str, Optional[datetime]]:
+        """Get reset times for all domains"""
+        try:
+            return {
+                domain: self.get_reset_time(domain)
+                for domain in config.SITES.keys()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting all reset times: {e}")
+            return {}
+    
+    def clear_rate_limits(self) -> None:
+        """Clear all rate limits"""
+        try:
+            # Delete all rate limit keys
+            for domain in config.SITES.keys():
+                key = f"rate_limit:{domain}"
+                self.redis.delete(key)
+            
+        except Exception as e:
+            logger.error(f"Error clearing rate limits: {e}")
+    
+    def get_rate_limit_keys(self) -> Dict[str, str]:
+        """Get rate limit keys for all domains"""
+        try:
+            return {
+                domain: f"rate_limit:{domain}"
+                for domain in config.SITES.keys()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting rate limit keys: {e}")
+            return {} 

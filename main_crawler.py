@@ -10,6 +10,185 @@ from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from hazm import Normalizer
 from persian_tools import digits
 import jdatetime
+# Add these imports at the top
+from monitoring import CrawlerMonitor, ErrorHandler
+from data_manager import FlightDataManager, DataManager
+from site_crawlers import FlytodayCrawler, AlibabaCrawler, SafarmarketCrawler
+from crawl4ai.cache_mode import CacheMode  # Missing import
+from rate_limiter import RateLimiter
+from persian_text import PersianTextProcessor
+from config import config
+
+class IranianFlightCrawler:
+    """Main crawler class for Iranian flight booking sites"""
+    
+    def __init__(
+        self,
+        monitor: CrawlerMonitor,
+        error_handler: ErrorHandler,
+        data_manager: DataManager
+    ):
+        self.monitor = monitor
+        self.error_handler = error_handler
+        self.data_manager = data_manager
+        
+        # Initialize components
+        self.rate_limiter = RateLimiter(monitor.redis)
+        self.text_processor = PersianTextProcessor()
+        
+        # Initialize site crawlers
+        self.crawlers = {
+            "flytoday.ir": FlytodayCrawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler
+            ),
+            "alibaba.ir": AlibabaCrawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler
+            ),
+            "safarmarket.com": SafarmarketCrawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler
+            )
+        }
+    
+    async def crawl_all_sites(self, search_params: Dict) -> List[Dict]:
+        """Crawl all sites for flights"""
+        try:
+            # Check cache first
+            search_key = self._generate_search_key(search_params)
+            cached_results = await self.data_manager.get_cached_search(search_key)
+            
+            if cached_results:
+                logger.info(f"Returning cached results for {search_key}")
+                return cached_results
+            
+            # Start time for response time calculation
+            start_time = datetime.now()
+            
+            # Crawl all sites concurrently
+            tasks = [
+                self._crawl_site(domain, crawler, search_params)
+                for domain, crawler in self.crawlers.items()
+            ]
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Process results
+            flights = []
+            for domain, result in zip(self.crawlers.keys(), results):
+                if isinstance(result, Exception):
+                    logger.error(f"Error crawling {domain}: {result}")
+                    continue
+                
+                flights.extend(result)
+            
+            # Store results
+            if flights:
+                await self.data_manager.store_flights(flights)
+                
+                # Cache results
+                await self.data_manager.cache_search_results(
+                    search_key,
+                    flights,
+                    config.CRAWLER.CACHE_TTL
+                )
+            
+            # Store search query
+            response_time = (datetime.now() - start_time).total_seconds() * 1000
+            await self.data_manager.store_search_query(
+                search_params,
+                len(flights),
+                int(response_time)
+            )
+            
+            return flights
+            
+        except Exception as e:
+            logger.error(f"Error crawling sites: {e}")
+            return []
+    
+    async def _crawl_site(
+        self,
+        domain: str,
+        crawler: BaseSiteCrawler,
+        search_params: Dict
+    ) -> List[Dict]:
+        """Crawl a single site"""
+        try:
+            # Check if we can make request
+            if not await self.error_handler.can_make_request(domain):
+                logger.warning(f"Circuit breaker open for {domain}")
+                return []
+            
+            # Check rate limit
+            if not await self.rate_limiter.check_rate_limit(domain):
+                wait_time = await self.rate_limiter.get_wait_time(domain)
+                if wait_time:
+                    logger.info(f"Rate limit reached for {domain}, waiting {wait_time}s")
+                    await asyncio.sleep(wait_time)
+            
+            # Crawl site
+            flights = await crawler.search_flights(search_params)
+            
+            # Add domain to flights
+            for flight in flights:
+                flight["domain"] = domain
+            
+            return flights
+            
+        except Exception as e:
+            logger.error(f"Error crawling {domain}: {e}")
+            await self.error_handler.handle_error(domain, e)
+            return []
+    
+    def _generate_search_key(self, search_params: Dict) -> str:
+        """Generate cache key for search"""
+        return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}"
+    
+    async def get_health_status(self) -> Dict:
+        """Get crawler health status"""
+        try:
+            # Get metrics
+            metrics = await self.monitor.get_all_metrics()
+            
+            # Get error stats
+            error_stats = await self.error_handler.get_all_error_stats()
+            
+            # Get rate limit stats
+            rate_limit_stats = await self.rate_limiter.get_all_rate_limit_stats()
+            
+            # Calculate overall status
+            status = "healthy"
+            for domain, stats in error_stats.items():
+                if stats.get("circuit_open"):
+                    status = "degraded"
+                    break
+            
+            return {
+                "status": status,
+                "domains": {
+                    domain: {
+                        "metrics": metrics.get(domain, {}),
+                        "errors": error_stats.get(domain, {}),
+                        "rate_limit": rate_limit_stats.get(domain, {})
+                    }
+                    for domain in config.CRAWLER.DOMAINS
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting health status: {e}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
 @dataclass
 class FlightData:

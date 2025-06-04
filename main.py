@@ -1,109 +1,164 @@
+import logging
 import asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from pydantic import BaseModel
 from typing import Dict, List, Optional
-import uvicorn
-import time
+from datetime import datetime
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from config import config
+from main_crawler import IranianFlightCrawler
+from monitoring import CrawlerMonitor
 
-# Initialize FastAPI app
-app = FastAPI(title="Iranian Flight Crawler API", version="1.0.0")
+# Configure logging
+logging.basicConfig(
+    level=config.LOG_LEVEL,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Initialize crawler
+# Create FastAPI app
+app = FastAPI(
+    title="Iranian Flight Crawler",
+    description="API for crawling Iranian flight websites",
+    version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# Create crawler instance
 crawler = IranianFlightCrawler()
 
+# Create monitor instance
+monitor = CrawlerMonitor()
+
+# Request models
 class SearchRequest(BaseModel):
     origin: str
     destination: str
-    departure_date: str
-    return_date: Optional[str] = None
-    passengers: int = 1
-    seat_class: Optional[str] = "economy"
+    date: str
 
-class FlightResponse(BaseModel):
+class SearchResponse(BaseModel):
     flights: List[Dict]
-    total_count: int
-    search_time_ms: int
+    timestamp: str
 
-@app.post("/search", response_model=FlightResponse)
-async def search_flights(request: SearchRequest, background_tasks: BackgroundTasks):
-    """Search for flights across all Iranian booking sites"""
-    start_time = time.time()
-    
+class HealthResponse(BaseModel):
+    status: str
+    metrics: Dict
+    error_stats: Dict
+    rate_limit_stats: Dict
+    timestamp: str
+
+# API endpoints
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"message": "Iranian Flight Crawler API"}
+
+@app.post("/search", response_model=SearchResponse)
+async def search_flights(request: SearchRequest):
+    """Search flights endpoint"""
     try:
-        # Check cache first
-        search_key = f"{request.origin}_{request.destination}_{request.departure_date}"
-        cached_results = crawler.data_manager.get_cached_search(search_key)
+        # Search flights
+        flights = await crawler.crawl_all_sites(
+            request.origin,
+            request.destination,
+            request.date
+        )
         
-        if cached_results:
-            return FlightResponse(
-                flights=cached_results,
-                total_count=len(cached_results),
-                search_time_ms=int((time.time() - start_time) * 1000)
-            )
-        
-        # Perform live search
-        search_params = {
-            'origin': request.origin,
-            'destination': request.destination,
-            'departure_date': request.departure_date,
-            'passengers': request.passengers,
-            'seat_class': request.seat_class
+        return {
+            "flights": flights,
+            "timestamp": datetime.now().isoformat()
         }
         
-        flights = await crawler.crawl_all_sites(search_params)
+    except Exception as e:
+        logger.error(f"Error searching flights: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    """Health check endpoint"""
+    try:
+        # Get health status
+        health = crawler.get_health_status()
         
-        # Convert to response format
-        flight_dicts = [
-            {
-                'flight_id': f.flight_id,
-                'airline': f.airline,
-                'flight_number': f.flight_number,
-                'origin': f.origin,
-                'destination': f.destination,
-                'departure_time': f.departure_time.isoformat(),
-                'arrival_time': f.arrival_time.isoformat(),
-                'price': f.price,
-                'currency': f.currency,
-                'seat_class': f.seat_class,
-                'duration_minutes': f.duration_minutes,
-                'flight_type': f.flight_type
-            }
-            for f in flights
-        ]
-        
-        # Cache results
-        background_tasks.add_task(
-            crawler.data_manager.cache_search_results,
-            search_key, flight_dicts, 1800  # 30 minutes
-        )
-        
-        return FlightResponse(
-            flights=flight_dicts,
-            total_count=len(flight_dicts),
-            search_time_ms=int((time.time() - start_time) * 1000)
-        )
+        return {
+            "status": "healthy",
+            "metrics": health["metrics"],
+            "error_stats": health["error_stats"],
+            "rate_limit_stats": health["rate_limit_stats"],
+            "timestamp": health["timestamp"]
+        }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
-@app.get("/health")
-async def health_check():
-    """Get crawler health status"""
-    return crawler.monitor.get_health_status()
+        logger.error(f"Error checking health: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/metrics")
 async def get_metrics():
-    """Get crawler metrics"""
-    return {
-        'requests_total': dict(crawler.monitor.metrics['requests_total']),
-        'success_rates': {
-            domain: (crawler.monitor.metrics['requests_successful'][domain] / 
-                    crawler.monitor.metrics['requests_total'][domain] * 100)
-            if crawler.monitor.metrics['requests_total'][domain] > 0 else 0
-            for domain in crawler.monitor.metrics['requests_total']
-        },
-        'flights_scraped': dict(crawler.monitor.metrics['flights_scraped'])
-    }
+    """Get metrics endpoint"""
+    try:
+        # Get all metrics
+        metrics = monitor.get_all_metrics()
+        
+        return {
+            "metrics": metrics,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/stats")
+async def get_stats():
+    """Get stats endpoint"""
+    try:
+        # Get all stats
+        site_stats = crawler.get_all_site_stats()
+        search_stats = crawler.get_search_stats()
+        flight_stats = crawler.get_flight_stats()
+        
+        return {
+            "site_stats": site_stats,
+            "search_stats": search_stats,
+            "flight_stats": flight_stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/reset")
+async def reset_stats():
+    """Reset stats endpoint"""
+    try:
+        # Reset all stats
+        crawler.reset_stats()
+        
+        return {
+            "message": "Stats reset successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error resetting stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Run app
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host=config.API_HOST,
+        port=config.API_PORT,
+        workers=config.API_WORKERS,
+        reload=True
+    ) 

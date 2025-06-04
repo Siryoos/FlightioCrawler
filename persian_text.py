@@ -1,7 +1,13 @@
 import re
-from typing import Dict, List
-from datetime import datetime
+import logging
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
 import jdatetime
+from config import config
+from persian_tools import digits
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class PersianTextProcessor:
     """Process Persian text and dates"""
@@ -9,7 +15,9 @@ class PersianTextProcessor:
     def __init__(self):
         self.persian_numbers = {
             '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
-            '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9'
+            '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
+            '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+            '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
         }
         
         self.airline_names = {
@@ -22,14 +30,87 @@ class PersianTextProcessor:
             'هواپیمایی آتا': 'Ata Airlines',
             'هواپیمایی وارش': 'Varesh Airlines',
             'هواپیمایی قشم ایر': 'Qeshm Air',
-            'هواپیمایی کیش': 'Kish Airline'
+            'هواپیمایی کیش': 'Kish Airline',
+            'هواپیمایی معراج': 'Meraj Airlines',
+            'هواپیمایی نفت': 'Naft Airlines',
+            'هواپیمایی تابان': 'Taban Airlines',
+            'هواپیمایی ساها': 'Saha Airlines',
+            'هواپیمایی آریا': 'Aria Airlines',
+            'هواپیمایی پارس': 'Pouya Air',
+            'هواپیمایی کاسکو': 'Caspian Airlines',
+            'هواپیمایی فارس ایر': 'Fars Air Qeshm',
+            'هواپیمایی آسمان': 'Aseman Airlines',
+            'هواپیمایی ایران ایرتور': 'Iran Airtour'
+        }
+        
+        self.airport_codes = {
+            'تهران': 'THR',
+            'مشهد': 'MHD',
+            'شیراز': 'SYZ',
+            'اصفهان': 'IFN',
+            'تبریز': 'TBZ',
+            'اهواز': 'AWZ',
+            'کرج': 'KIH',
+            'کرمانشاه': 'KSH',
+            'بندرعباس': 'BND',
+            'بوشهر': 'BUZ',
+            'چابهار': 'ZBR',
+            'زاهدان': 'ZAH',
+            'ساری': 'SRY',
+            'سنندج': 'SNX',
+            'شهرکرد': 'CQD',
+            'کرمان': 'KER',
+            'گرگان': 'GBT',
+            'یزد': 'AZD',
+            'ارومیه': 'OMH',
+            'اهواز': 'AWZ',
+            'بندر لنگه': 'BDH',
+            'بوشهر': 'BUZ',
+            'جهرم': 'JAR',
+            'خرم آباد': 'KHD',
+            'دزفول': 'DEF',
+            'رامسر': 'RZR',
+            'زنجان': 'JWN',
+            'سیرجان': 'SYJ',
+            'شاهرود': 'RUD',
+            'قشم': 'QSH',
+            'کیش': 'KIH',
+            'لار': 'LRR',
+            'لامرد': 'LFM',
+            'ماهشهر': 'MRX',
+            'نوشهر': 'NSH',
+            'هوایی': 'THR'
         }
         
         self.seat_classes = {
             'اکونومی': 'economy',
             'بیزینس': 'business',
-            'فرست کلاس': 'first class'
+            'فرست کلاس': 'first class',
+            'کلاس اقتصادی': 'economy',
+            'کلاس تجاری': 'business',
+            'کلاس اول': 'first class',
+            'درجه یک': 'first class',
+            'درجه دو': 'economy',
+            'درجه سه': 'economy'
         }
+        
+        self.currency_symbols = {
+            'تومان': 'IRR',
+            'ریال': 'IRR',
+            'دلار': 'USD',
+            'یورو': 'EUR',
+            'پوند': 'GBP',
+            'درهم': 'AED'
+        }
+        
+        self.time_formats = [
+            r'(\d{1,2}):(\d{2})',
+            r'(\d{1,2})\.(\d{2})',
+            r'(\d{1,2}) بامداد',
+            r'(\d{1,2}) صبح',
+            r'(\d{1,2}) بعد از ظهر',
+            r'(\d{1,2}) عصر'
+        ]
     
     def process(self, text: str) -> str:
         """Process Persian text"""
@@ -45,7 +126,7 @@ class PersianTextProcessor:
         return text
     
     def _convert_numbers(self, text: str) -> str:
-        """Convert Persian numbers to English"""
+        """Convert Persian and Arabic numbers to English"""
         for persian, english in self.persian_numbers.items():
             text = text.replace(persian, english)
         return text
@@ -81,32 +162,88 @@ class PersianTextProcessor:
             print(f"Error formatting Persian date: {e}")
             return date.strftime("%Y/%m/%d")
     
+    def parse_time(self, time_str: str) -> Optional[datetime]:
+        """Parse time from various Persian formats"""
+        time_str = self.process(time_str)
+        
+        for pattern in self.time_formats:
+            match = re.search(pattern, time_str)
+            if match:
+                hour = int(match.group(1))
+                minute = int(match.group(2)) if len(match.groups()) > 1 else 0
+                
+                # Handle AM/PM
+                if 'بعد از ظهر' in time_str or 'عصر' in time_str:
+                    if hour < 12:
+                        hour += 12
+                elif 'بامداد' in time_str or 'صبح' in time_str:
+                    if hour == 12:
+                        hour = 0
+                
+                return datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0)
+        
+        return None
+    
     def normalize_airline_name(self, name: str) -> str:
         """Normalize airline name"""
         name = self.process(name)
         return self.airline_names.get(name, name)
+    
+    def get_airport_code(self, city_name: str) -> Optional[str]:
+        """Get airport code for city name"""
+        city_name = self.process(city_name)
+        return self.airport_codes.get(city_name)
     
     def normalize_seat_class(self, seat_class: str) -> str:
         """Normalize seat class"""
         seat_class = self.process(seat_class)
         return self.seat_classes.get(seat_class, seat_class.lower())
     
-    def extract_price(self, price_text: str) -> float:
-        """Extract price from text"""
+    def extract_price(self, price_text: str) -> Tuple[float, str]:
+        """Extract price and currency from text"""
         try:
+            # Find currency
+            currency = 'IRR'  # Default to IRR
+            for symbol, code in self.currency_symbols.items():
+                if symbol in price_text:
+                    currency = code
+                    break
+            
             # Remove currency symbols and commas
             price_text = re.sub(r'[^\d.]', '', self.process(price_text))
-            return float(price_text)
+            
+            # Convert to float
+            price = float(price_text)
+            
+            # Convert to IRR if needed
+            if currency == 'IRR' and price < 1000:  # Assume it's in Toman
+                price *= 10
+            
+            return price, currency
         except Exception as e:
             print(f"Error extracting price from {price_text}: {e}")
-            return 0.0
+            return 0.0, 'IRR'
     
     def extract_duration(self, duration_text: str) -> int:
         """Extract duration in minutes from text"""
         try:
             # Remove non-numeric characters
             duration_text = re.sub(r'[^\d]', '', self.process(duration_text))
+            
+            # Check if it's in hours
+            if 'ساعت' in duration_text or 'hour' in duration_text.lower():
+                return int(duration_text) * 60
+            
             return int(duration_text)
         except Exception as e:
             print(f"Error extracting duration from {duration_text}: {e}")
+            return 0
+    
+    def calculate_duration(self, departure: datetime, arrival: datetime) -> int:
+        """Calculate flight duration in minutes"""
+        try:
+            duration = arrival - departure
+            return int(duration.total_seconds() / 60)
+        except Exception as e:
+            print(f"Error calculating duration: {e}")
             return 0 
