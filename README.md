@@ -61,8 +61,8 @@ pip install -r requirements.txt
 # Create PostgreSQL database
 createdb flight_data
 
-# Run database migrations
-python manage.py migrate
+# Initialize database schema
+psql -d flight_data -f init.sql
 ```
 
 5. Configure Redis:
