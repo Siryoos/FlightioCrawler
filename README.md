@@ -108,13 +108,13 @@ tail -f flight_crawler.log
 ```
 FlightioCrawler/
 ├── main_crawler.py          # Main crawler orchestrator
-├── site_crawlers/          # Individual site crawlers
-├── monitoring/             # Monitoring and error handling
-├── data_manager/          # Data storage and caching
-├── intelligent_search/     # Search optimization
-├── price_monitor/         # Price monitoring
-├── ml_predictor/          # Price prediction
-└── multilingual_processor/ # Language processing
+├── site_crawlers.py         # Individual site crawlers
+├── monitoring/              # Monitoring and error handling
+├── data_manager.py          # Data storage and caching
+├── intelligent_search.py    # Search optimization
+├── price_monitor.py         # Price monitoring
+├── ml_predictor.py          # Price prediction
+└── multilingual_processor.py # Language processing
 ```
 
 ### Key Components | اجزای اصلی
@@ -124,12 +124,12 @@ FlightioCrawler/
    - Handles concurrent crawling
    - Implements error handling
 
-2. **Site Crawlers** (`site_crawlers/`)
+2. **Site Crawlers** (`site_crawlers.py`)
    - Individual crawlers for each website
    - Custom parsing logic
    - Rate limiting implementation
 
-3. **Data Management** (`data_manager/`)
+3. **Data Management** (`data_manager.py`)
    - Database operations
    - Caching system
    - Data normalization
@@ -143,7 +143,7 @@ FlightioCrawler/
 
 To add a new website to the crawler:
 
-1. Create a new crawler class in `site_crawlers/`:
+1. Create a new crawler class in `site_crawlers.py`:
 ```python
 from base_crawler import BaseCrawler
 
