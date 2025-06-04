@@ -10,14 +10,16 @@ from monitoring import CrawlerMonitor, ErrorHandler
 from config import config
 from playwright.async_api import async_playwright, Browser, Page
 from rate_limiter import RateLimiter
+from stealth_crawler import StealthCrawler
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class BaseSiteCrawler:
+class BaseSiteCrawler(StealthCrawler):
     """Base class for site-specific crawlers"""
     
     def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+        super().__init__()
         self.rate_limiter = rate_limiter
         self.text_processor = text_processor
         self.monitor = monitor
@@ -47,7 +49,7 @@ class BaseSiteCrawler:
         return self.text_processor.process(text)
     
     async def search_flights(self, search_params: Dict) -> List[Dict]:
-        """Search flights on the site"""
+        # Apply stealth techniques here (e.g., fingerprinting, human simulation)
         raise NotImplementedError
     
     async def _execute_js(self, script: str, **kwargs) -> Any:

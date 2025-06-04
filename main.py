@@ -2,12 +2,16 @@ import logging
 import asyncio
 from typing import Dict, List, Optional
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from config import config
 from main_crawler import IranianFlightCrawler
 from monitoring import CrawlerMonitor
+from intelligent_search import SearchOptimization
+from price_monitor import PriceMonitor, WebSocketManager
+from ml_predictor import FlightPricePredictor
+from multilingual_processor import MultilingualProcessor
 
 # Configure logging
 logging.basicConfig(
@@ -62,7 +66,7 @@ async def root():
     return {"message": "Iranian Flight Crawler API"}
 
 @app.post("/search", response_model=SearchResponse)
-async def search_flights(request: SearchRequest):
+async def search_flights(request: SearchRequest, accept_language: str = Header("en")):
     """Search flights endpoint"""
     try:
         # Search flights
@@ -71,6 +75,9 @@ async def search_flights(request: SearchRequest):
             request.destination,
             request.date
         )
+        
+        if accept_language != "en":
+            flights = await crawler.multilingual.translate_flight_data(flights, accept_language)
         
         return {
             "flights": flights,
@@ -151,6 +158,18 @@ async def reset_stats():
     except Exception as e:
         logger.error(f"Error resetting stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.websocket("/ws/prices/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await crawler.price_monitor.websocket_manager.connect(websocket, user_id)
+
+@app.post("/predict")
+async def predict_prices(route: str, dates: List[str]):
+    return await crawler.ml_predictor.predict_future_prices(route, dates)
+
+@app.post("/search/intelligent")
+async def intelligent_search(request: SearchRequest, optimization: SearchOptimization):
+    return await crawler.intelligent_search_flights(request.dict(), optimization)
 
 # Run app
 if __name__ == "__main__":

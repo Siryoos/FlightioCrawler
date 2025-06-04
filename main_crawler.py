@@ -18,6 +18,10 @@ from crawl4ai.cache_mode import CacheMode  # Missing import
 from rate_limiter import RateLimiter
 from persian_text import PersianTextProcessor
 from config import config
+from intelligent_search import IntelligentSearchEngine, SearchOptimization
+from price_monitor import PriceMonitor
+from ml_predictor import FlightPricePredictor
+from multilingual_processor import MultilingualProcessor
 
 class IranianFlightCrawler:
     """Main crawler class for Iranian flight booking sites"""
@@ -57,6 +61,11 @@ class IranianFlightCrawler:
                 self.error_handler
             )
         }
+        
+        self.intelligent_search = IntelligentSearchEngine(self, self.data_manager)
+        self.price_monitor = PriceMonitor(self.data_manager, self.redis_client)
+        self.ml_predictor = FlightPricePredictor(self.data_manager, self.redis_client)
+        self.multilingual = MultilingualProcessor()
     
     async def crawl_all_sites(self, search_params: Dict) -> List[Dict]:
         """Crawl all sites for flights"""
@@ -189,6 +198,10 @@ class IranianFlightCrawler:
                 "status": "error",
                 "error": str(e)
             }
+
+    async def intelligent_search_flights(self, search_params: Dict, optimization: SearchOptimization) -> Dict:
+        """Run intelligent search using the optimization engine."""
+        return await self.intelligent_search.optimize_search_strategy(search_params, optimization)
 
 @dataclass
 class FlightData:
