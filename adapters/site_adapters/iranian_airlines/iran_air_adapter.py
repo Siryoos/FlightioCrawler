@@ -1,228 +1,331 @@
 from typing import Dict, List, Optional
 from datetime import datetime
+import re
 import json
 import logging
 from bs4 import BeautifulSoup
-from data.transformers.persian_text_processor import PersianTextProcessor
-from crawlers.factories.crawler_factory import PersianAirlineCrawler
+from playwright.async_api import Page, TimeoutError
+
+from adapters.base_adapters.persian_airline_crawler import PersianAirlineCrawler
+from utils.persian_text_processor import PersianTextProcessor
+from utils.rate_limiter import RateLimiter
+from utils.error_handler import ErrorHandler
+from utils.monitoring import Monitoring
 
 class IranAirAdapter(PersianAirlineCrawler):
-    """Adapter for Iran Air with specialized Persian text handling"""
-    
-    def __init__(self, config: dict):
+    def __init__(self, config: Dict):
         super().__init__(config)
+        self.base_url = "https://www.iranair.com"
+        self.search_url = config["search_url"]
+        self.persian_processor = PersianTextProcessor()
+        self.rate_limiter = RateLimiter(
+            requests_per_second=config["rate_limiting"]["requests_per_second"],
+            burst_limit=config["rate_limiting"]["burst_limit"],
+            cooldown_period=config["rate_limiting"]["cooldown_period"]
+        )
+        self.error_handler = ErrorHandler(
+            max_retries=config["error_handling"]["max_retries"],
+            retry_delay=config["error_handling"]["retry_delay"],
+            circuit_breaker_config=config["error_handling"]["circuit_breaker"]
+        )
+        self.monitoring = Monitoring(config["monitoring"])
         self.logger = logging.getLogger(__name__)
-        self.text_processor = PersianTextProcessor()
-        
-    async def _perform_crawl(self, search_params: dict) -> List[Dict]:
-        """Perform the actual crawl for Iran Air"""
+
+    async def crawl(self, search_params: Dict) -> List[Dict]:
+        """
+        Main crawling method for IranAir flights
+        """
         try:
+            # Validate search parameters
+            self._validate_search_params(search_params)
+            
             # Navigate to search page
-            await self.crawler.goto(self.config['search_url'])
+            await self._navigate_to_search_page()
             
             # Fill search form
             await self._fill_search_form(search_params)
             
-            # Wait for results
-            if not await self._wait_for_element(self.config['extraction_config']['results_parsing']['container']):
-                raise Exception("Flight results not found")
+            # Extract flight results
+            results = await self._extract_flight_results()
             
-            # Extract flight data
-            html = await self.crawler.content()
-            return self._parse_flight_results(html, search_params)
+            # Validate results
+            validated_results = self._validate_flight_data(results)
+            
+            # Record success metrics
+            self.monitoring.record_success()
+            
+            return validated_results
             
         except Exception as e:
-            self.logger.error(f"Error crawling Iran Air: {e}")
-            return []
-            
-    async def _fill_search_form(self, search_params: dict):
-        """Fill the search form with proper Persian text handling"""
+            self.logger.error(f"Error crawling IranAir: {str(e)}")
+            self.monitoring.record_error()
+            raise
+
+    async def _navigate_to_search_page(self):
+        """Navigate to the flight search page"""
         try:
-            # Convert dates to Jalali if needed
-            if self.config['persian_processing']['jalali_calendar']:
-                departure_date = self.text_processor.convert_gregorian_to_jalali(
-                    datetime.strptime(search_params['departure_date'], '%Y-%m-%d')
-                )
-            else:
-                departure_date = search_params['departure_date']
-                
-            # Execute form filling
-            await self._execute_js("""
-                document.querySelector(arguments[0]).value = arguments[1];
-                document.querySelector(arguments[2]).value = arguments[3];
-                document.querySelector(arguments[4]).value = arguments[5];
-                document.querySelector(arguments[6]).value = arguments[7];
-                document.querySelector(arguments[8]).value = arguments[9];
-            """,
-            self.config['extraction_config']['search_form']['origin_field'],
-            search_params['origin'],
-            self.config['extraction_config']['search_form']['destination_field'],
-            search_params['destination'],
-            self.config['extraction_config']['search_form']['date_field'],
-            departure_date,
-            self.config['extraction_config']['search_form']['passengers_field'],
-            search_params['passengers'],
-            self.config['extraction_config']['search_form']['class_field'],
-            search_params['seat_class']
+            await self.page.goto(self.search_url)
+            await self.page.wait_for_load_state("networkidle")
+        except TimeoutError:
+            self.logger.error("Timeout while loading search page")
+            raise
+
+    async def _fill_search_form(self, search_params: Dict):
+        """Fill out the search form with Persian text handling"""
+        try:
+            # Origin
+            await self.page.fill(
+                self.config["extraction_config"]["search_form"]["origin_field"],
+                self.persian_processor.process_text(search_params["origin"])
             )
             
+            # Destination
+            await self.page.fill(
+                self.config["extraction_config"]["search_form"]["destination_field"],
+                self.persian_processor.process_text(search_params["destination"])
+            )
+            
+            # Date
+            await self.page.fill(
+                self.config["extraction_config"]["search_form"]["date_field"],
+                self.persian_processor.process_date(search_params["departure_date"])
+            )
+            
+            # Passengers
+            await self.page.select_option(
+                self.config["extraction_config"]["search_form"]["passengers_field"],
+                str(search_params["passengers"])
+            )
+            
+            # Class
+            await self.page.select_option(
+                self.config["extraction_config"]["search_form"]["class_field"],
+                self.persian_processor.process_text(search_params["seat_class"])
+            )
+            
+            # Trip type
+            if "trip_type" in search_params:
+                await self.page.select_option(
+                    self.config["extraction_config"]["search_form"]["trip_type_field"],
+                    self.persian_processor.process_text(search_params["trip_type"])
+                )
+            
             # Submit form
-            await self._execute_js("document.querySelector('form').submit();")
+            await self.page.click("button[type='submit']")
+            await self.page.wait_for_load_state("networkidle")
             
         except Exception as e:
-            self.logger.error(f"Error filling search form: {e}")
+            self.logger.error(f"Error filling search form: {str(e)}")
             raise
-            
-    def _parse_flight_results(self, html: str, search_params: dict) -> List[Dict]:
-        """Parse flight results with Persian text processing"""
+
+    async def _extract_flight_results(self) -> List[Dict]:
+        """Extract flight results from the page"""
         try:
-            soup = BeautifulSoup(html, 'html.parser')
-            flights = []
+            # Wait for results to load
+            await self.page.wait_for_selector(
+                self.config["extraction_config"]["results_parsing"]["container"]
+            )
             
-            for flight_elem in soup.select(self.config['extraction_config']['results_parsing']['container']):
-                try:
-                    # Extract and process flight data
-                    flight = {
-                        'airline_code': 'IRA',  # Iran Air's IATA code
-                        'flight_number': self._extract_flight_number(flight_elem),
-                        'origin_airport': search_params['origin'],
-                        'destination_airport': search_params['destination'],
-                        'departure_time': self._extract_departure_time(flight_elem),
-                        'arrival_time': self._extract_arrival_time(flight_elem),
-                        'duration_minutes': self._extract_duration(flight_elem),
-                        'price': self._extract_price(flight_elem),
-                        'currency': self._extract_currency(flight_elem),
-                        'fare_class': self._extract_fare_class(flight_elem),
-                        'raw_data': self._extract_raw_data(flight_elem)
-                    }
-                    
-                    # Validate flight data
-                    if self._validate_flight_data(flight):
-                        flights.append(flight)
-                        
-                except Exception as e:
-                    self.logger.error(f"Error parsing flight element: {e}")
-                    continue
-                    
-            return flights
+            # Get page content
+            content = await self.page.content()
+            soup = BeautifulSoup(content, "html.parser")
+            
+            # Find all flight results
+            flight_elements = soup.select(
+                self.config["extraction_config"]["results_parsing"]["container"]
+            )
+            
+            results = []
+            for element in flight_elements:
+                flight_data = self._parse_flight_element(element)
+                if flight_data:
+                    results.append(flight_data)
+            
+            return results
             
         except Exception as e:
-            self.logger.error(f"Error parsing flight results: {e}")
-            return []
+            self.logger.error(f"Error extracting flight results: {str(e)}")
+            raise
+
+    def _parse_flight_element(self, element) -> Optional[Dict]:
+        """Parse individual flight element into structured data"""
+        try:
+            # Extract basic flight information
+            flight_data = {
+                "airline": self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["airline"]
+                    ).text
+                ),
+                "flight_number": self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["flight_number"]
+                    ).text
+                ),
+                "departure_time": self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["departure_time"]
+                    ).text
+                ),
+                "arrival_time": self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["arrival_time"]
+                    ).text
+                ),
+                "duration": self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["duration"]
+                    ).text
+                ),
+                "price": self.persian_processor.process_price(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["price"]
+                    ).text
+                ),
+                "seat_class": self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["seat_class"]
+                    ).text
+                )
+            }
             
-    def _extract_flight_number(self, flight_elem) -> str:
-        """Extract and normalize flight number"""
-        flight_number = flight_elem.select_one(
-            self.config['extraction_config']['results_parsing']['flight_number']
-        ).text.strip()
-        return flight_number.replace(' ', '')
-        
-    def _extract_departure_time(self, flight_elem) -> datetime:
-        """Extract and parse departure time"""
-        time_text = flight_elem.select_one(
-            self.config['extraction_config']['results_parsing']['departure_time']
-        ).text.strip()
-        return self.text_processor.parse_time(time_text)
-        
-    def _extract_arrival_time(self, flight_elem) -> datetime:
-        """Extract and parse arrival time"""
-        time_text = flight_elem.select_one(
-            self.config['extraction_config']['results_parsing']['arrival_time']
-        ).text.strip()
-        return self.text_processor.parse_time(time_text)
-        
-    def _extract_duration(self, flight_elem) -> int:
-        """Extract and parse flight duration"""
-        duration_text = flight_elem.select_one(
-            self.config['extraction_config']['results_parsing']['duration']
-        ).text.strip()
-        return self.text_processor.extract_flight_duration(duration_text)
-        
-    def _extract_price(self, flight_elem) -> float:
-        """Extract and parse price"""
-        price_text = flight_elem.select_one(
-            self.config['extraction_config']['results_parsing']['price']
-        ).text.strip()
-        price_info = self.text_processor.parse_persian_price(price_text)
-        return price_info['amount']
-        
-    def _extract_currency(self, flight_elem) -> str:
-        """Extract and normalize currency"""
-        price_text = flight_elem.select_one(
-            self.config['extraction_config']['results_parsing']['price']
-        ).text.strip()
-        price_info = self.text_processor.parse_persian_price(price_text)
-        return price_info['currency']
-        
-    def _extract_fare_class(self, flight_elem) -> str:
-        """Extract and normalize fare class"""
-        class_text = flight_elem.select_one(
-            self.config['extraction_config']['results_parsing']['seat_class']
-        ).text.strip()
-        return self.text_processor.normalize_seat_class(class_text)
-        
-    def _extract_raw_data(self, flight_elem) -> Dict:
-        """Extract additional raw data for storage"""
-        return {
-            'airline_name': self.text_processor.normalize_persian_text(
-                flight_elem.select_one(
-                    self.config['extraction_config']['results_parsing']['airline']
-                ).text.strip()
-            ),
-            'fare_conditions': self._extract_fare_conditions(flight_elem),
-            'available_seats': self._extract_available_seats(flight_elem)
-        }
-        
-    def _extract_fare_conditions(self, flight_elem) -> Dict:
-        """Extract fare conditions if available"""
-        try:
-            conditions_elem = flight_elem.select_one('.fare-conditions')
-            if conditions_elem:
-                return {
-                    'cancellation': self._extract_cancellation_policy(conditions_elem),
-                    'changes': self._extract_change_policy(conditions_elem),
-                    'baggage': self._extract_baggage_policy(conditions_elem)
-                }
+            # Extract additional flight details
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["fare_conditions"]):
+                flight_data["fare_conditions"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["fare_conditions"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["available_seats"]):
+                flight_data["available_seats"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["available_seats"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["aircraft_type"]):
+                flight_data["aircraft_type"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["aircraft_type"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["baggage_allowance"]):
+                flight_data["baggage_allowance"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["baggage_allowance"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["meal_service"]):
+                flight_data["meal_service"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["meal_service"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["special_services"]):
+                flight_data["special_services"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["special_services"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["refund_policy"]):
+                flight_data["refund_policy"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["refund_policy"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["change_policy"]):
+                flight_data["change_policy"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["change_policy"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["fare_rules"]):
+                flight_data["fare_rules"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["fare_rules"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["booking_class"]):
+                flight_data["booking_class"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["booking_class"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["fare_basis"]):
+                flight_data["fare_basis"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["fare_basis"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["ticket_validity"]):
+                flight_data["ticket_validity"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["ticket_validity"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["miles_earned"]):
+                flight_data["miles_earned"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["miles_earned"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["miles_required"]):
+                flight_data["miles_required"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["miles_required"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["promotion_code"]):
+                flight_data["promotion_code"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["promotion_code"]
+                    ).text
+                )
+            
+            if element.select_one(self.config["extraction_config"]["results_parsing"]["special_offers"]):
+                flight_data["special_offers"] = self.persian_processor.process_text(
+                    element.select_one(
+                        self.config["extraction_config"]["results_parsing"]["special_offers"]
+                    ).text
+                )
+            
+            return flight_data
+            
         except Exception as e:
-            self.logger.error(f"Error extracting fare conditions: {e}")
-        return {}
-        
-    def _extract_available_seats(self, flight_elem) -> Optional[int]:
-        """Extract number of available seats if shown"""
-        try:
-            seats_elem = flight_elem.select_one('.available-seats')
-            if seats_elem:
-                seats_text = seats_elem.text.strip()
-                return int(self.text_processor.convert_persian_numerals(seats_text))
-        except Exception as e:
-            self.logger.error(f"Error extracting available seats: {e}")
-        return None
-        
-    def _validate_flight_data(self, flight: Dict) -> bool:
-        """Validate extracted flight data"""
-        try:
+            self.logger.error(f"Error parsing flight element: {str(e)}")
+            return None
+
+    def _validate_search_params(self, search_params: Dict):
+        """Validate search parameters"""
+        required_fields = ["origin", "destination", "departure_date", "passengers", "seat_class"]
+        for field in required_fields:
+            if field not in search_params:
+                raise ValueError(f"Missing required search parameter: {field}")
+
+    def _validate_flight_data(self, results: List[Dict]) -> List[Dict]:
+        """Validate flight data against specified rules"""
+        validated_results = []
+        for result in results:
             # Check required fields
-            required_fields = self.config['data_validation']['required_fields']
-            for field in required_fields:
-                if field not in flight or flight[field] is None:
-                    self.logger.error(f"Missing required field: {field}")
-                    return False
-                    
-            # Validate price range
-            price_range = self.config['data_validation']['price_range']
-            if not (price_range['min'] <= flight['price'] <= price_range['max']):
-                self.logger.error(f"Price {flight['price']} outside valid range")
-                return False
-                
-            # Validate duration range
-            if flight['duration_minutes']:
-                duration_range = self.config['data_validation']['duration_range']
-                if not (duration_range['min'] <= flight['duration_minutes'] <= duration_range['max']):
-                    self.logger.error(f"Duration {flight['duration_minutes']} outside valid range")
-                    return False
-                    
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Error validating flight data: {e}")
-            return False 
+            if all(field in result for field in self.config["data_validation"]["required_fields"]):
+                # Validate price range
+                if (self.config["data_validation"]["price_range"]["min"] <= result["price"] <= 
+                    self.config["data_validation"]["price_range"]["max"]):
+                    # Validate duration range
+                    if (self.config["data_validation"]["duration_range"]["min"] <= result["duration_minutes"] <= 
+                        self.config["data_validation"]["duration_range"]["max"]):
+                        validated_results.append(result)
+        return validated_results 

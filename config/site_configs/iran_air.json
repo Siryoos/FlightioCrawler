@@ -1,6 +1,6 @@
 {
   "site_id": "iran_air",
-  "name": "Iran Air",
+  "name": "ایران ایر",
   "domain": "iranair.com",
   "crawler_type": "persian_airline",
   "language": "persian",
@@ -13,22 +13,38 @@
   },
   "extraction_config": {
     "search_form": {
-      "origin_field": "input[name='origin']",
-      "destination_field": "input[name='destination']",
-      "date_field": "input[name='departure_date']",
-      "passengers_field": "select[name='passengers']",
-      "class_field": "select[name='cabin_class']",
-      "persian_calendar": true
+      "origin_field": "input[name=\"origin\"]",
+      "destination_field": "input[name=\"destination\"]",
+      "date_field": "input[name=\"departure_date\"]",
+      "passengers_field": "select[name=\"passengers\"]",
+      "class_field": "select[name=\"cabin_class\"]",
+      "trip_type_field": "select[name=\"trip_type\"]"
     },
     "results_parsing": {
       "container": ".flight-result",
-      "price": ".price-persian",
-      "airline": ".airline-persian",
-      "duration": ".duration-persian",
+      "price": ".price",
+      "airline": ".airline-name",
+      "duration": ".duration",
       "departure_time": ".departure-time",
       "arrival_time": ".arrival-time",
       "flight_number": ".flight-number",
-      "seat_class": ".seat-class"
+      "seat_class": ".seat-class",
+      "fare_conditions": ".fare-conditions",
+      "available_seats": ".available-seats",
+      "aircraft_type": ".aircraft-type",
+      "baggage_allowance": ".baggage-allowance",
+      "meal_service": ".meal-service",
+      "special_services": ".special-services",
+      "refund_policy": ".refund-policy",
+      "change_policy": ".change-policy",
+      "fare_rules": ".fare-rules",
+      "booking_class": ".booking-class",
+      "fare_basis": ".fare-basis",
+      "ticket_validity": ".ticket-validity",
+      "miles_earned": ".miles-earned",
+      "miles_required": ".miles-required",
+      "promotion_code": ".promotion-code",
+      "special_offers": ".special-offers"
     }
   },
   "persian_processing": {
@@ -53,7 +69,17 @@
   "monitoring": {
     "success_rate_threshold": 0.90,
     "response_time_threshold": 60000,
-    "persian_text_validation": true
+    "persian_text_validation": true,
+    "metrics": [
+      "request_success_rate",
+      "average_response_time",
+      "error_rate",
+      "data_quality_score"
+    ],
+    "alert_thresholds": {
+      "error_rate": 0.1,
+      "response_time": 5000
+    }
   },
   "error_handling": {
     "max_retries": 3,
@@ -79,12 +105,20 @@
     "required_fields": [
       "airline",
       "flight_number",
-      "origin",
-      "destination",
       "departure_time",
       "arrival_time",
       "price",
-      "currency"
+      "currency",
+      "seat_class",
+      "duration_minutes",
+      "baggage_allowance",
+      "refund_policy",
+      "change_policy",
+      "booking_class",
+      "fare_basis",
+      "ticket_validity",
+      "miles_earned",
+      "miles_required"
     ],
     "price_range": {
       "min": 1000000,
@@ -94,5 +128,10 @@
       "min": 30,
       "max": 1440
     }
+  },
+  "rate_limiting": {
+    "requests_per_second": 2,
+    "burst_limit": 5,
+    "cooldown_period": 60
   }
 } 
