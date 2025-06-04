@@ -141,9 +141,7 @@ class IranianFlightCrawler:
             self.error_handler.handle_error(site_name, str(e))
             return []
     
-    async def intelligent_search_flights(self, search_params: Dict, optimization) -> Dict:
-        """Run intelligent search using optimization engine"""
-        return await self.intelligent_search.optimize_search_strategy(search_params, optimization)
+
     
     def get_health_status(self) -> Dict:
         """Get comprehensive crawler health status"""
@@ -154,43 +152,6 @@ class IranianFlightCrawler:
             "timestamp": datetime.now().isoformat()
         }
 
-    async def get_health_status(self) -> Dict:
-        """Get crawler health status"""
-        try:
-            # Get metrics
-            metrics = await self.monitor.get_all_metrics()
-            
-            # Get error stats
-            error_stats = await self.error_handler.get_all_error_stats()
-            
-            # Get rate limit stats
-            rate_limit_stats = await self.rate_limiter.get_all_rate_limit_stats()
-            
-            # Calculate overall status
-            status = "healthy"
-            for domain, stats in error_stats.items():
-                if stats.get("circuit_open"):
-                    status = "degraded"
-                    break
-            
-            return {
-                "status": status,
-                "domains": {
-                    domain: {
-                        "metrics": metrics.get(domain, {}),
-                        "errors": error_stats.get(domain, {}),
-                        "rate_limit": rate_limit_stats.get(domain, {})
-                    }
-                    for domain in config.CRAWLER.DOMAINS
-                }
-            }
-            
-        except Exception as e:
-            logger.error(f"Error getting health status: {e}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
 
     async def intelligent_search_flights(self, search_params: Dict, optimization: SearchOptimization) -> Dict:
         """Run intelligent search using the optimization engine."""
@@ -293,32 +254,3 @@ class IranianFlightCrawler:
             with conn.cursor() as cur:
                 cur.execute(schema_sql)
                 conn.commit()
-
-    async def crawl_all_sites(self, search_params: Dict):
-        """Orchestrate crawling across all three sites"""
-        sites = {
-            'flytoday': FlytodayCrawler(self),
-            'alibaba': AlibabaCrawler(self), 
-            'safarmarket': SafarmarketCrawler(self)
-        }
-        
-        tasks = []
-        for site_name, crawler in sites.items():
-            task = asyncio.create_task(
-                crawler.search_flights(search_params),
-                name=f"crawl_{site_name}"
-            )
-            tasks.append(task)
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Process and store results
-        all_flights = []
-        for site_name, result in zip(sites.keys(), results):
-            if isinstance(result, Exception):
-                self.logger.error(f"Error crawling {site_name}: {result}")
-            else:
-                all_flights.extend(result)
-        
-        await self.store_flights(all_flights)
-        return all_flights 
