@@ -141,8 +141,8 @@ class ErrorHandler:
             return {
                 "error_counts": self.error_counts,
                 "circuit_breaker": {
-                    domain: time.isoformat()
-                    for domain, time in self.circuit_breakers.items()
+                    domain: cb["timestamp"]
+                    for domain, cb in self.circuit_breakers.items()
                 }
             }
             
