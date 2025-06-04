@@ -149,6 +149,26 @@ The FlightioCrawler is a distributed system designed to crawl, process, and anal
   - Site-specific parsing
   - Custom error handling
   - Rate limiting rules
+- MZ724 Crawler
+  - Site-specific parsing
+  - Custom error handling
+  - Rate limiting rules
+- PartoCRS Crawler
+  - Site-specific parsing
+  - Custom error handling
+  - Rate limiting rules
+- Parto Ticket Crawler
+  - Site-specific parsing
+  - Custom error handling
+  - Rate limiting rules
+- BookCharter724 Crawler
+  - Site-specific parsing
+  - Custom error handling
+  - Rate limiting rules
+- BookCharter Crawler
+  - Site-specific parsing
+  - Custom error handling
+  - Rate limiting rules
 
 ### 4. Data Storage | ذخیره‌سازی داده
 
