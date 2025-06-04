@@ -25,3 +25,11 @@ def test_parse_persian_date():
     assert isinstance(result, datetime.datetime)
     assert result.date() == datetime.date(2023, 11, 6)
 
+
+def test_parse_time():
+    processor = PersianTextProcessor()
+    result = processor.parse_time("۱۰:۳۰ صبح")
+    assert isinstance(result, datetime.datetime)
+    assert result.hour == 10
+    assert result.minute == 30
+
