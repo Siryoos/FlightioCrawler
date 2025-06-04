@@ -1,0 +1,78 @@
+{
+    "site_id": "mz724",
+    "name": "مجمع زمزم",
+    "search_url": "https://www.mz724.ir/flight-search",
+    "persian_processing": {
+        "rtl_support": true,
+        "jalali_calendar": true,
+        "persian_numerals": true
+    },
+    "extraction_config": {
+        "search_form": {
+            "origin_field": "input[name=\"origin\"]",
+            "destination_field": "input[name=\"destination\"]",
+            "date_field": "input[name=\"departure_date\"]",
+            "passengers_field": "select[name=\"passengers\"]",
+            "class_field": "select[name=\"cabin_class\"]"
+        },
+        "results_parsing": {
+            "container": ".flight-result",
+            "price": ".price",
+            "airline": ".airline-name",
+            "duration": ".duration",
+            "departure_time": ".departure-time",
+            "arrival_time": ".arrival-time",
+            "flight_number": ".flight-number",
+            "seat_class": ".seat-class",
+            "fare_conditions": ".fare-conditions",
+            "available_seats": ".available-seats",
+            "aircraft_type": ".aircraft-type"
+        }
+    },
+    "data_validation": {
+        "required_fields": [
+            "airline",
+            "flight_number",
+            "departure_time",
+            "arrival_time",
+            "price",
+            "currency",
+            "seat_class",
+            "duration_minutes"
+        ],
+        "price_range": {
+            "min": 1000000,
+            "max": 100000000
+        },
+        "duration_range": {
+            "min": 30,
+            "max": 1440
+        }
+    },
+    "rate_limiting": {
+        "requests_per_second": 2,
+        "burst_limit": 5,
+        "cooldown_period": 60
+    },
+    "error_handling": {
+        "max_retries": 3,
+        "retry_delay": 5,
+        "circuit_breaker": {
+            "failure_threshold": 5,
+            "reset_timeout": 300
+        }
+    },
+    "monitoring": {
+        "metrics": [
+            "request_duration",
+            "success_rate",
+            "error_rate",
+            "flight_count",
+            "price_range"
+        ],
+        "alerts": {
+            "error_threshold": 0.1,
+            "latency_threshold": 30
+        }
+    }
+} 
