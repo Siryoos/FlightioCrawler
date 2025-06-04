@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: flight_data
+      POSTGRES_USER: crawler
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=fa_IR.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  crawler-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://crawler:secure_password@postgres:5432/flight_data
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./logs:/app/logs
+
+  crawler-worker:
+    build: .
+    command: python -m celery -A crawler.tasks worker --loglevel=info --concurrency=4
+    environment:
+      - DATABASE_URL=postgresql://crawler:secure_password@postgres:5432/flight_data
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    deploy:
+      replicas: 3
+
+volumes:
+  redis_data:
+  postgres_data: 
