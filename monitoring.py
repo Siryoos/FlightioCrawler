@@ -414,7 +414,7 @@ class CrawlerMonitor:
             'success_rate': success_rate,
             'avg_response_time': avg_response_time,
             'last_success': metrics.last_success,
-            'last_error': metrics.last_success,
+            'last_error': metrics.last_error,
             'circuit_open': metrics.circuit_open
         }
     
