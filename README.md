@@ -101,6 +101,12 @@ curl http://localhost:8000/health
 tail -f flight_crawler.log
 ```
 
+3. Launch the API and UI:
+```bash
+python main.py
+```
+Open `http://localhost:8000/ui` in your browser to access the control panel.
+
 ## Developer Guide | راهنمای توسعه‌دهنده
 
 ### Project Structure | ساختار پروژه

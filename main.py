@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, WebSocket, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from config import config
 from main_crawler import IranianFlightCrawler
@@ -35,6 +36,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+# Mount UI static files
+app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 
 # Create crawler instance
 crawler = IranianFlightCrawler()
