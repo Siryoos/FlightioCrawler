@@ -1,0 +1,53 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest cache
+.pytest_cache/
+
+# Virtual environment directories
+.venv/
+venv/
+ENV/
+env/
+
+# Coverage and testing tools
+.coverage
+coverage.xml
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs and local data
+*.log
+*.sqlite3
+logs/
+
+# Editor and IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
+
+# Docker
+*.pid
+
+# Additional tooling outputs
+.tox/
+.nox/
+.mypy_cache/
+
+# Temporary files
+*.tmp
+*.temp
+
