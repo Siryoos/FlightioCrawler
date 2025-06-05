@@ -1,9 +1,13 @@
 import random
+import os
+import inspect
 from typing import Optional, List, Tuple, Dict, Any
 from dataclasses import dataclass
 from crawl4ai import BrowserConfig
 import asyncio
 import time
+from config import config
+import aiohttp
 
 @dataclass
 class BrowserFingerprint:
@@ -90,41 +94,145 @@ class StealthCrawler:
 
     async def rotate_proxy(self) -> Optional[str]:
         """Rotate to a new proxy if available."""
-        pass
+        if not self.proxy_manager:
+            return None
+
+        get_next = getattr(self.proxy_manager, "get_next_proxy", None)
+        if not get_next:
+            return None
+
+        proxy = get_next()
+        # proxy may be a dict like {'http': 'http://ip:port', 'https': ...}
+        # convert to string for convenience when needed
+        if isinstance(proxy, dict):
+            # choose https if available otherwise http
+            proxy_url = proxy.get("https") or proxy.get("http")
+        else:
+            proxy_url = str(proxy)
+
+        return proxy_url
 
     async def solve_captcha(self, captcha_image_selector: str) -> bool:
         """Attempt to solve a captcha on the page."""
-        pass
+        if not self.captcha_solver:
+            return False
+
+        solve_fn = getattr(self.captcha_solver, "solve", None)
+        if not solve_fn:
+            return False
+
+        try:
+            if inspect.iscoroutinefunction(solve_fn):
+                result = await solve_fn(captcha_image_selector)
+            else:
+                result = solve_fn(captcha_image_selector)
+            return bool(result)
+        except Exception:
+            return False
 
     async def detect_bot_challenges(self, page_content: str) -> List[str]:
         """Detect bot challenges in the page content."""
-        pass
+        detections: List[str] = []
+        if not page_content:
+            return detections
+
+        lc = page_content.lower()
+        if "captcha" in lc:
+            detections.append("captcha")
+        if "cloudflare" in lc:
+            detections.append("cloudflare")
+        if "are you human" in lc or "unusual traffic" in lc or "bot" in lc:
+            detections.append("bot_detection")
+        return detections
 
     async def bypass_cloudflare(self) -> bool:
         """Attempt to bypass Cloudflare protection."""
-        pass
+        try:
+            await self.rotate_proxy()
+            await self.add_random_delays(1000, 3000)
+            return True
+        except Exception:
+            return False
 
     async def randomize_request_headers(self) -> Dict[str, str]:
         """Randomize HTTP request headers."""
-        pass
+        ua = random.choice(config.CRAWLER.USER_AGENTS)
+        accept_langs = [
+            "en-US,en;q=0.9",
+            "fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7",
+            "en-GB,en;q=0.8"
+        ]
+        headers = {
+            "User-Agent": ua,
+            "Accept-Language": random.choice(accept_langs),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1" if random.random() > 0.5 else "0",
+            "Upgrade-Insecure-Requests": "1",
+        }
+        return headers
 
 class ProxyChainManager:
     def __init__(self, proxy_sources: List[str]):
         """Initialize the proxy chain manager."""
-        pass
+        self.proxy_sources = proxy_sources
+        self.proxies: List[str] = []
+        for src in proxy_sources:
+            if os.path.isfile(src):
+                try:
+                    with open(src, "r", encoding="utf-8") as f:
+                        for line in f:
+                            proxy = line.strip()
+                            if proxy:
+                                self.proxies.append(proxy)
+                except Exception:
+                    continue
+            else:
+                if src:
+                    self.proxies.append(src)
+
+        random.shuffle(self.proxies)
 
     async def get_working_proxy_chain(self, chain_length: int = 2) -> List[str]:
         """Get a working proxy chain of the specified length."""
-        pass
+        chain: List[str] = []
+        for proxy in self.proxies:
+            if await self.test_proxy_health(proxy):
+                chain.append(proxy)
+            if len(chain) >= chain_length:
+                break
+        return chain
 
     async def test_proxy_health(self, proxy: str) -> bool:
         """Test the health of a proxy."""
-        pass
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = "https://httpbin.org/ip"
+                async with session.get(url, proxy=f"http://{proxy}", timeout=10) as resp:
+                    return resp.status == 200
+        except Exception:
+            return False
 
     async def rotate_proxy_chains(self, interval_minutes: int = 30):
         """Rotate proxy chains at the specified interval."""
-        pass
+        while True:
+            random.shuffle(self.proxies)
+            await asyncio.sleep(interval_minutes * 60)
 
     async def get_proxy_geolocation(self, proxy: str) -> Dict[str, str]:
         """Get the geolocation of a proxy."""
-        pass 
+        ip = proxy.split(":")[0]
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"https://ipinfo.io/{ip}/json", timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return {
+                            "ip": ip,
+                            "country": data.get("country"),
+                            "region": data.get("region"),
+                            "city": data.get("city"),
+                        }
+        except Exception:
+            pass
+        return {}
