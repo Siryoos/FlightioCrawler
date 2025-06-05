@@ -11,7 +11,7 @@ from hazm import Normalizer
 from persian_tools import digits
 import jdatetime
 from monitoring import CrawlerMonitor, ErrorHandler
-from data_manager import FlightDataManager, DataManager
+from data_manager import DataManager
 from site_crawlers import (
     FlytodayCrawler,
     AlibabaCrawler,
@@ -22,7 +22,13 @@ from site_crawlers import (
     BookCharter724Crawler,
     BookCharterCrawler,
 )
-from crawl4ai.cache_mode import CacheMode
+try:
+    from crawl4ai.cache_mode import CacheMode
+except Exception:  # pragma: no cover - optional dependency
+    from enum import Enum
+
+    class CacheMode(Enum):
+        BYPASS = 0
 from rate_limiter import RateLimiter
 from persian_text import PersianTextProcessor
 from config import config

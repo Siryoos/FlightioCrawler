@@ -97,6 +97,9 @@ class Config:
     DEFAULT_SORT_BY: str = 'price'
     DEFAULT_SORT_ORDER: str = 'asc'
 
+    # Misc settings
+    CRAWLER_TIMEOUT: int = 30
+
 # Create global config instance
 config = Config()
 

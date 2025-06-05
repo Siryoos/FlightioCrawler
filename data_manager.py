@@ -73,11 +73,27 @@ class DataManager:
     
     def __init__(self):
         # Initialize database
-        self.engine = create_engine(config.DATABASE_URL)
+        db = config.DATABASE
+        db_url = (
+            f"postgresql://{db.USER}:{db.PASSWORD}@{db.HOST}:{db.PORT}/{db.NAME}"
+        )
+        try:
+            self.engine = create_engine(db_url)
+            self.engine.connect()
+        except Exception:
+            # Fallback to in-memory SQLite for testing environments
+            self.engine = create_engine("sqlite:///:memory:")
         self.Session = sessionmaker(bind=self.engine)
-        
+
         # Initialize Redis
-        self.redis = Redis.from_url(config.REDIS_URL)
+        redis_cfg = config.REDIS
+        redis_url = f"redis://{redis_cfg.HOST}:{redis_cfg.PORT}/{redis_cfg.DB}"
+        if redis_cfg.PASSWORD:
+            redis_url = (
+                f"redis://:{redis_cfg.PASSWORD}@{redis_cfg.HOST}:{redis_cfg.PORT}/"
+                f"{redis_cfg.DB}"
+            )
+        self.redis = Redis.from_url(redis_url)
         
         # Create tables
         Base.metadata.create_all(self.engine)
