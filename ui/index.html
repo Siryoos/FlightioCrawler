@@ -43,6 +43,37 @@
     <pre id="statsResult"></pre>
 </section>
 
+<section id="predict">
+    <h2>Price Prediction</h2>
+    <form id="predictForm">
+        <label>Route (ORIG-DST): <input id="predictRoute" required></label><br>
+        <label>Dates (comma separated): <input id="predictDates" required></label><br>
+        <button type="submit">Predict</button>
+    </form>
+    <pre id="predictResult"></pre>
+</section>
+
+<section id="intelligentSearch">
+    <h2>Intelligent Search</h2>
+    <form id="intelligentForm">
+        <label>Origin: <input id="intOrigin" required></label><br>
+        <label>Destination: <input id="intDestination" required></label><br>
+        <label>Date: <input id="intDate" placeholder="YYYY-MM-DD" required></label><br>
+        <label><input type="checkbox" id="multiRoute" checked> Multi Route</label><br>
+        <label><input type="checkbox" id="dateRange" checked> Date Range</label><br>
+        <label>Range Days: <input id="dateRangeDays" type="number" value="3"></label><br>
+        <button type="submit">Search</button>
+    </form>
+    <pre id="intelligentResult"></pre>
+</section>
+
+<section id="priceUpdates">
+    <h2>Price Updates (WebSocket)</h2>
+    <label>User ID: <input id="wsUserId" value="user1"></label>
+    <button id="connectWs">Connect</button>
+    <pre id="wsResult"></pre>
+</section>
+
 <script src="app.js"></script>
 </body>
 </html>
