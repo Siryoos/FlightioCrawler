@@ -126,7 +126,17 @@ class RateLimiter:
     
     def __init__(self):
         # Initialize Redis
-        self.redis = Redis.from_url(config.REDIS_URL)
+        redis_cfg = config.REDIS
+        redis_url = f"redis://{redis_cfg.HOST}:{redis_cfg.PORT}/{redis_cfg.DB}"
+        if redis_cfg.PASSWORD:
+            redis_url = (
+                f"redis://:{redis_cfg.PASSWORD}@{redis_cfg.HOST}:{redis_cfg.PORT}/"
+                f"{redis_cfg.DB}"
+            )
+        try:
+            self.redis = Redis.from_url(redis_url)
+        except Exception:
+            self.redis = Redis.from_url("redis://localhost:6379/0")
     
     def check_rate_limit(self, domain: str) -> bool:
         """Check if request is allowed"""

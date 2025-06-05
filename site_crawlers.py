@@ -3,7 +3,13 @@ import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from crawl4ai import AsyncWebCrawler, BrowserConfig
-from crawl4ai.cache_mode import CacheMode
+try:
+    from crawl4ai.cache_mode import CacheMode
+except Exception:  # pragma: no cover - optional dependency
+    from enum import Enum
+
+    class CacheMode(Enum):
+        BYPASS = 0
 from bs4 import BeautifulSoup
 from persian_text import PersianTextProcessor
 from monitoring import CrawlerMonitor, ErrorHandler
@@ -29,7 +35,6 @@ class BaseSiteCrawler(StealthCrawler):
         # Configure browser
         self.browser_config = BrowserConfig(
             headless=True,
-            timeout=config.CRAWLER_TIMEOUT,
             viewport_width=1920,
             viewport_height=1080
         )

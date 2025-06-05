@@ -15,7 +15,7 @@ from multilingual_processor import MultilingualProcessor
 
 # Configure logging
 logging.basicConfig(
-    level=config.LOG_LEVEL,
+    level=config.MONITORING.LOG_LEVEL,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -71,9 +71,11 @@ async def search_flights(request: SearchRequest, accept_language: str = Header("
     try:
         # Search flights
         flights = await crawler.crawl_all_sites(
-            request.origin,
-            request.destination,
-            request.date
+            {
+                "origin": request.origin,
+                "destination": request.destination,
+                "departure_date": request.date,
+            }
         )
         
         if accept_language != "en":

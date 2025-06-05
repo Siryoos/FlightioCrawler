@@ -1,4 +1,16 @@
-from googletrans import Translator
+try:
+    from googletrans import Translator
+except Exception:  # pragma: no cover - optional dependency
+    class Translator:
+        def translate(self, text, dest="en", src="auto"):
+            class Result:
+                def __init__(self, text: str, dest: str, src: str):
+                    self.text = text
+                    self.dest = dest
+                    self.src = src
+                    self.confidence = 1.0
+
+            return Result(text, dest, src)
 import langdetect
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
