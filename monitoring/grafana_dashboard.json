@@ -1,1 +1,96 @@
- 
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Crawler Performance",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(crawler_requests_total[5m])", "legendFormat": "Requests/sec", "refId": "A" },
+        { "expr": "rate(crawler_errors_total[5m])", "legendFormat": "Errors/sec", "refId": "B" },
+        { "expr": "rate(crawler_flights_found_total[5m])", "legendFormat": "Flights/sec", "refId": "C" }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "Response Times",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(crawler_request_duration_seconds_sum[5m]) / rate(crawler_request_duration_seconds_count[5m])", "legendFormat": "Avg", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(crawler_request_duration_seconds_bucket[5m]))", "legendFormat": "95th %", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "title": "Queue Metrics",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "crawler_worker_queue_size", "legendFormat": "Queue Size", "refId": "A" },
+        { "expr": "rate(crawler_worker_tasks_processed_total[5m])", "legendFormat": "Tasks/sec", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "title": "Price Changes",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(crawler_price_changes_total[5m])", "legendFormat": "Changes/sec", "refId": "A" },
+        { "expr": "crawler_prediction_accuracy", "legendFormat": "Prediction Accuracy", "refId": "B" }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Crawler Performance",
+  "uid": "crawler-performance",
+  "version": 1,
+  "weekStart": ""
+}
+
