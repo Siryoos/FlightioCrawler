@@ -116,26 +116,58 @@ class MultilingualProcessor:
         return text
 
 class LocalizationManager:
-    def __init__(self, translations_path: str):
+    def __init__(self, translations_path: str, base_language: str = "en"):
         """Initialize the localization manager."""
         self.translations_path = translations_path
+        self.base_language = base_language
+        self._cache: Dict[str, Dict[str, str]] = {}
 
     async def load_translations(self, language: str) -> Dict[str, str]:
-        """Load translations for a given language."""
-        # Placeholder for loading translations
-        return {}
+        """Load translations for a given language from disk."""
+        if language in self._cache:
+            return self._cache[language]
+
+        import os
+        import json
+        import aiofiles
+
+        path = os.path.join(self.translations_path, f"{language}.json")
+        try:
+            async with aiofiles.open(path, "r", encoding="utf-8") as f:
+                data = await f.read()
+            translations = json.loads(data)
+        except FileNotFoundError:
+            translations = {}
+        self._cache[language] = translations
+        return translations
 
     async def get_localized_string(self, key: str, language: str, **kwargs) -> str:
         """Get a localized string for a key and language."""
         translations = await self.load_translations(language)
-        return translations.get(key, key)
+        template = translations.get(key, key)
+        try:
+            return template.format(**kwargs)
+        except Exception:
+            return template
 
     async def update_translation_files(self, new_translations: Dict[str, Dict[str, str]]):
         """Update translation files with new translations."""
-        # Placeholder for updating translation files
-        pass
+        import os
+        import json
+        import aiofiles
+
+        os.makedirs(self.translations_path, exist_ok=True)
+        for lang, updates in new_translations.items():
+            current = await self.load_translations(lang)
+            current.update(updates)
+            path = os.path.join(self.translations_path, f"{lang}.json")
+            async with aiofiles.open(path, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(current, ensure_ascii=False, indent=2))
+            self._cache[lang] = current
 
     async def validate_translations(self, language: str) -> List[str]:
-        """Validate translations and return missing keys."""
-        # Placeholder for validating translations
-        return [] 
+        """Validate translations and return keys missing in the target language."""
+        base = await self.load_translations(self.base_language)
+        target = await self.load_translations(language)
+        missing = [key for key in base.keys() if key not in target]
+        return missing
