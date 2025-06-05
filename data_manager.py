@@ -98,81 +98,6 @@ class DataManager:
         # Create tables
         Base.metadata.create_all(self.engine)
     
-    def store_flights(self, flights: Dict[str, List[Dict]]) -> None:
-        """Store flights in database"""
-        try:
-            # Create session
-            session = self.Session()
-            
-            # Get current time
-            now = datetime.now()
-            
-            # Store flights
-            for domain, domain_flights in flights.items():
-                for flight_data in domain_flights:
-                    # Generate flight ID
-                    flight_id = f"{flight_data['airline']}_{flight_data['flight_number']}_{flight_data['origin']}_{flight_data['destination']}_{flight_data['departure_time'].isoformat()}"
-                    
-                    # Check if flight exists
-                    existing_flight = session.query(Flight).filter_by(flight_id=flight_id).first()
-                    
-                    if existing_flight:
-                        # Update existing flight
-                        existing_flight.price = flight_data['price']
-                        existing_flight.currency = flight_data['currency']
-                        existing_flight.scraped_at = now
-                        existing_flight.raw_data = flight_data
-                        
-                        # Add price history
-                        if existing_flight.price != flight_data['price']:
-                            price_history = FlightPriceHistory(
-                                flight_id=flight_id,
-                                price=flight_data['price'],
-                                currency=flight_data['currency'],
-                                recorded_at=now
-                            )
-                            session.add(price_history)
-                    else:
-                        # Create new flight
-                        flight = Flight(
-                            flight_id=flight_id,
-                            airline=flight_data['airline'],
-                            flight_number=flight_data['flight_number'],
-                            origin=flight_data['origin'],
-                            destination=flight_data['destination'],
-                            departure_time=flight_data['departure_time'],
-                            arrival_time=flight_data['arrival_time'],
-                            price=flight_data['price'],
-                            currency=flight_data['currency'],
-                            seat_class=flight_data['seat_class'],
-                            aircraft_type=flight_data.get('aircraft_type'),
-                            duration_minutes=flight_data['duration_minutes'],
-                            flight_type=flight_data.get('flight_type'),
-                            scraped_at=now,
-                            source_url=flight_data['source_url'],
-                            raw_data=flight_data
-                        )
-                        session.add(flight)
-                        
-                        # Add price history
-                        price_history = FlightPriceHistory(
-                            flight_id=flight_id,
-                            price=flight_data['price'],
-                            currency=flight_data['currency'],
-                            recorded_at=now
-                        )
-                        session.add(price_history)
-            
-            # Commit changes
-            session.commit()
-            
-        except Exception as e:
-            logger.error(f"Error storing flights: {e}")
-            session.rollback()
-            raise
-        
-        finally:
-            session.close()
     
     def store_search_query(self, params: Dict, result_count: int, search_duration: float, cached: bool) -> None:
         """Store search query in database"""
@@ -416,17 +341,69 @@ class DataManager:
             session.close()
 
     async def store_flights(self, flights: Dict[str, List[Dict]]):
-        """Store flight data in database"""
+        """Store flight data in database."""
         try:
             session = self.Session()
-            for site, site_flights in flights.items():
+            now = datetime.now()
+
+            for _, site_flights in flights.items():
                 for flight_data in site_flights:
-                    flight = Flight(**flight_data)
-                    session.add(flight)
+                    flight_id = (
+                        f"{flight_data['airline']}_{flight_data['flight_number']}"
+                        f"_{flight_data['origin']}_{flight_data['destination']}"
+                        f"_{flight_data['departure_time'].isoformat()}"
+                    )
+
+                    existing = session.query(Flight).filter_by(flight_id=flight_id).first()
+
+                    if existing:
+                        if existing.price != flight_data['price']:
+                            price_history = FlightPriceHistory(
+                                flight_id=flight_id,
+                                price=flight_data['price'],
+                                currency=flight_data['currency'],
+                                recorded_at=now,
+                            )
+                            session.add(price_history)
+
+                        existing.price = flight_data['price']
+                        existing.currency = flight_data['currency']
+                        existing.scraped_at = now
+                        existing.raw_data = flight_data
+                    else:
+                        flight = Flight(
+                            flight_id=flight_id,
+                            airline=flight_data['airline'],
+                            flight_number=flight_data['flight_number'],
+                            origin=flight_data['origin'],
+                            destination=flight_data['destination'],
+                            departure_time=flight_data['departure_time'],
+                            arrival_time=flight_data['arrival_time'],
+                            price=flight_data['price'],
+                            currency=flight_data['currency'],
+                            seat_class=flight_data['seat_class'],
+                            aircraft_type=flight_data.get('aircraft_type'),
+                            duration_minutes=flight_data['duration_minutes'],
+                            flight_type=flight_data.get('flight_type'),
+                            scraped_at=now,
+                            source_url=flight_data['source_url'],
+                            raw_data=flight_data,
+                        )
+                        session.add(flight)
+
+                        price_history = FlightPriceHistory(
+                            flight_id=flight_id,
+                            price=flight_data['price'],
+                            currency=flight_data['currency'],
+                            recorded_at=now,
+                        )
+                        session.add(price_history)
+
             session.commit()
         except Exception as e:
             logger.error(f"Error storing flights: {e}")
             session.rollback()
+            raise
         finally:
             session.close()
 
