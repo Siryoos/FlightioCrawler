@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Flight Crawler Control Panel</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        section { margin-bottom: 30px; }
+        input[type=text] { width: 200px; }
+        pre { background: #f3f3f3; padding: 10px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<h1>Flight Crawler Control Panel</h1>
+
+<section id="search">
+    <h2>Search Flights</h2>
+    <form id="searchForm">
+        <label>Origin: <input id="origin" required></label><br>
+        <label>Destination: <input id="destination" required></label><br>
+        <label>Date: <input id="date" placeholder="YYYY-MM-DD" required></label><br>
+        <button type="submit">Search</button>
+    </form>
+    <pre id="searchResult"></pre>
+</section>
+
+<section>
+    <h2>Health</h2>
+    <button onclick="getHealth()">Check Health</button>
+    <pre id="healthResult"></pre>
+</section>
+
+<section>
+    <h2>Metrics</h2>
+    <button onclick="getMetrics()">Get Metrics</button>
+    <pre id="metricsResult"></pre>
+</section>
+
+<section>
+    <h2>Stats</h2>
+    <button onclick="getStats()">Get Stats</button>
+    <button onclick="resetStats()">Reset Stats</button>
+    <pre id="statsResult"></pre>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>
