@@ -1,6 +1,8 @@
 import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
+from pathlib import Path
+import json
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -61,6 +63,12 @@ class MonitoringConfig:
     LOG_FILE: str = 'flight_crawler.log'
 
 @dataclass
+class ErrorConfig:
+    """Configuration for error handling and circuit breaker."""
+    circuit_breaker_threshold: int = 5
+    circuit_breaker_timeout: int = 300  # seconds
+
+@dataclass
 class MLConfig:
     MODEL_PATH: str = 'models/flight_price_predictor.pkl'
     TRAINING_DATA_PATH: str = 'data/training_data.csv'
@@ -79,6 +87,7 @@ class Config:
     REDIS: RedisConfig = field(default_factory=RedisConfig)
     CRAWLER: CrawlerConfig = field(default_factory=CrawlerConfig)
     MONITORING: MonitoringConfig = field(default_factory=MonitoringConfig)
+    ERROR: ErrorConfig = field(default_factory=ErrorConfig)
     ML: MLConfig = field(default_factory=MLConfig)
     
     # API Configuration
@@ -99,6 +108,36 @@ class Config:
 
     # Misc settings
     CRAWLER_TIMEOUT: int = 30
+
+    # Will be populated after initialization
+    SITES: Dict[str, Dict[str, Any]] = field(init=False, default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.SITES = self._load_site_configs()
+
+    def _load_site_configs(self) -> Dict[str, Dict[str, Any]]:
+        """Load site configuration files and build rate limit settings."""
+        sites: Dict[str, Dict[str, Any]] = {}
+        base_dir = Path(__file__).parent / "config" / "site_configs"
+        for domain in self.CRAWLER.DOMAINS:
+            file_name = domain.replace('.', '_') + '.json'
+            path = base_dir / file_name
+            site_cfg: Dict[str, Any] = {}
+            if path.exists() and path.stat().st_size > 2:
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        site_cfg = json.load(f)
+                except Exception:
+                    site_cfg = {}
+            rate_info = site_cfg.get('rate_limiting', {})
+            rate_limit = rate_info.get('requests_per_second', self.CRAWLER.RATE_LIMIT.get(domain, 2))
+            rate_period = rate_info.get('cooldown_period', 60)
+            sites[domain] = {
+                'rate_limit': rate_limit,
+                'rate_period': rate_period,
+                **site_cfg,
+            }
+        return sites
 
 # Create global config instance
 config = Config()

@@ -4,6 +4,15 @@ from main_crawler import IranianFlightCrawler
 async def main():
     # Initialize crawler
     crawler = IranianFlightCrawler()
+
+    class DummyCrawler:
+        async def search_flights(self, params):
+            await asyncio.sleep(0)
+            return [{"flight_number": "XX123", "airline": "DemoAir"}]
+
+    # Replace real site crawlers with dummy ones for the demo
+    for key in list(crawler.crawlers.keys()):
+        crawler.crawlers[key] = DummyCrawler()
     
     # Example search parameters
     search_params = {
@@ -22,24 +31,37 @@ async def main():
         # Print results
         print(f"\nFound {len(flights)} flights:")
         for flight in flights:
-            print(f"\nFlight: {flight.airline} {flight.flight_number}")
-            print(f"Route: {flight.origin} -> {flight.destination}")
-            print(f"Time: {flight.departure_time.strftime('%H:%M')} - {flight.arrival_time.strftime('%H:%M')}")
-            print(f"Price: {flight.price:,} {flight.currency}")
-            print(f"Class: {flight.seat_class}")
-            print(f"Duration: {flight.duration_minutes} minutes")
+            if isinstance(flight, dict):
+                airline = flight.get("airline")
+                fn = flight.get("flight_number")
+                origin = flight.get("origin")
+                dest = flight.get("destination")
+                price = flight.get("price")
+                currency = flight.get("currency")
+                seat = flight.get("seat_class")
+                dep = flight.get("departure_time")
+                arr = flight.get("arrival_time")
+                duration = flight.get("duration")
+            else:
+                airline = flight.airline
+                fn = flight.flight_number
+                origin = flight.origin
+                dest = flight.destination
+                price = flight.price
+                currency = flight.currency
+                seat = flight.seat_class
+                dep = flight.departure_time
+                arr = flight.arrival_time
+                duration = flight.duration_minutes
+
+            print(f"\nFlight: {airline} {fn}")
+            print(f"Route: {origin} -> {dest}")
+            print(f"Time: {dep} - {arr}")
+            print(f"Price: {price} {currency}")
+            print(f"Class: {seat}")
+            print(f"Duration: {duration} minutes")
             print("-" * 50)
         
-        # Check crawler health
-        health = crawler.monitor.get_health_status()
-        print("\nCrawler Health Status:")
-        print(f"Overall Status: {health['status']}")
-        for domain, metrics in health['metrics'].items():
-            print(f"\n{domain}:")
-            print(f"  Status: {metrics['status']}")
-            print(f"  Success Rate: {metrics['success_rate']}%")
-            print(f"  Avg Response Time: {metrics['avg_response_time']}s")
-            print(f"  Flights Scraped: {metrics['flights_scraped']}")
         
     except Exception as e:
         print(f"Error: {e}")

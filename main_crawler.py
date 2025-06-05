@@ -144,8 +144,8 @@ class IranianFlightCrawler:
             
             # Store results
             if all_flights:
-                self.data_manager.store_flights({"all": all_flights})
-                self.data_manager.cache_search_results(search_params, {"all": all_flights})
+                await self.data_manager.store_flights({"all": all_flights})
+                await self.data_manager.cache_search_results(search_params, {"all": all_flights})
             
             return all_flights
             

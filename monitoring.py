@@ -30,10 +30,14 @@ class CrawlerMetrics:
 
 class CrawlerMonitor:
     """Monitor crawler performance"""
-    
+
     def __init__(self):
         self.metrics: Dict[str, Dict] = {}
         self.error_handler = ErrorHandler()
+        try:
+            self.redis = redis.Redis(host=config.REDIS.HOST, port=config.REDIS.PORT, db=config.REDIS.DB)
+        except Exception:
+            self.redis = None
     
     def record_request(self, domain: str, duration: float) -> None:
         """Record request metrics"""
@@ -361,6 +365,9 @@ class CrawlerMonitor:
     def get_metrics(self, domain: str) -> CrawlerMetrics:
         """Get metrics for a domain"""
         key = f"crawler:metrics:{domain}"
+        if not self.redis:
+            return CrawlerMetrics(domain=domain)
+
         data = self.redis.hgetall(key)
         
         if not data:
@@ -389,11 +396,12 @@ class CrawlerMonitor:
             'total_response_time': metrics.total_response_time,
             'last_request_time': self._format_datetime(metrics.last_success)
         }
-        self.redis.hmset(key, data)
-        self.redis.expire(key, 86400)  # 24 hours TTL
+        if self.redis:
+            self.redis.hmset(key, data)
+            self.redis.expire(key, 86400)  # 24 hours TTL
     
-    def get_health_status(self, domain: str) -> Dict[str, Any]:
-        """Get health status for a domain"""
+    def get_domain_health_status(self, domain: str) -> Dict[str, Any]:
+        """Get health status for a single domain"""
         metrics = self.get_metrics(domain)
         
         if metrics.total_requests == 0:
@@ -418,10 +426,10 @@ class CrawlerMonitor:
             'circuit_open': metrics.circuit_open
         }
     
-    def get_all_health_status(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_domain_health_status(self) -> Dict[str, Dict[str, Any]]:
         """Get health status for all domains"""
         domains = ['flytoday.ir', 'alibaba.ir', 'safarmarket.com']
-        return {domain: self.get_health_status(domain) for domain in domains}
+        return {domain: self.get_domain_health_status(domain) for domain in domains}
     
     def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
         """Parse datetime string from Redis"""

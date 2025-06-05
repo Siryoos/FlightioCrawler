@@ -50,7 +50,7 @@ class ErrorHandler:
             now = datetime.now()
             
             # Get error window
-            window = timedelta(seconds=config.ERROR['circuit_breaker_timeout'])
+            window = timedelta(seconds=config.ERROR.circuit_breaker_timeout)
             
             # Filter errors
             self.errors[domain] = [
@@ -68,7 +68,7 @@ class ErrorHandler:
             error_count = len(self.errors[domain])
             
             # Get threshold
-            threshold = config.ERROR['circuit_breaker_threshold']
+            threshold = config.ERROR.circuit_breaker_threshold
             
             # Check if threshold exceeded
             if error_count >= threshold:
@@ -97,7 +97,7 @@ class ErrorHandler:
             timestamp = datetime.fromisoformat(circuit['timestamp'])
             
             # Get timeout
-            timeout = timedelta(seconds=config.ERROR['circuit_breaker_timeout'])
+            timeout = timedelta(seconds=config.ERROR.circuit_breaker_timeout)
             
             # Check if timeout exceeded
             if datetime.now() - timestamp > timeout:
