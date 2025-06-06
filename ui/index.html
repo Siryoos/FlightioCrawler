@@ -9,6 +9,7 @@
         input[type=text] { width: 200px; }
         pre { background: #f3f3f3; padding: 10px; white-space: pre-wrap; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <h1>Flight Crawler Control Panel</h1>
@@ -18,10 +19,16 @@
     <form id="searchForm">
         <label>Origin: <input id="origin" required></label><br>
         <label>Destination: <input id="destination" required></label><br>
+        <label>Language:
+            <select id="language">
+                <option value="en">English</option>
+                <option value="fa">فارسی</option>
+            </select>
+        </label><br>
         <label>Date: <input id="date" placeholder="YYYY-MM-DD" required></label><br>
         <button type="submit">Search</button>
     </form>
-    <pre id="searchResult"></pre>
+    <div id="searchResult"></div>
 </section>
 
 <section>
@@ -72,6 +79,33 @@
     <label>User ID: <input id="wsUserId" value="user1"></label>
     <button id="connectWs">Connect</button>
     <pre id="wsResult"></pre>
+</section>
+
+<section id="alerts">
+    <h2>Price Alerts</h2>
+    <form id="alertForm">
+        <label>User ID: <input id="alertUser" value="user1"></label><br>
+        <label>Route: <input id="alertRoute" placeholder="ORIG-DST"></label><br>
+        <label>Target Price: <input id="alertPrice" type="number"></label><br>
+        <button type="submit">Add Alert</button>
+    </form>
+    <button onclick="loadAlerts()">Refresh Alerts</button>
+    <ul id="alertList"></ul>
+</section>
+
+<section id="monitoring">
+    <h2>Price Monitoring</h2>
+    <label>Routes: <input id="monitorRoutes" placeholder="route1,route2"></label>
+    <button onclick="startMonitoring()">Start</button>
+    <button onclick="stopMonitoring()">Stop</button>
+    <div>Active: <span id="monitorStatus"></span></div>
+</section>
+
+<section id="trend">
+    <h2>Price Trend</h2>
+    <label>Route: <input id="trendRoute" placeholder="ORIG-DST"></label>
+    <button onclick="showTrend()">Show</button>
+    <canvas id="trendChart" width="400" height="200"></canvas>
 </section>
 
 <script src="app.js"></script>

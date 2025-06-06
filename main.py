@@ -10,7 +10,7 @@ from config import config
 from main_crawler import IranianFlightCrawler
 from monitoring import CrawlerMonitor
 from intelligent_search import SearchOptimization
-from price_monitor import PriceMonitor, WebSocketManager
+from price_monitor import PriceMonitor, WebSocketManager, PriceAlert
 from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 
@@ -62,6 +62,20 @@ class HealthResponse(BaseModel):
     error_stats: Dict
     rate_limit_stats: Dict
     timestamp: str
+
+class PriceAlertRequest(BaseModel):
+    user_id: str
+    route: str
+    target_price: float
+    alert_type: str = "below"
+    notification_methods: List[str] = ["websocket"]
+
+class MonitorRequest(BaseModel):
+    routes: List[str]
+    interval_minutes: int = 5
+
+class StopMonitorRequest(BaseModel):
+    routes: Optional[List[str]] = None
 
 # API endpoints
 @app.get("/")
@@ -164,6 +178,42 @@ async def reset_stats():
     except Exception as e:
         logger.error(f"Error resetting stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/alerts")
+async def add_price_alert(alert: PriceAlertRequest):
+    alert_id = await crawler.price_monitor.add_price_alert(PriceAlert(**alert.dict()))
+    return {"alert_id": alert_id}
+
+@app.delete("/alerts/{alert_id}")
+async def delete_price_alert(alert_id: str):
+    removed = await crawler.price_monitor.remove_price_alert(alert_id)
+    return {"removed": removed}
+
+@app.get("/alerts")
+async def list_price_alerts():
+    alerts = await crawler.price_monitor.get_active_alerts()
+    return {"alerts": alerts}
+
+@app.post("/monitor/start")
+async def start_monitoring(req: MonitorRequest):
+    await crawler.price_monitor.start_monitoring(req.routes, req.interval_minutes)
+    routes = await crawler.price_monitor.get_monitored_routes()
+    return {"monitoring": routes}
+
+@app.post("/monitor/stop")
+async def stop_monitoring(req: StopMonitorRequest):
+    await crawler.price_monitor.stop_monitoring(req.routes)
+    routes = await crawler.price_monitor.get_monitored_routes()
+    return {"monitoring": routes}
+
+@app.get("/monitor/status")
+async def monitor_status():
+    routes = await crawler.price_monitor.get_monitored_routes()
+    return {"monitoring": routes}
+
+@app.get("/trend/{route}")
+async def price_trend(route: str, days: int = 30):
+    return await crawler.price_monitor.generate_price_trend_chart(route, days)
 
 @app.websocket("/ws/prices/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
