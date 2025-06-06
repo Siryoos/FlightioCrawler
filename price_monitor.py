@@ -31,6 +31,8 @@ class PriceMonitor:
         self.db_manager = db_manager
         self.redis_client = redis_client
         self.monitoring_tasks = {}
+        # websocket_manager will be attached externally
+        self.websocket_manager: Optional[WebSocketManager] = None
 
     async def start_monitoring(self, routes: List[str], interval_minutes: int = 5):
         """Start monitoring prices for the given routes."""
@@ -56,6 +58,35 @@ class PriceMonitor:
     async def remove_price_alert(self, alert_id: str) -> bool:
         """Remove a price alert by ID."""
         return await self.redis_client.delete(alert_id) > 0
+
+    async def get_active_alerts(self) -> List[Dict]:
+        """Return all active price alerts."""
+        keys = self.redis_client.keys("alert:*")
+        alerts = []
+        for key in keys:
+            data = self.redis_client.get(key)
+            if not data:
+                continue
+            alert = json.loads(data)
+            alert["id"] = key.decode() if isinstance(key, bytes) else key
+            alerts.append(alert)
+        return alerts
+
+    async def get_monitored_routes(self) -> List[str]:
+        """Return list of currently monitored routes."""
+        return list(self.monitoring_tasks.keys())
+
+    async def send_price_alert(self, alert: Dict, current_price: float) -> None:
+        """Send price alert to user via configured methods."""
+        alert_data = {
+            "route": alert["route"],
+            "target_price": alert["target_price"],
+            "current_price": current_price,
+        }
+        if self.websocket_manager and "websocket" in alert.get("notification_methods", []):
+            await self.websocket_manager.send_personal_alert(alert["user_id"], alert_data)
+        if "email" in alert.get("notification_methods", []):
+            await self.send_email_alert(alert["user_id"], alert_data)
 
     async def detect_price_anomalies(self, route_prices: Dict[str, List[float]]) -> List[PriceAnomaly]:
         """Detect price anomalies for the given route prices."""

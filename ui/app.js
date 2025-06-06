@@ -67,11 +67,11 @@ document.getElementById('searchForm').addEventListener('submit', async (e) => {
     };
     const r = await fetch('/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept-Language': document.getElementById('language').value },
         body: JSON.stringify(payload)
     });
     const data = await r.json();
-    document.getElementById('searchResult').textContent = JSON.stringify(data, null, 2);
+    displaySearchResults(data.flights || []);
 });
 
 document.getElementById('predictForm').addEventListener('submit', async (e) => {
@@ -100,3 +100,103 @@ document.getElementById('connectWs').addEventListener('click', () => {
     const userId = document.getElementById('wsUserId').value || 'user1';
     connectWebSocket(userId);
 });
+
+function displaySearchResults(flights) {
+    const container = document.getElementById('searchResult');
+    container.innerHTML = '';
+    if (!flights.length) {
+        container.textContent = 'No results';
+        return;
+    }
+    const table = document.createElement('table');
+    const header = document.createElement('tr');
+    Object.keys(flights[0]).forEach(k => {
+        const th = document.createElement('th');
+        th.textContent = k;
+        header.appendChild(th);
+    });
+    table.appendChild(header);
+    flights.forEach(f => {
+        const row = document.createElement('tr');
+        Object.values(f).forEach(v => {
+            const td = document.createElement('td');
+            td.textContent = v;
+            row.appendChild(td);
+        });
+        table.appendChild(row);
+    });
+    container.appendChild(table);
+}
+
+document.getElementById('alertForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        user_id: document.getElementById('alertUser').value,
+        route: document.getElementById('alertRoute').value,
+        target_price: parseFloat(document.getElementById('alertPrice').value)
+    };
+    await fetch('/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    loadAlerts();
+});
+
+async function loadAlerts() {
+    const r = await fetch('/alerts');
+    const data = await r.json();
+    const list = document.getElementById('alertList');
+    list.innerHTML = '';
+    data.alerts.forEach(a => {
+        const li = document.createElement('li');
+        li.textContent = `${a.route} -> ${a.target_price}`;
+        const btn = document.createElement('button');
+        btn.textContent = 'Remove';
+        btn.onclick = async () => {
+            await fetch('/alerts/' + a.id, {method: 'DELETE'});
+            loadAlerts();
+        };
+        li.appendChild(btn);
+        list.appendChild(li);
+    });
+}
+
+async function startMonitoring() {
+    const routes = document.getElementById('monitorRoutes').value.split(',').map(r => r.trim()).filter(Boolean);
+    await fetch('/monitor/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({routes})
+    });
+    updateMonitorStatus();
+}
+
+async function stopMonitoring() {
+    await fetch('/monitor/stop', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({})});
+    updateMonitorStatus();
+}
+
+async function updateMonitorStatus() {
+    const r = await fetch('/monitor/status');
+    const data = await r.json();
+    document.getElementById('monitorStatus').textContent = data.monitoring.join(', ');
+}
+
+let trendChart;
+async function showTrend() {
+    const route = document.getElementById('trendRoute').value;
+    const r = await fetch(`/trend/${route}`);
+    const data = await r.json();
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const labels = data.chart_data.map(d => d.date);
+    const prices = data.chart_data.map(d => d.price);
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [{ label: route, data: prices, fill: false, borderColor: 'blue' }] }
+    });
+}
+
+updateMonitorStatus();
+loadAlerts();
