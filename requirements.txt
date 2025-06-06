@@ -1,5 +1,5 @@
 # Core Dependencies
-crawl4ai>=1.0.0
+crawl4ai>=0.6.3
 aiohttp>=3.8.0
 asyncio>=3.4.3
 psycopg2-binary>=2.9.3
@@ -36,7 +36,7 @@ flake8>=4.0.1
 mypy>=0.931
 
 # Additional dependencies
-fastapi>=0.104.0
+fastapi>=0.115.0
 uvicorn[standard]>=0.24.0
 pydantic>=2.5.0
 sqlalchemy>=2.0.0
