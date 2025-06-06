@@ -9,6 +9,7 @@ A sophisticated web crawler system for Iranian flight booking websites with inte
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
+- [User Guide](#user-guide)
 - [Developer Guide](#developer-guide)
 - [Adding New Websites](#adding-new-websites)
 
@@ -106,6 +107,13 @@ tail -f flight_crawler.log
 python main.py
 ```
 Open `http://localhost:8000/ui` in your browser to access the control panel.
+
+## User Guide | راهنمای کاربر
+
+For step-by-step docker instructions see [USER_GUIDE.md](USER_GUIDE.md).
+
+برای دستورالعمل نصب سریع با داکر به فایل [USER_GUIDE.md](USER_GUIDE.md) مراجعه کنید.
+
 
 ## Developer Guide | راهنمای توسعه‌دهنده
 
