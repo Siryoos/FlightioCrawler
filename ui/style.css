@@ -1,0 +1,24 @@
+body {
+  font-family: Inter, system-ui, sans-serif;
+  background-color: #f6f6f6;
+}
+header {
+  background: #10a37f;
+  color: white;
+  padding: 1rem 2rem;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+section {
+  border-radius: 0.5rem;
+  background: white;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+button {
+  transition: background 0.2s;
+}
+button:hover {
+  opacity: 0.9;
+}

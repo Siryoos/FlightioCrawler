@@ -171,7 +171,7 @@ class IranianFlightCrawler:
             
         except Exception as e:
             logger.error(f"Error crawling {site_name}: {e}")
-            self.error_handler.handle_error(site_name, str(e))
+            await self.error_handler.handle_error(site_name, str(e))
             return []
     
 
