@@ -18,7 +18,7 @@ class ErrorHandler:
         self.max_errors = 5
         self.circuit_timeout = 300  # 5 minutes
     
-    def handle_error(self, domain: str, error: str) -> None:
+    async def handle_error(self, domain: str, error: str) -> None:
         """Handle error for domain"""
         try:
             # Get current time
