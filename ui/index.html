@@ -3,111 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <title>Flight Crawler Control Panel</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        section { margin-bottom: 30px; }
-        input[type=text] { width: 200px; }
-        pre { background: #f3f3f3; padding: 10px; white-space: pre-wrap; }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
-<h1>Flight Crawler Control Panel</h1>
+<body class="bg-gray-50 font-sans">
+<div class="max-w-4xl mx-auto p-4 space-y-8">
+<h1 class="text-2xl font-bold mb-4">Flight Crawler Control Panel</h1>
 
-<section id="search">
-    <h2>Search Flights</h2>
-    <form id="searchForm">
-        <label>Origin: <input id="origin" required></label><br>
-        <label>Destination: <input id="destination" required></label><br>
-        <label>Language:
-            <select id="language">
+<section id="search" class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Search Flights</h2>
+    <form id="searchForm" class="space-y-2">
+        <label class="block">Origin: <input id="origin" class="border p-1 rounded w-52" required></label>
+        <label class="block">Destination: <input id="destination" class="border p-1 rounded w-52" required></label>
+        <label class="block">Language:
+            <select id="language" class="border p-1 rounded w-52">
                 <option value="en">English</option>
                 <option value="fa">فارسی</option>
             </select>
-        </label><br>
-        <label>Date: <input id="date" placeholder="YYYY-MM-DD" required></label><br>
-        <button type="submit">Search</button>
+        </label>
+        <label class="block">Date: <input id="date" class="border p-1 rounded w-52" placeholder="YYYY-MM-DD" required></label>
+        <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded">Search</button>
     </form>
-    <div id="searchResult"></div>
+    <div id="searchResult" class="mt-2"></div>
 </section>
 
-<section>
-    <h2>Health</h2>
-    <button onclick="getHealth()">Check Health</button>
-    <pre id="healthResult"></pre>
+<section class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Health</h2>
+    <button onclick="getHealth()" class="bg-blue-500 text-white px-3 py-1 rounded">Check Health</button>
+    <pre id="healthResult" class="mt-2 bg-gray-100 p-2"></pre>
 </section>
 
-<section>
-    <h2>Metrics</h2>
-    <button onclick="getMetrics()">Get Metrics</button>
-    <pre id="metricsResult"></pre>
+<section class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Metrics</h2>
+    <button onclick="getMetrics()" class="bg-blue-500 text-white px-3 py-1 rounded">Get Metrics</button>
+    <pre id="metricsResult" class="mt-2 bg-gray-100 p-2"></pre>
 </section>
 
-<section>
-    <h2>Stats</h2>
-    <button onclick="getStats()">Get Stats</button>
-    <button onclick="resetStats()">Reset Stats</button>
-    <pre id="statsResult"></pre>
+<section class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Stats</h2>
+    <button onclick="getStats()" class="bg-blue-500 text-white px-3 py-1 rounded mr-2">Get Stats</button>
+    <button onclick="resetStats()" class="bg-gray-500 text-white px-3 py-1 rounded">Reset Stats</button>
+    <pre id="statsResult" class="mt-2 bg-gray-100 p-2"></pre>
 </section>
 
-<section id="predict">
-    <h2>Price Prediction</h2>
-    <form id="predictForm">
-        <label>Route (ORIG-DST): <input id="predictRoute" required></label><br>
-        <label>Dates (comma separated): <input id="predictDates" required></label><br>
-        <button type="submit">Predict</button>
+<section id="predict" class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Price Prediction</h2>
+    <form id="predictForm" class="space-y-2">
+        <label class="block">Route (ORIG-DST): <input id="predictRoute" class="border p-1 rounded w-52" required></label>
+        <label class="block">Dates (comma separated): <input id="predictDates" class="border p-1 rounded w-52" required></label>
+        <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded">Predict</button>
     </form>
-    <pre id="predictResult"></pre>
+    <pre id="predictResult" class="mt-2 bg-gray-100 p-2"></pre>
 </section>
 
-<section id="intelligentSearch">
-    <h2>Intelligent Search</h2>
-    <form id="intelligentForm">
-        <label>Origin: <input id="intOrigin" required></label><br>
-        <label>Destination: <input id="intDestination" required></label><br>
-        <label>Date: <input id="intDate" placeholder="YYYY-MM-DD" required></label><br>
-        <label><input type="checkbox" id="multiRoute" checked> Multi Route</label><br>
-        <label><input type="checkbox" id="dateRange" checked> Date Range</label><br>
-        <label>Range Days: <input id="dateRangeDays" type="number" value="3"></label><br>
-        <button type="submit">Search</button>
+<section id="intelligentSearch" class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Intelligent Search</h2>
+    <form id="intelligentForm" class="space-y-2">
+        <label class="block">Origin: <input id="intOrigin" class="border p-1 rounded w-52" required></label>
+        <label class="block">Destination: <input id="intDestination" class="border p-1 rounded w-52" required></label>
+        <label class="block">Date: <input id="intDate" class="border p-1 rounded w-52" placeholder="YYYY-MM-DD" required></label>
+        <label class="block"><input type="checkbox" id="multiRoute" checked> Multi Route</label>
+        <label class="block"><input type="checkbox" id="dateRange" checked> Date Range</label>
+        <label class="block">Range Days: <input id="dateRangeDays" class="border p-1 rounded w-20" type="number" value="3"></label>
+        <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded">Search</button>
     </form>
-    <pre id="intelligentResult"></pre>
+    <pre id="intelligentResult" class="mt-2 bg-gray-100 p-2"></pre>
 </section>
 
-<section id="priceUpdates">
-    <h2>Price Updates (WebSocket)</h2>
-    <label>User ID: <input id="wsUserId" value="user1"></label>
-    <button id="connectWs">Connect</button>
-    <pre id="wsResult"></pre>
+<section id="priceUpdates" class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Price Updates (WebSocket)</h2>
+    <label class="block">User ID: <input id="wsUserId" class="border p-1 rounded w-52" value="user1"></label>
+    <button id="connectWs" class="bg-blue-500 text-white px-3 py-1 rounded mt-2">Connect</button>
+    <pre id="wsResult" class="mt-2 bg-gray-100 p-2"></pre>
 </section>
 
-<section id="alerts">
-    <h2>Price Alerts</h2>
-    <form id="alertForm">
-        <label>User ID: <input id="alertUser" value="user1"></label><br>
-        <label>Route: <input id="alertRoute" placeholder="ORIG-DST"></label><br>
-        <label>Target Price: <input id="alertPrice" type="number"></label><br>
-        <button type="submit">Add Alert</button>
+<section id="alerts" class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Price Alerts</h2>
+    <form id="alertForm" class="space-y-2">
+        <label class="block">User ID: <input id="alertUser" class="border p-1 rounded w-52" value="user1"></label>
+        <label class="block">Route: <input id="alertRoute" class="border p-1 rounded w-52" placeholder="ORIG-DST"></label>
+        <label class="block">Target Price: <input id="alertPrice" class="border p-1 rounded w-52" type="number"></label>
+        <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded">Add Alert</button>
     </form>
-    <button onclick="loadAlerts()">Refresh Alerts</button>
-    <ul id="alertList"></ul>
+    <button onclick="loadAlerts()" class="bg-gray-500 text-white px-3 py-1 rounded mt-2">Refresh Alerts</button>
+    <ul id="alertList" class="mt-2 list-disc list-inside"></ul>
 </section>
 
-<section id="monitoring">
-    <h2>Price Monitoring</h2>
-    <label>Routes: <input id="monitorRoutes" placeholder="route1,route2"></label>
-    <button onclick="startMonitoring()">Start</button>
-    <button onclick="stopMonitoring()">Stop</button>
-    <div>Active: <span id="monitorStatus"></span></div>
+<section id="monitoring" class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Price Monitoring</h2>
+    <label class="block">Routes: <input id="monitorRoutes" class="border p-1 rounded w-52" placeholder="route1,route2"></label>
+    <button onclick="startMonitoring()" class="bg-blue-500 text-white px-3 py-1 rounded mt-2 mr-2">Start</button>
+    <button onclick="stopMonitoring()" class="bg-gray-500 text-white px-3 py-1 rounded mt-2">Stop</button>
+    <div class="mt-2">Active: <span id="monitorStatus"></span></div>
 </section>
 
-<section id="trend">
-    <h2>Price Trend</h2>
-    <label>Route: <input id="trendRoute" placeholder="ORIG-DST"></label>
-    <button onclick="showTrend()">Show</button>
-    <canvas id="trendChart" width="400" height="200"></canvas>
+<section id="trend" class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">Price Trend</h2>
+    <label class="block">Route: <input id="trendRoute" class="border p-1 rounded w-52" placeholder="ORIG-DST"></label>
+    <button onclick="showTrend()" class="bg-blue-500 text-white px-3 py-1 rounded mt-2">Show</button>
+    <canvas id="trendChart" width="400" height="200" class="mt-2"></canvas>
 </section>
 
 <script src="app.js"></script>
+</div>
 </body>
 </html>
