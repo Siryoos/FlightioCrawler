@@ -41,6 +41,29 @@ class BaseSiteCrawler(StealthCrawler):
         
         self.crawler = AsyncWebCrawler(config=self.browser_config)
     
+    async def _execute_js(self, script: str, **kwargs) -> Any:
+        """Execute JavaScript with error handling"""
+        try:
+            return await self.crawler.execute_js(script, **kwargs)
+        except Exception as e:
+            self.logger.error(f"JavaScript execution error: {e}")
+            raise
+    
+    async def _wait_for_element(self, selector: str, timeout: int = 10) -> bool:
+        """Wait for element to be present"""
+        try:
+            return await self.crawler.wait_for_selector(selector, timeout=timeout)
+        except Exception as e:
+            self.logger.error(f"Wait for element error: {e}")
+            return False
+    
+    async def _take_screenshot(self, name: str) -> None:
+        """Take screenshot for debugging"""
+        try:
+            await self.crawler.screenshot(path=f"debug_{self.domain}_{name}.png")
+        except Exception as e:
+            self.logger.error(f"Screenshot error: {e}")
+    
     async def check_rate_limit(self) -> bool:
         """Check rate limit for the site"""
         return self.rate_limiter.check_rate_limit(self.domain)
@@ -76,29 +99,6 @@ class BaseSiteCrawler(StealthCrawler):
                 "source_url": getattr(self, "base_url", "")
             }
         ]
-    
-    async def _execute_js(self, script: str, **kwargs) -> Any:
-        """Execute JavaScript with error handling"""
-        try:
-            return await self.crawler.execute_js(script, **kwargs)
-        except Exception as e:
-            self.logger.error(f"JavaScript execution error: {e}")
-            raise
-    
-    async def _wait_for_element(self, selector: str, timeout: int = 10) -> bool:
-        """Wait for element to be present"""
-        try:
-            return await self.crawler.wait_for_selector(selector, timeout=timeout)
-        except Exception as e:
-            self.logger.error(f"Wait for element error: {e}")
-            return False
-    
-    async def _take_screenshot(self, name: str) -> None:
-        """Take screenshot for debugging"""
-        try:
-            await self.crawler.screenshot(f"debug_{self.domain}_{name}.png")
-        except Exception as e:
-            self.logger.error(f"Screenshot error: {e}")
 
 class FlytodayCrawler(BaseSiteCrawler):
     """Crawler for Flytoday.ir"""
@@ -152,7 +152,7 @@ class AlibabaCrawler(BaseSiteCrawler):
                     await asyncio.sleep(wait_time)
             
             # Navigate to search page
-            await self.crawler.goto(f"{self.base_url}/flight/search")
+            await self.crawler.navigate(f"{self.base_url}/flight/search")
             
             # Fill search form
             await self._execute_js("""
@@ -248,7 +248,7 @@ class SafarmarketCrawler(BaseSiteCrawler):
                     await asyncio.sleep(wait_time)
             
             # Navigate to search page
-            await self.crawler.goto(f"{self.base_url}/flight/search")
+            await self.crawler.navigate(f"{self.base_url}/flight/search")
             
             # Fill search form
             await self._execute_js("""
@@ -319,7 +319,7 @@ class SafarmarketCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling Safarmarket: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return [] 
+            return []
 
 class Mz724Crawler(BaseSiteCrawler):
     """Crawler for mz724.ir"""
@@ -339,7 +339,7 @@ class Mz724Crawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.goto(self.base_url)
+            await self.crawler.navigate(f"{self.base_url}/flight/search")
             flights = await self._return_dummy_flights(search_params)
 
             await self._take_screenshot("search_results")
@@ -368,7 +368,7 @@ class PartoCRSCrawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.goto(self.base_url)
+            await self.crawler.navigate(f"{self.base_url}/flight/search")
             flights = await self._return_dummy_flights(search_params)
 
             await self._take_screenshot("search_results")
@@ -397,7 +397,7 @@ class PartoTicketCrawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.goto(self.base_url)
+            await self.crawler.navigate(f"{self.base_url}/flight/search")
             flights = await self._return_dummy_flights(search_params)
 
             await self._take_screenshot("search_results")
@@ -426,7 +426,7 @@ class BookCharter724Crawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.goto(self.base_url)
+            await self.crawler.navigate(f"{self.base_url}/flight/search")
             flights = await self._return_dummy_flights(search_params)
 
             await self._take_screenshot("search_results")
@@ -455,7 +455,7 @@ class BookCharterCrawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.goto(self.base_url)
+            await self.crawler.navigate(f"{self.base_url}/flight/search")
             flights = await self._return_dummy_flights(search_params)
 
             await self._take_screenshot("search_results")

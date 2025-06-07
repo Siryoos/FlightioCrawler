@@ -2,7 +2,7 @@ import logging
 import asyncio
 from typing import Dict, List, Optional
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, WebSocket, Header
+from fastapi import FastAPI, HTTPException, WebSocket, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -117,10 +117,10 @@ async def health_check():
         
         return {
             "status": "healthy",
-            "metrics": health["metrics"],
-            "error_stats": health["error_stats"],
-            "rate_limit_stats": health["rate_limit_stats"],
-            "timestamp": health["timestamp"]
+            "metrics": health.get("crawler_metrics", {}),
+            "error_stats": health.get("error_stats", {}),
+            "rate_limit_stats": health.get("rate_limits", {}),
+            "timestamp": health.get("timestamp", datetime.now().isoformat())
         }
         
     except Exception as e:
@@ -147,18 +147,14 @@ async def get_metrics():
 async def get_stats():
     """Get stats endpoint"""
     try:
-        # Get all stats
-        site_stats = crawler.get_all_site_stats()
-        search_stats = crawler.get_search_stats()
-        flight_stats = crawler.get_flight_stats()
-        
+        # Use available stats methods
+        flight_stats = crawler.data_manager.get_flight_stats()
+        health = crawler.get_health_status()
         return {
-            "site_stats": site_stats,
-            "search_stats": search_stats,
             "flight_stats": flight_stats,
+            "health": health,
             "timestamp": datetime.now().isoformat()
         }
-        
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -224,8 +220,34 @@ async def predict_prices(route: str, dates: List[str]):
     return await crawler.ml_predictor.predict_future_prices(route, dates)
 
 @app.post("/search/intelligent")
-async def intelligent_search(request: SearchRequest, optimization: SearchOptimization):
-    return await crawler.intelligent_search_flights(request.dict(), optimization)
+async def intelligent_search(
+    origin: str = Query(...),
+    destination: str = Query(...),
+    date: str = Query(...),
+    enable_multi_route: bool = Query(True),
+    enable_date_range: bool = Query(True),
+    date_range_days: int = Query(3)
+):
+    """Intelligent search endpoint"""
+    try:
+        search_params = {
+            "origin": origin,
+            "destination": destination,
+            "departure_date": date,
+        }
+        optimization = SearchOptimization(
+            enable_multi_route=enable_multi_route,
+            enable_date_range=enable_date_range,
+            date_range_days=date_range_days
+        )
+        results = await crawler.intelligent_search_flights(search_params, optimization)
+        return {
+            "results": results,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error in intelligent search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Run app
 if __name__ == "__main__":

@@ -7,6 +7,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from redis import Redis
 from config import config
+import copy
+import datetime as dt
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -107,11 +109,11 @@ class DataManager:
             
             # Create search query
             query = SearchQuery(
-                origin=params['origin'],
-                destination=params['destination'],
-                departure_date=params['departure_date'],
-                passengers=params['passengers'],
-                seat_class=params['seat_class'],
+                origin=params.get('origin', ''),
+                destination=params.get('destination', ''),
+                departure_date=params.get('departure_date', ''),
+                passengers=params.get('passengers', 1),
+                seat_class=params.get('seat_class', 'economy'),
                 query_time=datetime.now(),
                 result_count=result_count,
                 search_duration=search_duration,
@@ -161,11 +163,22 @@ class DataManager:
             # Generate cache key
             key = self._generate_cache_key(params)
             
+            # Convert all datetime objects in results to isoformat strings
+            def convert_dt(obj):
+                if isinstance(obj, dt.datetime):
+                    return obj.isoformat()
+                if isinstance(obj, dict):
+                    return {k: convert_dt(v) for k, v in obj.items()}
+                if isinstance(obj, list):
+                    return [convert_dt(i) for i in obj]
+                return obj
+            results_serializable = convert_dt(copy.deepcopy(results))
+            
             # Cache results
             self.redis.setex(
                 key,
                 config.CACHE_TTL,
-                json.dumps(results)
+                json.dumps(results_serializable)
             )
             
         except Exception as e:
@@ -191,7 +204,7 @@ class DataManager:
     
     def _generate_cache_key(self, params: Dict) -> str:
         """Generate cache key for search parameters"""
-        return f"search:{params['origin']}:{params['destination']}:{params['departure_date']}:{params['passengers']}:{params['seat_class']}"
+        return f"search:{params.get('origin', '')}:{params.get('destination', '')}:{params.get('departure_date', '')}:{params.get('passengers', 1)}:{params.get('seat_class', 'economy')}"
     
     def get_search_stats(self) -> Dict:
         """Get search statistics"""
@@ -348,53 +361,69 @@ class DataManager:
 
             for _, site_flights in flights.items():
                 for flight_data in site_flights:
+                    # Calculate duration if not provided
+                    if 'duration_minutes' not in flight_data and 'departure_time' in flight_data and 'arrival_time' in flight_data:
+                        duration = (flight_data['arrival_time'] - flight_data['departure_time']).total_seconds() / 60
+                        flight_data['duration_minutes'] = int(duration)
+
+                    # Convert all datetime objects in raw_data to isoformat strings
+                    def convert_dt(obj):
+                        if isinstance(obj, dt.datetime):
+                            return obj.isoformat()
+                        if isinstance(obj, dict):
+                            return {k: convert_dt(v) for k, v in obj.items()}
+                        if isinstance(obj, list):
+                            return [convert_dt(i) for i in obj]
+                        return obj
+                    raw_data_serializable = convert_dt(copy.deepcopy(flight_data))
+
                     flight_id = (
-                        f"{flight_data['airline']}_{flight_data['flight_number']}"
-                        f"_{flight_data['origin']}_{flight_data['destination']}"
-                        f"_{flight_data['departure_time'].isoformat()}"
+                        f"{flight_data.get('airline', '')}_{flight_data.get('flight_number', '')}"
+                        f"_{flight_data.get('origin', '')}_{flight_data.get('destination', '')}"
+                        f"_{flight_data.get('departure_time', now).isoformat()}"
                     )
 
                     existing = session.query(Flight).filter_by(flight_id=flight_id).first()
 
                     if existing:
-                        if existing.price != flight_data['price']:
+                        if existing.price != flight_data.get('price', 0):
                             price_history = FlightPriceHistory(
                                 flight_id=flight_id,
-                                price=flight_data['price'],
-                                currency=flight_data['currency'],
+                                price=flight_data.get('price', 0),
+                                currency=flight_data.get('currency', 'IRR'),
                                 recorded_at=now,
                             )
                             session.add(price_history)
 
-                        existing.price = flight_data['price']
-                        existing.currency = flight_data['currency']
+                        existing.price = flight_data.get('price', 0)
+                        existing.currency = flight_data.get('currency', 'IRR')
                         existing.scraped_at = now
-                        existing.raw_data = flight_data
+                        existing.raw_data = raw_data_serializable
                     else:
                         flight = Flight(
                             flight_id=flight_id,
-                            airline=flight_data['airline'],
-                            flight_number=flight_data['flight_number'],
-                            origin=flight_data['origin'],
-                            destination=flight_data['destination'],
-                            departure_time=flight_data['departure_time'],
-                            arrival_time=flight_data['arrival_time'],
-                            price=flight_data['price'],
-                            currency=flight_data['currency'],
-                            seat_class=flight_data['seat_class'],
+                            airline=flight_data.get('airline', ''),
+                            flight_number=flight_data.get('flight_number', ''),
+                            origin=flight_data.get('origin', ''),
+                            destination=flight_data.get('destination', ''),
+                            departure_time=flight_data.get('departure_time', now),
+                            arrival_time=flight_data.get('arrival_time', now),
+                            price=flight_data.get('price', 0),
+                            currency=flight_data.get('currency', 'IRR'),
+                            seat_class=flight_data.get('seat_class', 'economy'),
                             aircraft_type=flight_data.get('aircraft_type'),
-                            duration_minutes=flight_data['duration_minutes'],
-                            flight_type=flight_data.get('flight_type'),
+                            duration_minutes=flight_data.get('duration_minutes', 0),
+                            flight_type=flight_data.get('flight_type', 'direct'),
                             scraped_at=now,
-                            source_url=flight_data['source_url'],
-                            raw_data=flight_data,
+                            source_url=flight_data.get('source_url', ''),
+                            raw_data=raw_data_serializable,
                         )
                         session.add(flight)
 
                         price_history = FlightPriceHistory(
                             flight_id=flight_id,
-                            price=flight_data['price'],
-                            currency=flight_data['currency'],
+                            price=flight_data.get('price', 0),
+                            currency=flight_data.get('currency', 'IRR'),
                             recorded_at=now,
                         )
                         session.add(price_history)
