@@ -41,6 +41,10 @@ class AsyncWebCrawler:
         await self._ensure_browser()
         await self.page.goto(url, timeout=self.config.timeout)
 
+    async def navigate(self, url: str):
+        """Navigate to the given URL. Alias for ``goto`` for backward compatibility."""
+        await self.goto(url)
+
     async def wait_for_selector(self, selector: str, timeout: int = 10):
         await self._ensure_browser()
         await self.page.wait_for_selector(selector, timeout=timeout * 1000)
