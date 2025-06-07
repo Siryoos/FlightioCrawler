@@ -1,14 +1,20 @@
 body {
   font-family: Inter, system-ui, sans-serif;
-  background-color: #f6f6f6;
+  background: linear-gradient(#fff0f5, #f0f8ff);
 }
 header {
-  background: #10a37f;
+  background: linear-gradient(90deg, #ff9aa2, #fad0c4);
   color: white;
   padding: 1rem 2rem;
   text-align: center;
   font-size: 1.5rem;
   font-weight: 600;
+}
+header .tagline {
+  font-size: 1rem;
+  margin-top: 0.25rem;
+  color: #ffeeee;
+  font-style: italic;
 }
 section {
   border-radius: 0.5rem;
