@@ -57,7 +57,7 @@ class CrawlerConfig:
 @dataclass
 class MonitoringConfig:
     ENABLED: bool = True
-    LOG_LEVEL: str = 'INFO'
+    LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
     METRICS_PORT: int = 9090
     HEALTH_CHECK_PORT: int = 8000
     LOG_FILE: str = 'flight_crawler.log'

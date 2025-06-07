@@ -17,6 +17,7 @@ services:
       - DATABASE_URL=postgresql://crawler:secure_password@postgres:5432/flight_data
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
+      - DEBUG_MODE=false
       - CRAWLER_TIMEOUT=30
       - CRAWLER_CONCURRENCY=3
       - CRAWLER_RETRY_ATTEMPTS=3

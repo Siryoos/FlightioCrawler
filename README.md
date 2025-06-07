@@ -82,9 +82,11 @@ DB_USER=crawler
 DB_PASSWORD=secure_password
 REDIS_HOST=localhost
 REDIS_PORT=6379
+DEBUG_MODE=false
 ```
 
 2. Update the configuration in `config.py` as needed.
+3. Set `DEBUG_MODE=true` to enable verbose logging during development.
 
 ## Usage | استفاده
 

@@ -1,9 +1,12 @@
 import asyncio
 import logging
+import os
 from main_crawler import IranianFlightCrawler
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+debug_mode = os.getenv("DEBUG_MODE", "0").lower() in ("1", "true", "yes")
+level = logging.DEBUG if debug_mode else logging.INFO
+logging.basicConfig(level=level)
 logger = logging.getLogger(__name__)
 
 async def test_basic_functionality():
