@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import json
-from crawl4ai import AsyncWebCrawler, BrowserConfig
+from local_crawler import AsyncWebCrawler, BrowserConfig
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser, Page
 
