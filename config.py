@@ -93,6 +93,9 @@ class Config:
     # API Configuration
     API_VERSION: str = 'v1'
     API_PREFIX: str = f'/api/{API_VERSION}'
+    API_HOST: str = os.getenv('API_HOST', '0.0.0.0')
+    API_PORT: int = int(os.getenv('API_PORT', '8000'))
+    API_WORKERS: int = int(os.getenv('API_WORKERS', '1'))
     
     # Security
     SECRET_KEY: str = os.getenv('SECRET_KEY', 'your-secret-key-here')
