@@ -45,7 +45,7 @@ class KarunAirAdapter(PersianAirlineCrawler):
 
     async def _navigate_to_search_page(self):
         try:
-            await self.page.goto(self.search_url)
+            await self.page.navigate(self.search_url)
             await self.page.wait_for_load_state("networkidle")
         except TimeoutError:
             self.logger.error("Timeout while loading search page")

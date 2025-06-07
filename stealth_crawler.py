@@ -3,7 +3,7 @@ import os
 import inspect
 from typing import Optional, List, Tuple, Dict, Any
 from dataclasses import dataclass
-from crawl4ai import BrowserConfig
+from local_crawler import BrowserConfig
 import asyncio
 import time
 from config import config

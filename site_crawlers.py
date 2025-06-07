@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from crawl4ai import AsyncWebCrawler, BrowserConfig
+from local_crawler import AsyncWebCrawler, BrowserConfig
 try:
     from crawl4ai.cache_mode import CacheMode
 except Exception:  # pragma: no cover - optional dependency

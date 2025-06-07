@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import json
-from crawl4ai import AsyncWebCrawler, BrowserConfig
+from local_crawler import AsyncWebCrawler, BrowserConfig
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser, Page
 
@@ -47,7 +47,7 @@ class JavaScriptCrawler(BaseSiteCrawler):
         
         try:
             # Navigate to search page
-            await self.crawler.goto(self.config['search_url'])
+            await self.crawler.navigate(self.config['search_url'])
             
             # Execute search form filling
             await self._execute_search_form(search_params)
@@ -87,7 +87,7 @@ class FormCrawler(BaseSiteCrawler):
         
         try:
             # Navigate to search page
-            await self.crawler.goto(self.config['search_url'])
+            await self.crawler.navigate(self.config['search_url'])
             
             # Fill and submit form
             await self._fill_form(search_params)

@@ -84,7 +84,7 @@ class PartoTicketAdapter(PersianAirlineCrawler):
         """
         try:
             await self.rate_limiter.acquire()
-            await session.goto(self.search_url)
+            await session.navigate(self.search_url)
             await session.wait_for_selector(self.config["extraction_config"]["search_form"]["origin_field"])
         except Exception as e:
             logging.error(f"Error navigating to search page: {str(e)}")

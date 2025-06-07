@@ -68,7 +68,7 @@ class Mz724Adapter(BaseSiteCrawler):
     async def _navigate_to_search_page(self):
         """Navigate to the flight search page"""
         try:
-            await self.crawler.goto(self.search_url)
+            await self.crawler.navigate(self.search_url)
             await self.crawler.wait_for_selector('.flight-search-form', timeout=10)
         except TimeoutException:
             raise Exception("Failed to load search page")

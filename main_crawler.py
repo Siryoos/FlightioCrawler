@@ -5,8 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import redis
 import psycopg2
-from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
-from crawl4ai.extraction_strategy import LLMExtractionStrategy
+from local_crawler import BrowserConfig, CrawlerRunConfig
 from hazm import Normalizer
 from persian_tools import digits
 import jdatetime

@@ -178,7 +178,11 @@ class DataManager:
             self.redis.setex(
                 key,
                 config.CACHE_TTL,
+<<<<<<< HEAD
                 json.dumps(results_serializable)
+=======
+                json.dumps(results, default=str)
+>>>>>>> 1d218a2dbbb43a11c42609de9a4d2e9153d1663a
             )
             
         except Exception as e:
@@ -361,6 +365,7 @@ class DataManager:
 
             for _, site_flights in flights.items():
                 for flight_data in site_flights:
+<<<<<<< HEAD
                     # Calculate duration if not provided
                     if 'duration_minutes' not in flight_data and 'departure_time' in flight_data and 'arrival_time' in flight_data:
                         duration = (flight_data['arrival_time'] - flight_data['departure_time']).total_seconds() / 60
@@ -377,6 +382,11 @@ class DataManager:
                         return obj
                     raw_data_serializable = convert_dt(copy.deepcopy(flight_data))
 
+=======
+                    if not all(k in flight_data for k in ("airline", "flight_number", "origin", "destination", "departure_time", "arrival_time", "price", "currency", "seat_class", "duration_minutes", "source_url")):
+                        logger.error("Missing required flight fields")
+                        continue
+>>>>>>> 1d218a2dbbb43a11c42609de9a4d2e9153d1663a
                     flight_id = (
                         f"{flight_data.get('airline', '')}_{flight_data.get('flight_number', '')}"
                         f"_{flight_data.get('origin', '')}_{flight_data.get('destination', '')}"
@@ -443,7 +453,7 @@ class DataManager:
             self.redis.setex(
                 f"search:{search_key}",
                 timedelta(hours=1),  # Cache for 1 hour
-                json.dumps(results)
+                json.dumps(results, default=str)
             )
         except Exception as e:
             logger.error(f"Error caching search results: {e}")
