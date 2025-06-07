@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 from typing import Dict, List, Optional
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, WebSocket, Header, Query
@@ -15,8 +16,12 @@ from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 
 # Configure logging
+debug_mode = os.getenv("DEBUG_MODE", "0").lower() in ("1", "true", "yes")
+log_level = logging.DEBUG if debug_mode else getattr(
+    logging, config.MONITORING.LOG_LEVEL.upper(), logging.INFO
+)
 logging.basicConfig(
-    level=config.MONITORING.LOG_LEVEL,
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
