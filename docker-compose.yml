@@ -6,6 +6,14 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - DB_HOST=postgres
+      - DB_NAME=flight_data
+      - DB_USER=crawler
+      - DB_PASSWORD=secure_password
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
       - DATABASE_URL=postgresql://crawler:secure_password@postgres:5432/flight_data
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
