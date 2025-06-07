@@ -165,7 +165,7 @@ class DataManager:
             self.redis.setex(
                 key,
                 config.CACHE_TTL,
-                json.dumps(results)
+                json.dumps(results, default=str)
             )
             
         except Exception as e:
@@ -348,6 +348,9 @@ class DataManager:
 
             for _, site_flights in flights.items():
                 for flight_data in site_flights:
+                    if not all(k in flight_data for k in ("airline", "flight_number", "origin", "destination", "departure_time", "arrival_time", "price", "currency", "seat_class", "duration_minutes", "source_url")):
+                        logger.error("Missing required flight fields")
+                        continue
                     flight_id = (
                         f"{flight_data['airline']}_{flight_data['flight_number']}"
                         f"_{flight_data['origin']}_{flight_data['destination']}"
@@ -414,7 +417,7 @@ class DataManager:
             self.redis.setex(
                 f"search:{search_key}",
                 timedelta(hours=1),  # Cache for 1 hour
-                json.dumps(results)
+                json.dumps(results, default=str)
             )
         except Exception as e:
             logger.error(f"Error caching search results: {e}")
