@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 class BaseSiteCrawler(StealthCrawler):
     """Base class for site-specific crawlers"""
-    
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
         super().__init__()
         self.rate_limiter = rate_limiter
         self.text_processor = text_processor
@@ -40,6 +40,7 @@ class BaseSiteCrawler(StealthCrawler):
         )
         
         self.crawler = AsyncWebCrawler(config=self.browser_config)
+        self.interval = interval
     
     async def _execute_js(self, script: str, **kwargs) -> Any:
         """Execute JavaScript with error handling"""
@@ -100,11 +101,18 @@ class BaseSiteCrawler(StealthCrawler):
             }
         ]
 
+    async def continuous_monitoring(self, routes: List[Dict]) -> None:
+        """Continuously search flights for the provided routes."""
+        while True:
+            for params in routes:
+                await self.search_flights(params)
+            await asyncio.sleep(self.interval)
+
 class FlytodayCrawler(BaseSiteCrawler):
     """Crawler for Flytoday.ir"""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+
+    def __init__(self, *args, interval: int = 2700, **kwargs):
+        super().__init__(*args, interval=interval, **kwargs)
         self.domain = "flytoday.ir"
         self.base_url = "https://www.flytoday.ir"
     
@@ -131,9 +139,9 @@ class FlytodayCrawler(BaseSiteCrawler):
 
 class AlibabaCrawler(BaseSiteCrawler):
     """Crawler for Alibaba.ir"""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+
+    def __init__(self, *args, interval: int = 900, **kwargs):
+        super().__init__(*args, interval=interval, **kwargs)
         self.domain = "alibaba.ir"
         self.base_url = "https://www.alibaba.ir"
     
@@ -227,9 +235,9 @@ class AlibabaCrawler(BaseSiteCrawler):
 
 class SafarmarketCrawler(BaseSiteCrawler):
     """Crawler for Safarmarket.com"""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+
+    def __init__(self, *args, interval: int = 900, **kwargs):
+        super().__init__(*args, interval=interval, **kwargs)
         self.domain = "safarmarket.com"
         self.base_url = "https://www.safarmarket.com"
     
@@ -323,8 +331,8 @@ class SafarmarketCrawler(BaseSiteCrawler):
 
 class Mz724Crawler(BaseSiteCrawler):
     """Crawler for mz724.ir"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, interval: int = 1800, **kwargs):
+        super().__init__(*args, interval=interval, **kwargs)
         self.domain = "mz724.ir"
         self.base_url = "https://mz724.ir"
 

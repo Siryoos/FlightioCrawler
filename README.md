@@ -144,6 +144,7 @@ FlightioCrawler/
 ├── data_manager.py          # Data storage and caching
 ├── intelligent_search.py    # Search optimization
 ├── price_monitor.py         # Price monitoring
+├── flight_monitor.py        # Periodic multi-site monitoring
 ├── ml_predictor.py          # Price prediction
 └── multilingual_processor.py # Language processing
 ```
@@ -169,6 +170,10 @@ FlightioCrawler/
    - Health checks
    - Error tracking
    - Performance metrics
+
+5. **Flight Monitoring System** (`flight_monitor.py`)
+   - Runs continuous crawling loops
+   - Platform-specific intervals
 
 ## Adding New Websites | افزودن وب‌سایت‌های جدید
 
