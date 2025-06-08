@@ -56,6 +56,8 @@ class SearchRequest(BaseModel):
     origin: str
     destination: str
     date: str
+    passengers: int = 1
+    seat_class: str = "economy"
 
 class SearchResponse(BaseModel):
     flights: List[Dict]
@@ -98,6 +100,8 @@ async def search_flights(request: SearchRequest, accept_language: str = Header("
                 "origin": request.origin,
                 "destination": request.destination,
                 "departure_date": request.date,
+                "passengers": request.passengers,
+                "seat_class": request.seat_class,
             }
         )
         
