@@ -108,6 +108,21 @@ tail -f flight_crawler.log
 ```bash
 python main.py
 ```
+
+4. Crawl a single website directly:
+```python
+from main_crawler import IranianFlightCrawler
+import asyncio
+
+crawler = IranianFlightCrawler()
+flights = asyncio.run(
+    crawler.crawl_site(
+        "alibaba.ir",
+        {"origin": "THR", "destination": "MHD", "departure_date": "2024-01-01"}
+    )
+)
+print(f"Found {len(flights)} flights")
+```
 Open `http://localhost:8000/ui` in your browser to access the control panel.
 
 ## User Guide | راهنمای کاربر

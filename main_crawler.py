@@ -198,6 +198,29 @@ class IranianFlightCrawler:
         """Generate cache key for search"""
         return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}"
 
+    async def crawl_site(self, site_name: str, search_params: Dict) -> List[Dict]:
+        """Crawl a single website and return flight results."""
+        if site_name not in self.crawlers:
+            raise ValueError(f"Unknown site: {site_name}")
+
+        search_params.setdefault("passengers", 1)
+        search_params.setdefault("seat_class", "economy")
+
+        return await self._crawl_site_safely(
+            site_name, self.crawlers[site_name], search_params
+        )
+
+    def reset_stats(self) -> None:
+        """Reset monitoring metrics, error states and rate limits."""
+        try:
+            self.monitor.reset_all_metrics()
+            self.error_handler.reset_all_circuits()
+            self.rate_limiter.clear_rate_limits()
+            if hasattr(self.data_manager, "redis") and self.data_manager.redis:
+                self.data_manager.redis.flushdb()
+        except Exception as e:
+            logger.error(f"Error resetting stats: {e}")
+
     def setup_logging(self):
         logging.basicConfig(
             level=logging.INFO,
