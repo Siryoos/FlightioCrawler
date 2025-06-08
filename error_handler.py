@@ -254,3 +254,18 @@ class ErrorHandler:
     async def can_make_request(self, domain: str) -> bool:
         """Check if we can make a request to domain"""
         return not self.is_circuit_open(domain)
+
+    def get_last_error(self, domain: str) -> Optional[str]:
+        """Return the most recent error message for a domain"""
+        errors = self.errors.get(domain, [])
+        if errors:
+            return errors[-1]['error']
+        return None
+
+    def get_circuit_state(self, domain: str) -> str:
+        """Return circuit breaker state for a domain"""
+        return "open" if self.is_circuit_open(domain) else "closed"
+
+    async def reset_circuit_breaker(self, domain: str) -> None:
+        """Async wrapper to reset circuit breaker and clear errors"""
+        self.reset_circuit(domain)

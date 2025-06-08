@@ -258,6 +258,162 @@ async def intelligent_search(
         logger.error(f"Error in intelligent search: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/v1/sites/status")
+async def get_all_sites_status():
+    """Get detailed status for all configured sites"""
+    sites_status = {}
+    for site_name, crawler_instance in crawler.crawlers.items():
+        sites_status[site_name] = {
+            "domain": site_name,
+            "base_url": getattr(crawler_instance, 'base_url', ''),
+            "is_active": await crawler.error_handler.can_make_request(site_name),
+            "circuit_breaker_state": crawler.error_handler.get_circuit_state(site_name),
+            "rate_limit_status": {
+                "can_request": not crawler.rate_limiter.is_rate_limited(site_name),
+                "requests_remaining": crawler.rate_limiter.get_remaining_requests(site_name),
+                "reset_time": crawler.rate_limiter.get_reset_time(site_name)
+            },
+            "last_error": crawler.error_handler.get_last_error(site_name),
+            "last_successful_crawl": monitor.get_last_success(site_name),
+            "total_requests_today": monitor.get_request_count(site_name),
+            "success_rate_24h": monitor.get_success_rate(site_name),
+            "avg_response_time": monitor.get_avg_response_time(site_name)
+        }
+    return {"sites": sites_status, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/v1/sites/{site_name}/test")
+async def test_individual_site(site_name: str, search_request: SearchRequest):
+    """Test a specific site crawler with given parameters"""
+    if site_name not in crawler.crawlers:
+        raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
+    start_time = datetime.now()
+    try:
+        site_crawler = crawler.crawlers[site_name]
+        results = await site_crawler.search_flights({
+            "origin": search_request.origin,
+            "destination": search_request.destination,
+            "departure_date": search_request.date,
+            "passengers": search_request.passengers,
+            "seat_class": search_request.seat_class
+        })
+        execution_time = (datetime.now() - start_time).total_seconds()
+        return {
+            "site": site_name,
+            "success": True,
+            "execution_time": execution_time,
+            "results_count": len(results),
+            "results": results[:5],
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        execution_time = (datetime.now() - start_time).total_seconds()
+        return {
+            "site": site_name,
+            "success": False,
+            "execution_time": execution_time,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@app.get("/api/v1/sites/{site_name}/health")
+async def check_site_health(site_name: str):
+    """Comprehensive health check for individual site"""
+    if site_name not in crawler.crawlers:
+        raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
+    site_crawler = crawler.crawlers[site_name]
+    base_url = getattr(site_crawler, 'base_url', '')
+    health_data = {"site": site_name, "base_url": base_url, "timestamp": datetime.now().isoformat()}
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            start_time = datetime.now()
+            async with session.get(base_url, timeout=10) as response:
+                response_time = (datetime.now() - start_time).total_seconds()
+                health_data.update({
+                    "url_accessible": True,
+                    "http_status": response.status,
+                    "response_time": response_time,
+                    "content_length": len(await response.text())
+                })
+    except Exception as e:
+        health_data.update({"url_accessible": False, "error": str(e), "response_time": None})
+    health_data.update({
+        "circuit_breaker_open": not await crawler.error_handler.can_make_request(site_name),
+        "rate_limited": crawler.rate_limiter.is_rate_limited(site_name),
+        "error_count_last_hour": monitor.get_error_count(site_name, hours=1),
+        "success_count_last_hour": monitor.get_success_count(site_name, hours=1)
+    })
+    return health_data
+
+
+@app.post("/api/v1/sites/{site_name}/reset")
+async def reset_site_errors(site_name: str):
+    """Reset error state and circuit breaker for a site"""
+    if site_name not in crawler.crawlers:
+        raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
+    await crawler.error_handler.reset_circuit_breaker(site_name)
+    await monitor.reset_metrics_async(site_name)
+    return {"site": site_name, "reset": True, "timestamp": datetime.now().isoformat()}
+
+
+@app.websocket("/ws/sites/{site_name}/logs")
+async def stream_site_logs(websocket: WebSocket, site_name: str):
+    """Stream real-time logs for a specific site"""
+    await websocket.accept()
+    import logging
+    class WebSocketLogHandler(logging.Handler):
+        def emit(self, record):
+            if site_name in record.getMessage():
+                log_entry = {
+                    "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+                    "level": record.levelname,
+                    "message": record.getMessage(),
+                    "module": record.module
+                }
+                try:
+                    asyncio.create_task(websocket.send_json(log_entry))
+                except Exception:
+                    pass
+    handler = WebSocketLogHandler()
+    logger.addHandler(handler)
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except Exception:
+        logger.removeHandler(handler)
+        await websocket.close()
+
+
+@app.websocket("/ws/dashboard")
+async def dashboard_updates(websocket: WebSocket):
+    """Real-time dashboard updates for all sites"""
+    await websocket.accept()
+    try:
+        while True:
+            dashboard_data = {
+                "timestamp": datetime.now().isoformat(),
+                "sites": {},
+                "system_metrics": {
+                    "total_active_crawlers": len([s for s in crawler.crawlers if await crawler.error_handler.can_make_request(s)]),
+                    "total_errors_last_hour": sum(monitor.get_error_count(s, hours=1) for s in crawler.crawlers),
+                    "avg_system_response_time": monitor.get_system_avg_response_time()
+                }
+            }
+            for site_name in crawler.crawlers:
+                dashboard_data["sites"][site_name] = {
+                    "active": await crawler.error_handler.can_make_request(site_name),
+                    "rate_limited": crawler.rate_limiter.is_rate_limited(site_name),
+                    "last_error": crawler.error_handler.get_last_error(site_name),
+                    "requests_per_minute": monitor.get_rpm(site_name)
+                }
+            await websocket.send_json(dashboard_data)
+            await asyncio.sleep(5)
+    except Exception:
+        await websocket.close()
+
 # Run app
 if __name__ == "__main__":
     import uvicorn

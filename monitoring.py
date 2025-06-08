@@ -33,6 +33,7 @@ class CrawlerMonitor:
 
     def __init__(self):
         self.metrics: Dict[str, Dict] = {}
+        self.request_history = defaultdict(lambda: deque(maxlen=1000))
         self.error_handler = ErrorHandler()
         try:
             self.redis = redis.Redis(host=config.REDIS.HOST, port=config.REDIS.PORT, db=config.REDIS.DB)
@@ -65,6 +66,7 @@ class CrawlerMonitor:
             metrics['min_duration'] = min(metrics['min_duration'], duration)
             metrics['max_duration'] = max(metrics['max_duration'], duration)
             metrics['last_request'] = datetime.now().isoformat()
+            self.request_history[domain].append(time.time())
             
         except Exception as e:
             logger.error(f"Error recording request metrics: {e}")
@@ -430,6 +432,51 @@ class CrawlerMonitor:
         """Get health status for all domains"""
         domains = ['flytoday.ir', 'alibaba.ir', 'safarmarket.com']
         return {domain: self.get_domain_health_status(domain) for domain in domains}
+
+    def get_last_success(self, domain: str) -> Optional[str]:
+        """Return ISO timestamp of last successful request"""
+        history = self.request_history.get(domain)
+        if history:
+            return datetime.fromtimestamp(history[-1]).isoformat()
+        return None
+
+    def get_request_count(self, domain: str, hours: int = 24) -> int:
+        cutoff = time.time() - hours * 3600
+        return len([t for t in self.request_history.get(domain, []) if t >= cutoff])
+
+    def get_success_rate(self, domain: str, hours: int = 24) -> float:
+        successes = self.get_request_count(domain, hours)
+        errors = self.get_error_count(domain, hours)
+        total = successes + errors
+        return (successes / total) * 100 if total else 0.0
+
+    def get_avg_response_time(self, domain: str) -> float:
+        metrics = self.metrics.get(domain, {})
+        if metrics.get('total_requests', 0) == 0:
+            return 0.0
+        return metrics['total_duration'] / metrics['total_requests']
+
+    def get_error_count(self, domain: str, hours: int = 1) -> int:
+        cutoff = datetime.now() - timedelta(hours=hours)
+        return len([e for e in self.error_handler.errors.get(domain, []) if datetime.fromisoformat(e['timestamp']) >= cutoff])
+
+    def get_success_count(self, domain: str, hours: int = 1) -> int:
+        cutoff = time.time() - hours * 3600
+        return len([t for t in self.request_history.get(domain, []) if t >= cutoff])
+
+    def get_system_avg_response_time(self) -> float:
+        total_duration = sum(m.get('total_duration', 0) for m in self.metrics.values())
+        total_requests = sum(m.get('total_requests', 0) for m in self.metrics.values())
+        if total_requests == 0:
+            return 0.0
+        return total_duration / total_requests
+
+    def get_rpm(self, domain: str) -> int:
+        cutoff = time.time() - 60
+        return len([t for t in self.request_history.get(domain, []) if t >= cutoff])
+
+    async def reset_metrics_async(self, domain: str) -> None:
+        self.reset_metrics(domain)
     
     def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
         """Parse datetime string from Redis"""
