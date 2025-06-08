@@ -11,3 +11,9 @@ def test_root_endpoint():
     response = client.get("/")
     assert response.status_code == 200
     assert "Iranian Flight Crawler" in response.text
+
+
+def test_recent_flights_endpoint():
+    response = client.get("/flights/recent?limit=1")
+    assert response.status_code == 200
+    assert "flights" in response.json()

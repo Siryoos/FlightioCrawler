@@ -271,6 +271,39 @@ class DataManager:
         finally:
             session.close()
 
+    def get_recent_flights(self, limit: int = 100) -> List[Dict]:
+        """Retrieve recently scraped flights."""
+        try:
+            session = self.Session()
+            flights = (
+                session.query(Flight)
+                .order_by(Flight.scraped_at.desc())
+                .limit(limit)
+                .all()
+            )
+            return [
+                {
+                    "flight_id": f.flight_id,
+                    "airline": f.airline,
+                    "flight_number": f.flight_number,
+                    "origin": f.origin,
+                    "destination": f.destination,
+                    "departure_time": f.departure_time.isoformat(),
+                    "arrival_time": f.arrival_time.isoformat(),
+                    "price": f.price,
+                    "currency": f.currency,
+                    "seat_class": f.seat_class,
+                    "duration_minutes": f.duration_minutes,
+                    "scraped_at": f.scraped_at.isoformat(),
+                }
+                for f in flights
+            ]
+        except Exception as e:
+            logger.error(f"Error retrieving recent flights: {e}")
+            return []
+        finally:
+            session.close()
+
     async def get_cached_search(self, search_key: str) -> Optional[Dict]:
         """Get cached search results"""
         try:

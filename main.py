@@ -184,6 +184,17 @@ async def reset_stats():
         logger.error(f"Error resetting stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/flights/recent")
+async def recent_flights(limit: int = 100):
+    """Return recently crawled flights"""
+    try:
+        flights = crawler.data_manager.get_recent_flights(limit)
+        return {"flights": flights, "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        logger.error(f"Error retrieving recent flights: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/alerts")
 async def add_price_alert(alert: PriceAlertRequest):
     alert_id = await crawler.price_monitor.add_price_alert(PriceAlert(**alert.dict()))
