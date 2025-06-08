@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import MultiCitySearch, { Leg } from './components/MultiCitySearch';
 import PriceComparisonGrid, { PriceRow } from './components/PriceComparisonGrid';
 import CrawlerStatusMonitor from './components/CrawlerStatusMonitor';
+import CrawledDataGrid, { CrawledFlight } from './components/CrawledDataGrid';
 
 type Flight = {
   flight_number: string;
@@ -38,6 +39,12 @@ function fetchFlights(origin: string, destination: string, date: string) {
   return fetch(`/search?${params}`).then((r) => r.json()).then((d) => d.flights || []);
 }
 
+function fetchCrawled(limit: number) {
+  return fetch(`/flights/recent?limit=${limit}`)
+    .then((r) => r.json())
+    .then((d) => d.flights || []);
+}
+
 export default function Page() {
   const { origin, destination, date, setOrigin, setDestination, setDate } = useSearchStore();
   const [priceRows, setPriceRows] = useState<PriceRow[]>([]);
@@ -45,6 +52,11 @@ export default function Page() {
     queryKey: ['flights', origin, destination, date],
     queryFn: () => fetchFlights(origin, destination, date),
     enabled: false
+  });
+
+  const { data: crawled = [] } = useQuery<CrawledFlight[]>({
+    queryKey: ['crawled'],
+    queryFn: () => fetchCrawled(20),
   });
 
   const handleMultiSearch = async (legs: Leg[]) => {
@@ -96,6 +108,10 @@ export default function Page() {
       <div className="mt-8">
         <MultiCitySearch onSearch={handleMultiSearch} />
         <PriceComparisonGrid rows={priceRows} />
+      </div>
+      <div className="mt-8">
+        <h2 className="text-lg font-bold mb-2">آخرین داده‌های خزیده‌شده</h2>
+        <CrawledDataGrid flights={crawled} />
       </div>
     </main>
   );
