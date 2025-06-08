@@ -2,6 +2,9 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { create } from 'zustand';
+import MultiCitySearch, { Leg } from './components/MultiCitySearch';
+import PriceComparisonGrid, { PriceRow } from './components/PriceComparisonGrid';
+import CrawlerStatusMonitor from './components/CrawlerStatusMonitor';
 
 type Flight = {
   flight_number: string;
@@ -37,14 +40,25 @@ function fetchFlights(origin: string, destination: string, date: string) {
 
 export default function Page() {
   const { origin, destination, date, setOrigin, setDestination, setDate } = useSearchStore();
+  const [priceRows, setPriceRows] = useState<PriceRow[]>([]);
   const { data: flights = [], refetch, isFetching } = useQuery({
     queryKey: ['flights', origin, destination, date],
     queryFn: () => fetchFlights(origin, destination, date),
     enabled: false
   });
+
+  const handleMultiSearch = async (legs: Leg[]) => {
+    const rows: PriceRow[] = [];
+    for (const leg of legs) {
+      const fs: Flight[] = await fetchFlights(leg.origin, leg.destination, leg.date);
+      if (fs[0]) rows.push({ site: `${leg.origin}-${leg.destination}`, price: fs[0].price });
+    }
+    setPriceRows(rows);
+  };
   return (
     <main className="max-w-xl mx-auto p-4 space-y-4">
       <h1 className="text-2xl font-bold mb-4 text-center">جستجوی پرواز</h1>
+      <CrawlerStatusMonitor />
       <div className="space-y-2">
         <input className="w-full p-2 border" placeholder="مبدا" value={origin} onChange={(e) => setOrigin(e.target.value)} />
         <input className="w-full p-2 border" placeholder="مقصد" value={destination} onChange={(e) => setDestination(e.target.value)} />
@@ -78,6 +92,10 @@ export default function Page() {
             </table>
           ) : 'نتیجه‌ای یافت نشد'
         )}
+      </div>
+      <div className="mt-8">
+        <MultiCitySearch onSearch={handleMultiSearch} />
+        <PriceComparisonGrid rows={priceRows} />
       </div>
     </main>
   );
