@@ -191,6 +191,23 @@
             <h3>📊 Performance Analytics</h3>
             <canvas id="performance-chart" width="400" height="200"></canvas>
         </div>
+
+        <!-- Recent Crawled Flights -->
+        <div class="card full-width">
+            <h3>🛫 Recent Crawled Flights</h3>
+            <table style="width:100%;border-collapse:collapse;" id="recent-flights-table">
+                <thead>
+                    <tr>
+                        <th class="border p-1">Flight #</th>
+                        <th class="border p-1">Origin</th>
+                        <th class="border p-1">Destination</th>
+                        <th class="border p-1">Departure</th>
+                        <th class="border p-1">Price</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-flights-body"></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -206,6 +223,7 @@
             setupPerformanceChart();
             setDefaultDate();
             refreshSiteStatus();
+            loadRecentFlights();
         });
 
         function setupWebSockets() {
@@ -424,6 +442,31 @@
 
         function toggleAutoScroll() {
             autoScroll = !autoScroll;
+        }
+
+        async function loadRecentFlights() {
+            try {
+                const r = await fetch('/flights/recent?limit=20');
+                const data = await r.json();
+                displayRecentFlights(data.flights || []);
+            } catch (error) {
+                console.error('Failed to load recent flights', error);
+            }
+        }
+
+        function displayRecentFlights(flights) {
+            const tbody = document.getElementById('recent-flights-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            flights.forEach(f => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td class="border p-1">${f.flight_number}</td>` +
+                                `<td class="border p-1">${f.origin}</td>` +
+                                `<td class="border p-1">${f.destination}</td>` +
+                                `<td class="border p-1">${f.departure_time.split('T')[0]}</td>` +
+                                `<td class="border p-1">${f.price}</td>`;
+                tbody.appendChild(row);
+            });
         }
 
         // Simulate some log entries for demonstration
