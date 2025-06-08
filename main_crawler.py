@@ -116,6 +116,10 @@ class IranianFlightCrawler:
     async def crawl_all_sites(self, search_params: Dict) -> List[Dict]:
         """Orchestrate crawling across all three sites"""
         try:
+            # Ensure required parameters have defaults
+            search_params.setdefault("passengers", 1)
+            search_params.setdefault("seat_class", "economy")
+
             # Check cache first
             cached_results = self.data_manager.get_cached_results(search_params)
             if cached_results:
