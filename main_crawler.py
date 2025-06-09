@@ -110,6 +110,8 @@ class IranianFlightCrawler:
                 self.monitor, self.error_handler
             )
         }
+        # Track which sites are currently enabled for crawling
+        self.enabled_sites = set(self.crawlers.keys())
         
         logger.info("Iranian Flight Crawler initialized successfully")
     
@@ -126,9 +128,11 @@ class IranianFlightCrawler:
                 logger.info("Returning cached results")
                 return cached_results
             
-            # Start crawling all sites concurrently
+            # Start crawling all enabled sites concurrently
             tasks = []
             for site_name, crawler in self.crawlers.items():
+                if site_name not in self.enabled_sites:
+                    continue
                 task = asyncio.create_task(
                     self._crawl_site_safely(site_name, crawler, search_params),
                     name=f"crawl_{site_name}"
@@ -136,10 +140,11 @@ class IranianFlightCrawler:
                 tasks.append(task)
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # Process results
             all_flights = []
-            for site_name, result in zip(self.crawlers.keys(), results):
+            enabled_sites = [s for s in self.crawlers.keys() if s in self.enabled_sites]
+            for site_name, result in zip(enabled_sites, results):
                 if isinstance(result, Exception):
                     logger.error(f"Error crawling {site_name}: {result}")
                     continue
@@ -203,12 +208,29 @@ class IranianFlightCrawler:
         if site_name not in self.crawlers:
             raise ValueError(f"Unknown site: {site_name}")
 
+        if site_name not in self.enabled_sites:
+            raise ValueError(f"Site {site_name} is disabled")
+
         search_params.setdefault("passengers", 1)
         search_params.setdefault("seat_class", "economy")
 
         return await self._crawl_site_safely(
             site_name, self.crawlers[site_name], search_params
         )
+
+    def enable_site(self, site_name: str) -> bool:
+        """Enable crawling for a site."""
+        if site_name in self.crawlers:
+            self.enabled_sites.add(site_name)
+            return True
+        return False
+
+    def disable_site(self, site_name: str) -> bool:
+        """Disable crawling for a site."""
+        if site_name in self.enabled_sites:
+            self.enabled_sites.remove(site_name)
+            return True
+        return False
 
     def reset_stats(self) -> None:
         """Reset monitoring metrics, error states and rate limits."""

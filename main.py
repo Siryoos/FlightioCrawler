@@ -277,6 +277,7 @@ async def get_all_sites_status():
         sites_status[site_name] = {
             "domain": site_name,
             "base_url": getattr(crawler_instance, 'base_url', ''),
+            "enabled": site_name in crawler.enabled_sites,
             "is_active": await crawler.error_handler.can_make_request(site_name),
             "circuit_breaker_state": crawler.error_handler.get_circuit_state(site_name),
             "rate_limit_status": {
@@ -370,6 +371,22 @@ async def reset_site_errors(site_name: str):
     return {"site": site_name, "reset": True, "timestamp": datetime.now().isoformat()}
 
 
+@app.post("/api/v1/sites/{site_name}/enable")
+async def enable_site_api(site_name: str):
+    """Enable crawling for a site"""
+    if crawler.enable_site(site_name):
+        return {"site": site_name, "enabled": True}
+    raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
+
+
+@app.post("/api/v1/sites/{site_name}/disable")
+async def disable_site_api(site_name: str):
+    """Disable crawling for a site"""
+    if crawler.disable_site(site_name):
+        return {"site": site_name, "enabled": False}
+    raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
+
+
 @app.websocket("/ws/sites/{site_name}/logs")
 async def stream_site_logs(websocket: WebSocket, site_name: str):
     """Stream real-time logs for a specific site"""
@@ -415,6 +432,7 @@ async def dashboard_updates(websocket: WebSocket):
             }
             for site_name in crawler.crawlers:
                 dashboard_data["sites"][site_name] = {
+                    "enabled": site_name in crawler.enabled_sites,
                     "active": await crawler.error_handler.can_make_request(site_name),
                     "rate_limited": crawler.rate_limiter.is_rate_limited(site_name),
                     "last_error": crawler.error_handler.get_last_error(site_name),
