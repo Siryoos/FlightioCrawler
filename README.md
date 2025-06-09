@@ -87,8 +87,11 @@ DEBUG_MODE=false
 ```
 
 2. Update the configuration in `config.py` as needed.
-3. Set `DEBUG_MODE=true` to enable verbose logging during development.
-4. Validate target websites before running crawlers:
+3. If PostgreSQL is not available the crawler will automatically create a
+   `data/flight_data.sqlite` file and use it as a local database so crawled
+   flights persist across restarts.
+4. Set `DEBUG_MODE=true` to enable verbose logging during development.
+5. Validate target websites before running crawlers:
 ```bash
 python -m production_url_validator
 ```
