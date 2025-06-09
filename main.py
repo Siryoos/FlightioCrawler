@@ -433,5 +433,5 @@ if __name__ == "__main__":
         host=config.API_HOST,
         port=config.API_PORT,
         workers=config.API_WORKERS,
-        reload=True
-    ) 
+        reload=debug_mode,
+    )
