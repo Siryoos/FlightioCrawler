@@ -11,6 +11,7 @@ A sophisticated web crawler system for Iranian flight booking websites with inte
 - [Usage](#usage)
 - [User Guide](#user-guide)
 - [Developer Guide](#developer-guide)
+- [Production Setup](#production-setup)
 - [Adding New Websites](#adding-new-websites)
 
 ## Overview | مرور کلی
@@ -178,6 +179,22 @@ FlightioCrawler/
 5. **Flight Monitoring System** (`flight_monitor.py`)
    - Runs continuous crawling loops
    - Platform-specific intervals
+
+## Production Setup | راه‌اندازی محیط تولید
+
+For real-world deployments the project includes several production utilities:
+
+- **ProductionURLValidator** – verifies target websites individually and checks
+  HTTP responses, robots.txt rules and possible anti-bot blocks.
+- **ProductionSafetyCrawler** – wraps site crawlers with rate limiting and
+  circuit breakers to avoid service disruption.
+- **RealDataCrawler** – fetches live flight information and validates extracted
+  prices, times and flight numbers.
+- **RealDataQualityChecker** – ensures scraped results contain realistic data.
+- **ProductionMonitoring** – exposes health metrics and alerts on crawling
+  issues.
+
+See [docs/real_data_setup.md](docs/real_data_setup.md) for full instructions.
 
 ## Adding New Websites | افزودن وب‌سایت‌های جدید
 
