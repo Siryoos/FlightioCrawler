@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from local_crawler import AsyncWebCrawler, BrowserConfig
+import aiohttp
 try:
     from crawl4ai.cache_mode import CacheMode
 except Exception:  # pragma: no cover - optional dependency
@@ -240,90 +241,88 @@ class SafarmarketCrawler(BaseSiteCrawler):
         super().__init__(*args, interval=interval, **kwargs)
         self.domain = "safarmarket.com"
         self.base_url = "https://www.safarmarket.com"
-    
+
+    async def _build_api_payload(self, search_params: Dict) -> Dict:
+        """Construct request payload for the Safarmarket search API."""
+        return {
+            "platform": "WEB_DESKTOP",
+            "uid": "",
+            "limit": 250,
+            "compress": False,
+            "productType": "IFLI",
+            "searchValidity": 2,
+            "cid": 1,
+            "checksum": 1,
+            "IPInfo": {"ip": "0.0.0.0", "isp": "", "city": "", "country": "IR"},
+            "searchFilter": {
+                "sourceAirportCode": search_params.get("origin"),
+                "targetAirportCode": search_params.get("destination"),
+                "sourceIsCity": False,
+                "targetIsCity": False,
+                "leaveDate": search_params.get("departure_date"),
+                "returnDate": search_params.get("return_date", ""),
+                "adultCount": search_params.get("passengers", 1),
+                "childCount": search_params.get("children", 0),
+                "infantCount": search_params.get("infants", 0),
+                "economy": True,
+                "business": True,
+            },
+        }
+
     async def search_flights(self, search_params: Dict) -> List[Dict]:
-        """Search flights on Safarmarket"""
+        """Search flights on Safarmarket using its JSON API."""
         start_time = datetime.now()
-        
+
         try:
             if not await self.error_handler.can_make_request(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
-            
+
             if not await self.check_rate_limit():
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            
-            # Navigate to search page
-            await self.crawler.navigate(f"{self.base_url}/flight/search")
-            
-            # Fill search form
-            await self._execute_js("""
-                document.querySelector('#from').value = arguments[0];
-                document.querySelector('#to').value = arguments[1];
-                document.querySelector('#date').value = arguments[2];
-                document.querySelector('#passengers').value = arguments[3];
-                document.querySelector('#class').value = arguments[4];
-            """, 
-            search_params["origin"],
-            search_params["destination"],
-            search_params["departure_date"],
-            search_params["passengers"],
-            search_params["seat_class"])
-            
-            # Submit form
-            await self._execute_js("""
-                document.querySelector('form').submit();
-            """)
-            
-            # Wait for results
-            if not await self._wait_for_element('.flight-list', timeout=30):
-                raise Exception("Flight results not found")
-            
-            # Take screenshot for debugging
-            await self._take_screenshot("search_results")
-            
-            # Extract flight data
-            html = await self.crawler.content()
-            soup = BeautifulSoup(html, 'html.parser')
-            
-            flights = []
-            for flight_elem in soup.select('.flight-item'):
+
+            url = f"{self.base_url}/api/flight/v3/search"
+            payload = await self._build_api_payload(search_params)
+
+            headers = await self.randomize_request_headers()
+            headers.update({
+                "Content-Type": "application/json;charset=utf-8",
+                "X-Auth-Token": "",
+            })
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers, timeout=config.CRAWLER.REQUEST_TIMEOUT) as resp:
+                    if resp.status != 200:
+                        raise Exception(f"HTTP {resp.status}")
+                    data = await resp.json()
+
+            flights: List[Dict] = []
+            for flight in data.get("result", {}).get("flights", []):
                 try:
-                    flight = {
-                        'airline': self.process_text(flight_elem.select_one('.airline-name').text),
-                        'flight_number': flight_elem.select_one('.flight-number').text.strip(),
-                        'origin': search_params["origin"],
-                        'destination': search_params["destination"],
-                        'departure_time': self.text_processor.parse_time(
-                            flight_elem.select_one('.departure-time').text
-                        ),
-                        'arrival_time': self.text_processor.parse_time(
-                            flight_elem.select_one('.arrival-time').text
-                        ),
-                        'price': self.text_processor.extract_price(
-                            flight_elem.select_one('.price').text
-                        )[0],
-                        'currency': 'IRR',
-                        'seat_class': self.text_processor.normalize_seat_class(
-                            flight_elem.select_one('.seat-class').text
-                        ),
-                        'duration': self.text_processor.extract_duration(
-                            flight_elem.select_one('.duration').text
-                        ),
-                        'source_url': self.base_url
-                    }
-                    flights.append(flight)
-                except Exception as e:
-                    self.logger.error(f"Error parsing flight: {e}")
+                    provider = flight.get("providers", [{}])[0]
+                    flights.append({
+                        "airline": self.process_text(flight.get("airline", "")),
+                        "flight_number": flight.get("flightNumber", ""),
+                        "origin": search_params.get("origin"),
+                        "destination": search_params.get("destination"),
+                        "departure_time": flight.get("departTime"),
+                        "arrival_time": flight.get("arriveTime"),
+                        "price": provider.get("price", 0),
+                        "currency": provider.get("currency", "IRR"),
+                        "seat_class": flight.get("cabinClass", ""),
+                        "duration": flight.get("duration", 0),
+                        "source_url": self.base_url,
+                    })
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
                     continue
-            
-            # Track successful request
+
             await self.monitor.track_request(self.domain, start_time.timestamp())
-            
+
             return flights
-            
+
         except Exception as e:
             self.logger.error(f"Error crawling Safarmarket: {e}")
             await self.error_handler.handle_error(self.domain, e)
