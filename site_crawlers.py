@@ -336,18 +336,83 @@ class Mz724Crawler(BaseSiteCrawler):
         self.base_url = "https://mz724.ir"
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
-        """Search flights on mz724.ir"""
+        """Search flights on mz724.ir and return real results."""
         start_time = datetime.now()
         try:
             if not await self.error_handler.can_make_request(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
+
             if not await self.check_rate_limit():
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.navigate(f"{self.base_url}/flight/search")
-            flights = await self._return_dummy_flights(search_params)
+
+            # Build search URL based on provided parameters
+            origin_slug = search_params.get("origin_slug", search_params.get("origin", ""))
+            dest_slug = search_params.get(
+                "destination_slug", search_params.get("destination", "")
+            )
+            date = search_params.get("departure_date")
+            url = f"{self.base_url}/Ticket-{origin_slug}-{dest_slug}.html?t={date}"
+
+            await self.crawler.navigate(url)
+
+            # Wait for search results
+            await self._wait_for_element(".resu", timeout=30)
+
+            # Extract flight data
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, "html.parser")
+            flights: List[Dict] = []
+
+            for item in soup.select("div.resu"):
+                if item.select_one(".advertise"):
+                    continue
+
+                price_el = item.select_one("div.price span")
+                if not price_el:
+                    continue
+
+                try:
+                    price = self.text_processor.extract_price(price_el.text)[0]
+                except Exception:
+                    continue
+
+                dep_el = item.select_one("div.date")
+                departure_time = (
+                    self.text_processor.parse_time(dep_el.text) if dep_el else None
+                )
+
+                airline_el = item.select_one("strong.airline_name")
+                airline = (
+                    self.text_processor.normalize_airline_name(airline_el.text)
+                    if airline_el
+                    else ""
+                )
+
+                flight_no_el = item.select_one("span.code_inn")
+                flight_number = (
+                    self.text_processor.process(flight_no_el.text) if flight_no_el else ""
+                )
+
+                seat_class = item.select_one("div.price").get("rel", "")
+
+                flights.append(
+                    {
+                        "airline": airline,
+                        "flight_number": flight_number,
+                        "origin": search_params.get("origin"),
+                        "destination": search_params.get("destination"),
+                        "departure_time": departure_time,
+                        "arrival_time": None,
+                        "price": price,
+                        "currency": "IRR",
+                        "seat_class": seat_class,
+                        "duration": 0,
+                        "source_url": url,
+                    }
+                )
 
             await self._take_screenshot("search_results")
             await self.monitor.track_request(self.domain, start_time.timestamp())
