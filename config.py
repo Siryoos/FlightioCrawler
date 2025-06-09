@@ -114,6 +114,19 @@ PRODUCTION_SITES = {
             "Accept-Language": "fa-IR,fa;q=0.9,en;q=0.8",
         },
     },
+    "pegasus": {
+        "base_url": "https://www.flypgs.com",
+        "search_endpoint": "/en",
+        "crawler_type": "javascript_heavy",
+        "rate_limit": 2.0,
+        "max_retries": 3,
+        "timeout": 30,
+        "headers": {
+            "User-Agent": "Mozilla/5.0 (compatible; FlightCrawler/1.0)",
+            "Accept": "application/json, text/html",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+    },
 }
 
 @dataclass
