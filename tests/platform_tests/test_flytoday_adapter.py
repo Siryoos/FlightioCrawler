@@ -25,27 +25,49 @@ class DummyErrorHandler:
         self.error = error
 
 class DummyCrawler:
+    def __init__(self, html=""):
+        self._html = html
+
     async def goto(self, url):
         self.url = url
+
     async def wait_for_selector(self, selector, timeout=10):
         return True
+
     async def content(self):
-        return ""
+        return self._html
+
     async def execute_js(self, script, *args, **kwargs):
         pass
+
     async def screenshot(self, *args, **kwargs):
         pass
 
 @pytest.fixture
-def crawler(monkeypatch):
-    monkeypatch.setattr('site_crawlers.AsyncWebCrawler', lambda config=None: DummyCrawler())
+def sample_html():
+    return """
+    <div class='flight-result'>
+        <span class='airline-name'>TestAir</span>
+        <span class='flight-number'>TA456</span>
+        <span class='departure-time'>08:00</span>
+        <span class='arrival-time'>10:00</span>
+        <span class='price'>2,000,000 ریال</span>
+        <span class='seat-class'>اکونومی</span>
+        <span class='duration'>120</span>
+    </div>
+    """
+
+
+@pytest.fixture
+def crawler(monkeypatch, sample_html):
+    monkeypatch.setattr('site_crawlers.AsyncWebCrawler', lambda config=None: DummyCrawler(sample_html))
     monkeypatch.setattr('site_crawlers.BrowserConfig', lambda *a, **k: None)
     crawler = FlytodayCrawler(DummyRateLimiter(), None, DummyMonitor(), DummyErrorHandler())
-    crawler.crawler = DummyCrawler()
+    crawler.crawler = DummyCrawler(sample_html)
     return crawler
 
 @pytest.mark.asyncio
-async def test_search_flights_returns_dummy(crawler):
+async def test_parse_search_results(crawler):
     params = {
         'origin': 'THR',
         'destination': 'MHD',
@@ -55,4 +77,5 @@ async def test_search_flights_returns_dummy(crawler):
     }
     results = await crawler.search_flights(params)
     assert isinstance(results, list)
-    assert results and 'flight_number' in results[0]
+    assert results[0]['airline'] == 'TestAir'
+    assert results[0]['flight_number'] == 'TA456'

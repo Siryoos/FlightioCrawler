@@ -118,7 +118,7 @@ class FlytodayCrawler(BaseSiteCrawler):
         self.base_url = "https://www.flytoday.ir"
     
     async def search_flights(self, search_params: Dict) -> List[Dict]:
-        """Search flights on Flytoday. This demo implementation returns dummy data."""
+        """Search flights on Flytoday by parsing the results page."""
         start_time = datetime.now()
         try:
             if not await self.error_handler.can_make_request(self.domain):
@@ -129,7 +129,41 @@ class FlytodayCrawler(BaseSiteCrawler):
                 if wait_time:
                     await asyncio.sleep(wait_time)
 
-            flights = await self._return_dummy_flights(search_params)
+            url = (
+                f"{self.base_url}/flight/search?origin={search_params.get('origin')}"
+                f"&destination={search_params.get('destination')}"
+                f"&departDate={search_params.get('departure_date')}"
+                f"&adult={search_params.get('passengers', 1)}"
+            )
+            await self.crawler.navigate(url)
+
+            if not await self._wait_for_element('.flight-result', timeout=30):
+                raise Exception("Flight results not found")
+
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            flights: List[Dict] = []
+
+            for item in soup.select('.flight-result'):
+                try:
+                    flights.append(
+                        {
+                            'airline': self.process_text(item.select_one('.airline-name').text),
+                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'origin': search_params.get('origin'),
+                            'destination': search_params.get('destination'),
+                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
+                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
+                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'currency': 'IRR',
+                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
+                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'source_url': url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
 
             await self.monitor.track_request(self.domain, start_time.timestamp())
             return flights
@@ -440,8 +474,42 @@ class PartoCRSCrawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.navigate(f"{self.base_url}/flight/search")
-            flights = await self._return_dummy_flights(search_params)
+
+            url = (
+                f"{self.base_url}/flight/search?origin={search_params.get('origin')}"
+                f"&destination={search_params.get('destination')}"
+                f"&date={search_params.get('departure_date')}"
+                f"&passengers={search_params.get('passengers', 1)}"
+            )
+            await self.crawler.navigate(url)
+
+            if not await self._wait_for_element('.flight-result', timeout=30):
+                raise Exception("Flight results not found")
+
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            flights: List[Dict] = []
+
+            for item in soup.select('.flight-result'):
+                try:
+                    flights.append(
+                        {
+                            'airline': self.process_text(item.select_one('.airline-name').text),
+                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'origin': search_params.get('origin'),
+                            'destination': search_params.get('destination'),
+                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
+                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
+                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'currency': 'IRR',
+                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
+                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'source_url': url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
 
             await self._take_screenshot("search_results")
             await self.monitor.track_request(self.domain, start_time.timestamp())
@@ -469,8 +537,42 @@ class PartoTicketCrawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.navigate(f"{self.base_url}/flight/search")
-            flights = await self._return_dummy_flights(search_params)
+
+            url = (
+                f"{self.base_url}/flight/search?origin={search_params.get('origin')}"
+                f"&destination={search_params.get('destination')}"
+                f"&date={search_params.get('departure_date')}"
+                f"&passengers={search_params.get('passengers', 1)}"
+            )
+            await self.crawler.navigate(url)
+
+            if not await self._wait_for_element('.flight-result', timeout=30):
+                raise Exception("Flight results not found")
+
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            flights: List[Dict] = []
+
+            for item in soup.select('.flight-result'):
+                try:
+                    flights.append(
+                        {
+                            'airline': self.process_text(item.select_one('.airline-name').text),
+                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'origin': search_params.get('origin'),
+                            'destination': search_params.get('destination'),
+                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
+                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
+                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'currency': 'IRR',
+                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
+                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'source_url': url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
 
             await self._take_screenshot("search_results")
             await self.monitor.track_request(self.domain, start_time.timestamp())
@@ -498,8 +600,42 @@ class BookCharter724Crawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.navigate(f"{self.base_url}/flight/search")
-            flights = await self._return_dummy_flights(search_params)
+
+            url = (
+                f"{self.base_url}/flight/search?origin={search_params.get('origin')}"
+                f"&destination={search_params.get('destination')}"
+                f"&date={search_params.get('departure_date')}"
+                f"&passengers={search_params.get('passengers', 1)}"
+            )
+            await self.crawler.navigate(url)
+
+            if not await self._wait_for_element('.flight-result', timeout=30):
+                raise Exception("Flight results not found")
+
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            flights: List[Dict] = []
+
+            for item in soup.select('.flight-result'):
+                try:
+                    flights.append(
+                        {
+                            'airline': self.process_text(item.select_one('.airline-name').text),
+                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'origin': search_params.get('origin'),
+                            'destination': search_params.get('destination'),
+                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
+                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
+                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'currency': 'IRR',
+                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
+                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'source_url': url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
 
             await self._take_screenshot("search_results")
             await self.monitor.track_request(self.domain, start_time.timestamp())
@@ -527,8 +663,42 @@ class BookCharterCrawler(BaseSiteCrawler):
                 wait_time = await self.get_wait_time()
                 if wait_time:
                     await asyncio.sleep(wait_time)
-            await self.crawler.navigate(f"{self.base_url}/flight/search")
-            flights = await self._return_dummy_flights(search_params)
+
+            url = (
+                f"{self.base_url}/flight/search?origin={search_params.get('origin')}"
+                f"&destination={search_params.get('destination')}"
+                f"&date={search_params.get('departure_date')}"
+                f"&passengers={search_params.get('passengers', 1)}"
+            )
+            await self.crawler.navigate(url)
+
+            if not await self._wait_for_element('.flight-result', timeout=30):
+                raise Exception("Flight results not found")
+
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            flights: List[Dict] = []
+
+            for item in soup.select('.flight-result'):
+                try:
+                    flights.append(
+                        {
+                            'airline': self.process_text(item.select_one('.airline-name').text),
+                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'origin': search_params.get('origin'),
+                            'destination': search_params.get('destination'),
+                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
+                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
+                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'currency': 'IRR',
+                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
+                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'source_url': url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
 
             await self._take_screenshot("search_results")
             await self.monitor.track_request(self.domain, start_time.timestamp())
