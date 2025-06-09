@@ -196,8 +196,17 @@ For real-world deployments the project includes several production utilities:
 - **RealDataQualityChecker** – ensures scraped results contain realistic data.
 - **ProductionMonitoring** – exposes health metrics and alerts on crawling
   issues.
+- **Dummy placeholders** – `FlytodayCrawler`, `PartoCRSCrawler`,
+  `PartoTicketCrawler`, `BookCharter724Crawler` and `BookCharterCrawler`
+  currently return dummy results. Replace their implementations with real
+  scraping logic or subclasses of `RealDataCrawler`.
 
 See [docs/real_data_setup.md](docs/real_data_setup.md) for full instructions.
+
+To enable real-data crawling, first run `python -m production_url_validator`
+to verify each site is accessible. Instantiate `RealDataCrawler` for your
+target and replace any dummy implementations. Always respect website terms of
+service and local regulations before scraping production systems.
 
 ## Adding New Websites | افزودن وب‌سایت‌های جدید
 
