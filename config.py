@@ -8,6 +8,20 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Production site endpoints used for validation
+PRODUCTION_SITES = {
+    "flytoday": {
+        "base_url": "https://www.flytoday.ir",
+        "search_endpoint": "/flight/search",
+        "crawler_type": "javascript_heavy",
+    },
+    "alibaba": {
+        "base_url": "https://www.alibaba.ir",
+        "search_endpoint": "/flight/search",
+        "crawler_type": "javascript_heavy",
+    },
+}
+
 @dataclass
 class DatabaseConfig:
     HOST: str = os.getenv('DB_HOST', 'localhost')
@@ -146,4 +160,4 @@ class Config:
 config = Config()
 
 # Export configuration
-__all__ = ['config'] 
+__all__ = ['config', 'PRODUCTION_SITES']
