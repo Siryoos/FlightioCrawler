@@ -13,6 +13,7 @@ A sophisticated web crawler system for Iranian flight booking websites with inte
 - [Developer Guide](#developer-guide)
 - [Production Setup](#production-setup)
 - [Adding New Websites](#adding-new-websites)
+- [Chain-of-Thought Design](#chain-of-thought-design)
 
 ## Overview | مرور کلی
 
@@ -276,6 +277,10 @@ CRAWLER.DOMAINS.append("newsite.com")
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
+
+## Chain-of-Thought Design
+
+Refer to [docs/chain_of_thought_monitoring.md](docs/chain_of_thought_monitoring.md) for a high-level design covering URL validation, content detection, extraction logic and monitoring best practices.
 
 ## License | مجوز
 
