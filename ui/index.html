@@ -262,11 +262,15 @@
                     <div class="status-indicator ${statusClass}"></div>
                     <div style="flex: 1;">
                         <strong>${siteName}</strong><br>
-                        <small>RPM: ${status.requests_per_minute || 0} | 
-                               ${status.active ? 'Active' : 'Inactive'}</small>
+                        <small>RPM: ${status.requests_per_minute || 0} |
+                               ${status.active ? 'Active' : 'Inactive'} |
+                               ${status.enabled ? 'Enabled' : 'Disabled'}</small>
                     </div>
                     <button class="button" onclick="testSpecificSite('${siteName}')">Test</button>
                     <button class="button" onclick="resetSite('${siteName}')">Reset</button>
+                    ${status.enabled
+                        ? `<button class="button" onclick="disableSite('${siteName}')">Stop</button>`
+                        : `<button class="button" onclick="enableSite('${siteName}')">Start</button>`}
                 `;
                 sitesContainer.appendChild(siteDiv);
             }
@@ -405,6 +409,26 @@
                 addLogEntry('INFO', `Reset ${siteName}: ${result.reset ? 'Success' : 'Failed'}`);
             } catch (error) {
                 addLogEntry('ERROR', `Failed to reset ${siteName}: ${error.message}`);
+            }
+        }
+
+        async function enableSite(siteName) {
+            try {
+                await fetch(`/api/v1/sites/${siteName}/enable`, { method: 'POST' });
+                addLogEntry('INFO', `Enabled ${siteName}`);
+                refreshSiteStatus();
+            } catch (error) {
+                addLogEntry('ERROR', `Failed to enable ${siteName}: ${error.message}`);
+            }
+        }
+
+        async function disableSite(siteName) {
+            try {
+                await fetch(`/api/v1/sites/${siteName}/disable`, { method: 'POST' });
+                addLogEntry('INFO', `Disabled ${siteName}`);
+                refreshSiteStatus();
+            } catch (error) {
+                addLogEntry('ERROR', `Failed to disable ${siteName}: ${error.message}`);
             }
         }
 
