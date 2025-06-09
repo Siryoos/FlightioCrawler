@@ -84,6 +84,13 @@ class MonitorRequest(BaseModel):
 class StopMonitorRequest(BaseModel):
     routes: Optional[List[str]] = None
 
+class CrawlRequest(BaseModel):
+    origin: str
+    destination: str
+    dates: List[str]
+    passengers: int = 1
+    seat_class: str = "economy"
+
 # API endpoints
 @app.get("/")
 async def root():
@@ -226,6 +233,22 @@ async def stop_monitoring(req: StopMonitorRequest):
 async def monitor_status():
     routes = await crawler.price_monitor.get_monitored_routes()
     return {"monitoring": routes}
+
+
+@app.post("/crawl")
+async def manual_crawl(req: CrawlRequest):
+    """Manually crawl selected routes and dates"""
+    results = {}
+    for d in req.dates:
+        flights = await crawler.crawl_all_sites({
+            "origin": req.origin,
+            "destination": req.destination,
+            "departure_date": d,
+            "passengers": req.passengers,
+            "seat_class": req.seat_class,
+        })
+        results[d] = flights
+    return {"results": results, "timestamp": datetime.now().isoformat()}
 
 @app.get("/trend/{route}")
 async def price_trend(route: str, days: int = 30):
