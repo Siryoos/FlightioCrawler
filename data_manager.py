@@ -2,6 +2,7 @@ import logging
 import json
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
+from pathlib import Path
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, JSON, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
@@ -82,9 +83,13 @@ class DataManager:
         try:
             self.engine = create_engine(db_url)
             self.engine.connect()
-        except Exception:
-            # Fallback to in-memory SQLite for testing environments
-            self.engine = create_engine("sqlite:///:memory:")
+        except Exception as e:
+            logger.warning(
+                f"PostgreSQL connection failed ({e}); using local SQLite database"
+            )
+            sqlite_path = Path("data") / "flight_data.sqlite"
+            sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+            self.engine = create_engine(f"sqlite:///{sqlite_path}")
         self.Session = sessionmaker(bind=self.engine)
 
         # Initialize Redis
