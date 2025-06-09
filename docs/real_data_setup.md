@@ -34,5 +34,30 @@ This document summarizes how to run the crawler against live Iranian travel webs
 
 5. **Quality Assurance**
    
-   After scraping, pass the results through `RealDataQualityChecker` to ensure
-   prices and times are realistic before storing them.
+After scraping, pass the results through `RealDataQualityChecker` to ensure
+prices and times are realistic before storing them.
+
+6. **Enable Real Data Crawling**
+
+   Several crawler classes currently return placeholder results. These are
+   `FlytodayCrawler`, `PartoCRSCrawler`, `PartoTicketCrawler`,
+   `BookCharter724Crawler` and `BookCharterCrawler`. Replace their
+   `search_flights` implementations with real scraping logic or subclass
+   `RealDataCrawler`:
+
+   ```python
+   from real_data_crawler import RealDataCrawler
+
+   crawler = RealDataCrawler(rate_limiter, text_processor,
+                             monitor, error_handler)
+   flights = await crawler.extract_real_flight_data(params)
+   ```
+
+   Always validate each target by running `python -m production_url_validator`
+   before enabling real crawling.
+
+7. **Legal Considerations**
+
+   Crawling production sites may be restricted by local laws and the target
+   website's terms of service. Review `robots.txt` and obtain permission when
+   required. Use this project responsibly and at your own risk.
