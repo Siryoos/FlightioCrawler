@@ -6,6 +6,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, WebSocket, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from config import config
 from main_crawler import IranianFlightCrawler
@@ -315,6 +316,31 @@ async def get_all_sites_status():
             "avg_response_time": monitor.get_avg_response_time(site_name)
         }
     return {"sites": sites_status, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/modules/{module_name}", response_class=PlainTextResponse)
+async def get_module_source(module_name: str):
+    """Return source code of key modules"""
+    module_paths = {
+        "main_crawler": "main_crawler.py",
+        "site_crawlers": "site_crawlers.py",
+        "monitoring": "monitoring/README.md",
+        "data_manager": "data_manager.py",
+        "intelligent_search": "intelligent_search.py",
+        "price_monitor": "price_monitor.py",
+        "flight_monitor": "flight_monitor.py",
+        "ml_predictor": "ml_predictor.py",
+        "multilingual_processor": "multilingual_processor.py",
+    }
+    path = module_paths.get(module_name)
+    if not path:
+        raise HTTPException(status_code=404, detail="Module not found")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        logger.error(f"Error reading module {module_name}: {e}")
+        raise HTTPException(status_code=500, detail="Could not read module")
 
 
 @app.post("/api/v1/sites/{site_name}/test")
