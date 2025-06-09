@@ -43,10 +43,10 @@ class BaseSiteCrawler(StealthCrawler):
         self.crawler = AsyncWebCrawler(config=self.browser_config)
         self.interval = interval
     
-    async def _execute_js(self, script: str, **kwargs) -> Any:
+    async def _execute_js(self, script: str, *args) -> Any:
         """Execute JavaScript with error handling"""
         try:
-            return await self.crawler.execute_js(script, **kwargs)
+            return await self.crawler.execute_js(script, *args)
         except Exception as e:
             self.logger.error(f"JavaScript execution error: {e}")
             raise
