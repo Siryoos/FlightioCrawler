@@ -1,7 +1,7 @@
 {
     "site_id": "flytoday",
     "name": "Flytoday",
-    "search_url": "https://www.flytoday.ir/flight-search",
+    "search_url": "https://www.flytoday.ir/flight/search",
     "persian_processing": {
         "rtl_support": true,
         "jalali_calendar": true,
