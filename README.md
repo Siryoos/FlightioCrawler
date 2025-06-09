@@ -131,6 +131,10 @@ flights = asyncio.run(
 )
 print(f"Found {len(flights)} flights")
 ```
+5. Crawl all airport combinations for the next two weeks:
+```bash
+python scripts/crawl_airport_combinations.py
+```
 Open `http://localhost:8000/ui` in your browser to access the control panel.
 
 ## User Guide | راهنمای کاربر
