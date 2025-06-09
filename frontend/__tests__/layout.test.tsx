@@ -1,0 +1,16 @@
+import { render, screen } from '@testing-library/react';
+import RootLayout from '../app/layout';
+
+// minimal wrapper to satisfy Next.js metadata usage
+function Wrapper() {
+  return (
+    <RootLayout>
+      <div />
+    </RootLayout>
+  );
+}
+
+test('navigation includes link to sites', () => {
+  render(<Wrapper />);
+  expect(screen.getByText('\u0633\u0627\u06cc\u062a\u200c\u0647\u0627')).toBeInTheDocument();
+});
