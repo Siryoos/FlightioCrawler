@@ -173,4 +173,11 @@ async def process_price_alerts():
         
     except Exception as e:
         logger.error(f"Error processing price alerts: {e}")
-        return {'error': str(e)} 
+        return {'error': str(e)}
+
+
+@celery_app.task
+def refresh_snapshots():
+    """Run replay_requests script to validate archived pages."""
+    from scripts.replay_requests import replay_all
+    return replay_all()

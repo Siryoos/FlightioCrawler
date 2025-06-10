@@ -42,6 +42,19 @@ class BaseSiteCrawler(StealthCrawler):
         
         self.crawler = AsyncWebCrawler(config=self.browser_config)
         self.interval = interval
+
+    async def _api_fallback(self, params: Dict) -> List[Dict]:
+        """Fallback JSON API fetch for sites with dynamic pages."""
+        api_url = getattr(self, "api_url", f"{self.base_url}/api/search")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, params=params, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data.get("flights", [])
+        except Exception as api_err:
+            self.logger.error(f"API fallback failed: {api_err}")
+        return []
     
     async def _execute_js(self, script: str, *args) -> Any:
         """Execute JavaScript with error handling"""
@@ -173,7 +186,8 @@ class FlytodayCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling Flytoday: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            fallback = await self._api_fallback(search_params)
+            return fallback
 
 class FlightioCrawler(BaseSiteCrawler):
     """Crawler for Flightio.com"""
@@ -257,7 +271,7 @@ class FlightioCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling Flightio: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class AlibabaCrawler(BaseSiteCrawler):
     """Crawler for Alibaba.ir"""
@@ -353,7 +367,7 @@ class AlibabaCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling Alibaba: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class SnapptripCrawler(BaseSiteCrawler):
     """Crawler for Snapptrip.com"""
@@ -419,7 +433,7 @@ class SnapptripCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class SafarmarketCrawler(BaseSiteCrawler):
     """Crawler for Safarmarket.com"""
@@ -513,7 +527,7 @@ class SafarmarketCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling Safarmarket: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class Mz724Crawler(BaseSiteCrawler):
     """Crawler for mz724.ir"""
@@ -607,7 +621,7 @@ class Mz724Crawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class PartoCRSCrawler(BaseSiteCrawler):
     """Crawler for partocrs.com"""
@@ -692,7 +706,7 @@ class PartoCRSCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class PartoTicketCrawler(BaseSiteCrawler):
     """Crawler for parto-ticket.ir"""
@@ -777,7 +791,7 @@ class PartoTicketCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class BookCharter724Crawler(BaseSiteCrawler):
     """Crawler for bookcharter724.ir"""
@@ -862,7 +876,7 @@ class BookCharter724Crawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class BookCharterCrawler(BaseSiteCrawler):
     """Crawler for bookcharter.ir"""
@@ -947,7 +961,7 @@ class BookCharterCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)
 
 class MrbilitCrawler(BaseSiteCrawler):
     """Crawler for mrbilit.com"""
@@ -1031,4 +1045,4 @@ class MrbilitCrawler(BaseSiteCrawler):
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
-            return []
+            return await self._api_fallback(search_params)

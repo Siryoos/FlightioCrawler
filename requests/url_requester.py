@@ -19,6 +19,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, WebDriverException
 import undetected_chromedriver as uc
+from utils.file_utils import sanitize_filename
 
 
 class AdvancedCrawler:
@@ -90,12 +91,6 @@ class AdvancedCrawler:
         """Add random delay to mimic human behavior."""
         time.sleep(random.uniform(0.5, 2.0))
     
-    @staticmethod
-    def sanitize_filename(url: str) -> str:
-        """Create safe filename from URL."""
-        filename = re.sub(r'^https?://', '', url)
-        filename = re.sub(r'[^\w\-_\.]', '_', filename)
-        return filename[:200]
     
     def extract_with_selenium(self, url: str) -> Tuple[str, Dict]:
         """Extract content using Selenium for JavaScript-heavy sites."""
@@ -585,7 +580,7 @@ class AdvancedCrawler:
                 progress_callback("Saving data...")
             
             # Save files
-            base_filename = self.sanitize_filename(url)
+            base_filename = sanitize_filename(url)
             
             # Save HTML
             html_path = os.path.join(self.save_dir, f"{base_filename}.html")
