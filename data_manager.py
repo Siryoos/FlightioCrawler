@@ -3,7 +3,18 @@ import json
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, JSON, func
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Float,
+    DateTime,
+    ForeignKey,
+    JSON,
+    func,
+    Boolean,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from redis import Redis
@@ -70,6 +81,18 @@ class SearchQuery(Base):
     result_count = Column(Integer)
     search_duration = Column(Float)
     cached = Column(Integer)
+
+
+class CrawlRoute(Base):
+    """Route configuration model"""
+
+    __tablename__ = "crawl_routes"
+
+    id = Column(Integer, primary_key=True)
+    origin = Column(String, nullable=False)
+    destination = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class DataManager:
     """Manage data storage and retrieval"""
@@ -511,4 +534,51 @@ class DataManager:
 
     def _generate_search_key(self, search_params: Dict) -> str:
         """Generate cache key for search"""
-        return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}" 
+        return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}"
+
+    async def add_crawl_route(self, origin: str, destination: str) -> int:
+        """Add a new crawl route and return its ID"""
+        session = self.Session()
+        try:
+            route = CrawlRoute(origin=origin, destination=destination)
+            session.add(route)
+            session.commit()
+            return route.id
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error adding crawl route: {e}")
+            raise
+        finally:
+            session.close()
+
+    async def delete_crawl_route(self, route_id: int) -> bool:
+        """Delete a crawl route by ID"""
+        session = self.Session()
+        try:
+            route = session.query(CrawlRoute).filter_by(id=route_id).first()
+            if not route:
+                return False
+            session.delete(route)
+            session.commit()
+            return True
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error deleting crawl route: {e}")
+            return False
+        finally:
+            session.close()
+
+    async def get_active_routes(self) -> List[Dict]:
+        """Retrieve active crawl routes"""
+        session = self.Session()
+        try:
+            routes = session.query(CrawlRoute).filter_by(is_active=True).all()
+            return [
+                {"id": r.id, "origin": r.origin, "destination": r.destination}
+                for r in routes
+            ]
+        except Exception as e:
+            logger.error(f"Error getting crawl routes: {e}")
+            return []
+        finally:
+            session.close()
