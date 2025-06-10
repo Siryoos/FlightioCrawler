@@ -59,7 +59,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Set up the database:
+4. Install Playwright browsers:
+```bash
+playwright install
+```
+
+5. Set up the database:
 ```bash
 # Create PostgreSQL database
 createdb flight_data
@@ -68,7 +73,7 @@ createdb flight_data
 psql -d flight_data -f init.sql
 ```
 
-5. Configure Redis:
+6. Configure Redis:
 ```bash
 # Start Redis server
 redis-server
