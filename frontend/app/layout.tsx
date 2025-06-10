@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <nav className="max-w-xl mx-auto flex space-x-4 rtl:space-x-reverse p-2">
             <a href="/" className="hover:underline">خانه</a>
             <a href="/sites" className="hover:underline">سایت‌ها</a>
+            <a href="/insights" className="hover:underline">بینش‌ها</a>
             <a href="/debug" className="hover:underline">اشکال‌زدایی</a>
           </nav>
         </header>

@@ -15,6 +15,7 @@ from intelligent_search import SearchOptimization
 from price_monitor import PriceMonitor, WebSocketManager, PriceAlert
 from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
+from provider_insights import get_provider_insights
 
 # Configure logging
 debug_mode = os.getenv("DEBUG_MODE", "0").lower() in ("1", "true", "yes")
@@ -434,6 +435,15 @@ async def disable_site_api(site_name: str):
     if crawler.disable_site(site_name):
         return {"site": site_name, "enabled": False}
     raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
+
+
+@app.get("/api/v1/provider-insights")
+async def provider_insights_api(provider_type: Optional[str] = None):
+    """Return business intelligence metrics for providers"""
+    data = get_provider_insights(provider_type)
+    if provider_type and not data:
+        raise HTTPException(status_code=404, detail="Provider type not found")
+    return {"insights": data, "timestamp": datetime.now().isoformat()}
 
 
 @app.websocket("/ws/sites/{site_name}/logs")
