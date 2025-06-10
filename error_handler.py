@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 from config import config
 
@@ -18,8 +18,14 @@ class ErrorHandler:
         self.max_errors = 5
         self.circuit_timeout = 300  # 5 minutes
     
-    async def handle_error(self, domain: str, error: str) -> None:
-        """Handle error for domain"""
+    async def handle_error(self, domain: str, error: Any) -> None:
+        """Handle error for domain.
+
+        The provided ``error`` may be an exception instance or a simple
+        string.  To ensure the value can be serialised later (e.g. when
+        sending JSON over WebSocket), it is always converted to ``str``
+        before being stored.
+        """
         try:
             # Get current time
             now = datetime.now()
@@ -30,7 +36,7 @@ class ErrorHandler:
             
             # Add error
             self.errors[domain].append({
-                'error': error,
+                'error': str(error),
                 'timestamp': now.isoformat()
             })
             
