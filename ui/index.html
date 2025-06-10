@@ -256,7 +256,8 @@
 
         function setupWebSockets() {
             // Dashboard updates WebSocket
-            dashboardWS = new WebSocket(`ws://${window.location.host}/ws/dashboard`);
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            dashboardWS = new WebSocket(`${proto}://${window.location.host}/ws/dashboard`);
             dashboardWS.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 updateDashboard(data);

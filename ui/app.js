@@ -51,7 +51,8 @@ function connectWebSocket(userId) {
     if (ws) {
         ws.close();
     }
-    ws = new WebSocket(`ws://${location.host}/ws/prices/${encodeURIComponent(userId)}`);
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws/prices/${encodeURIComponent(userId)}`);
     ws.onmessage = (event) => {
         const el = document.getElementById('wsResult');
         el.textContent += event.data + '\n';
