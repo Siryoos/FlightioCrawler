@@ -13,6 +13,7 @@ from monitoring import CrawlerMonitor, ErrorHandler
 from data_manager import DataManager
 from site_crawlers import (
     FlytodayCrawler,
+    FlightioCrawler,
     AlibabaCrawler,
     SafarmarketCrawler,
     Mz724Crawler,
@@ -77,6 +78,10 @@ class IranianFlightCrawler:
         
         # Initialize site crawlers
         self.crawlers = {
+            "flightio.com": FlightioCrawler(
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
+            ),
             "flytoday.ir": FlytodayCrawler(
                 self.rate_limiter, self.text_processor,
                 self.monitor, self.error_handler

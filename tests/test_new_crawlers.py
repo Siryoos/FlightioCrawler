@@ -5,6 +5,7 @@ with open('site_crawlers.py', 'r', encoding='utf-8') as f:
     SITE_CRAWLERS_TEXT = f.read()
 
 EXPECTED_DOMAINS = {
+    'flightio.com',
     'flytoday.ir',
     'alibaba.ir',
     'safarmarket.com',
@@ -21,6 +22,7 @@ def test_domains_list():
 
 def test_crawler_classes_exist():
     for cls in [
+        'FlightioCrawler',
         'Mz724Crawler',
         'PartoCRSCrawler',
         'PartoTicketCrawler',

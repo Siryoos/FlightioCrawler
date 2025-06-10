@@ -8,6 +8,7 @@ from site_crawlers import (
     SafarmarketCrawler,
     Mz724Crawler,
     FlytodayCrawler,
+    FlightioCrawler,
     AlibabaCrawler,
 )
 
@@ -27,6 +28,9 @@ class FlightMonitoringSystem:
             ),
             'mz724.ir': Mz724Crawler(
                 self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=1800
+            ),
+            'flightio.com': FlightioCrawler(
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=2700
             ),
             'flytoday.ir': FlytodayCrawler(
                 self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=2700
