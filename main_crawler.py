@@ -3,6 +3,7 @@ import logging
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 import redis
 import psycopg2
 from local_crawler import BrowserConfig, CrawlerRunConfig
@@ -24,6 +25,7 @@ from site_crawlers import (
     MrbilitCrawler,
     SnapptripCrawler,
 )
+
 try:
     from crawl4ai.cache_mode import CacheMode
 except Exception:  # pragma: no cover - optional dependency
@@ -31,6 +33,8 @@ except Exception:  # pragma: no cover - optional dependency
 
     class CacheMode(Enum):
         BYPASS = 0
+
+
 from rate_limiter import RateLimiter
 from persian_text import PersianTextProcessor
 from config import config
@@ -41,9 +45,11 @@ from multilingual_processor import MultilingualProcessor
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class FlightData:
     """Normalized flight data structure"""
+
     flight_id: str
     airline: str
     flight_number: str
@@ -60,9 +66,10 @@ class FlightData:
     scraped_at: datetime
     source_url: str
 
+
 class IranianFlightCrawler:
     """Main crawler orchestrator for Iranian flight booking sites"""
-    
+
     def __init__(self):
         # Initialize core components
         self.monitor = CrawlerMonitor()
@@ -70,66 +77,57 @@ class IranianFlightCrawler:
         self.data_manager = DataManager()
         self.rate_limiter = RateLimiter()
         self.text_processor = PersianTextProcessor()
-        
+
         # Initialize advanced features
         self.intelligent_search = IntelligentSearchEngine(self, self.data_manager)
         self.price_monitor = PriceMonitor(self.data_manager, self.data_manager.redis)
         self.price_monitor.websocket_manager = WebSocketManager()
-        self.ml_predictor = FlightPricePredictor(self.data_manager, self.data_manager.redis)
+        self.ml_predictor = FlightPricePredictor(
+            self.data_manager, self.data_manager.redis
+        )
         self.multilingual = MultilingualProcessor()
-        
+
         # Initialize site crawlers
         self.crawlers = {
             "flightio.com": FlightioCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "flytoday.ir": FlytodayCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "alibaba.ir": AlibabaCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "safarmarket.com": SafarmarketCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "mz724.ir": Mz724Crawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "partocrs.com": PartoCRSCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "parto-ticket.ir": PartoTicketCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "bookcharter724.ir": BookCharter724Crawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "bookcharter.ir": BookCharterCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "mrbilit.com": MrbilitCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
             ),
             "snapptrip.com": SnapptripCrawler(
-                self.rate_limiter, self.text_processor,
-                self.monitor, self.error_handler
-            )
+                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
+            ),
         }
         # Track which sites are currently enabled for crawling
         self.enabled_sites = set(self.crawlers.keys())
-        
+
         logger.info("Iranian Flight Crawler initialized successfully")
-    
+
     async def crawl_all_sites(self, search_params: Dict) -> List[Dict]:
         """Orchestrate crawling across all three sites"""
         try:
@@ -142,7 +140,7 @@ class IranianFlightCrawler:
             if cached_results:
                 logger.info("Returning cached results")
                 return cached_results
-            
+
             # Start crawling all enabled sites concurrently
             tasks = []
             for site_name, crawler in self.crawlers.items():
@@ -150,10 +148,10 @@ class IranianFlightCrawler:
                     continue
                 task = asyncio.create_task(
                     self._crawl_site_safely(site_name, crawler, search_params),
-                    name=f"crawl_{site_name}"
+                    name=f"crawl_{site_name}",
                 )
                 tasks.append(task)
-            
+
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Process results
@@ -164,55 +162,60 @@ class IranianFlightCrawler:
                     logger.error(f"Error crawling {site_name}: {result}")
                     continue
                 all_flights.extend(result)
-            
+
             # Store results
             if all_flights:
                 await self.data_manager.store_flights({"all": all_flights})
-                await self.data_manager.cache_search_results(search_params, {"all": all_flights})
-            
+                await self.data_manager.cache_search_results(
+                    search_params, {"all": all_flights}
+                )
+
             return all_flights
-            
+
         except Exception as e:
             logger.error(f"Error in crawl_all_sites: {e}")
             return []
-    
-    async def _crawl_site_safely(self, site_name: str, crawler, search_params: Dict) -> List[Dict]:
+
+    async def _crawl_site_safely(
+        self, site_name: str, crawler, search_params: Dict
+    ) -> List[Dict]:
         """Safely crawl a single site with error handling"""
         try:
             if self.error_handler.is_circuit_open(site_name):
                 logger.warning(f"Circuit breaker open for {site_name}")
                 return []
-            
+
             start_time = datetime.now()
             flights = await crawler.search_flights(search_params)
-            
+
             # Record metrics
             duration = (datetime.now() - start_time).total_seconds()
             self.monitor.record_request(site_name, duration)
             self.monitor.record_flights(site_name, len(flights))
-            
+
             return flights
-            
+
         except Exception as e:
             logger.error(f"Error crawling {site_name}: {e}")
             await self.error_handler.handle_error(site_name, str(e))
             return []
-    
 
-    
     def get_health_status(self) -> Dict:
         """Get comprehensive crawler health status"""
         return {
             "crawler_metrics": self.monitor.get_all_metrics(),
             "error_stats": self.error_handler.get_all_error_stats(),
             "rate_limits": self.rate_limiter.get_all_rate_limit_stats(),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-
-    async def intelligent_search_flights(self, search_params: Dict, optimization: SearchOptimization) -> Dict:
+    async def intelligent_search_flights(
+        self, search_params: Dict, optimization: SearchOptimization
+    ) -> Dict:
         """Run intelligent search using the optimization engine."""
-        return await self.intelligent_search.optimize_search_strategy(search_params, optimization)
+        return await self.intelligent_search.optimize_search_strategy(
+            search_params, optimization
+        )
 
     def _generate_search_key(self, search_params: Dict) -> str:
         """Generate cache key for search"""
@@ -259,40 +262,49 @@ class IranianFlightCrawler:
             logger.error(f"Error resetting stats: {e}")
 
     def setup_logging(self):
+        """Configure application logging."""
+        log_dir = Path("logs")
+        log_dir.mkdir(exist_ok=True)
+
+        log_file = log_dir / config.MONITORING.LOG_FILE
+        error_file = log_dir / "error.log"
+
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=[
-                logging.FileHandler('flight_crawler.log', encoding='utf-8'),
-                logging.StreamHandler()
-            ]
+                logging.FileHandler(log_file, encoding="utf-8"),
+                logging.StreamHandler(),
+            ],
         )
+
+        err_handler = logging.FileHandler(error_file, encoding="utf-8")
+        err_handler.setLevel(logging.ERROR)
+        logging.getLogger().addHandler(err_handler)
+
         self.logger = logging.getLogger(__name__)
 
     def setup_persian_processing(self):
         """Initialize Persian text processing tools"""
         self.normalizer = Normalizer()
-        
+
     def setup_database(self):
         """Initialize PostgreSQL connection with UTF-8 support"""
         self.db_config = {
-            'host': 'localhost',
-            'database': 'flight_data',
-            'user': 'crawler',
-            'password': 'secure_password',
-            'options': '-c timezone=Asia/Tehran'
+            "host": "localhost",
+            "database": "flight_data",
+            "user": "crawler",
+            "password": "secure_password",
+            "options": "-c timezone=Asia/Tehran",
         }
         self.init_database_schema()
-        
+
     def setup_redis(self):
         """Initialize Redis for task queue and caching"""
         self.redis_client = redis.Redis(
-            host='localhost', 
-            port=6379, 
-            db=0,
-            decode_responses=True
+            host="localhost", port=6379, db=0, decode_responses=True
         )
-        
+
     def setup_crawl4ai(self):
         """Configure Crawl4AI for Iranian sites"""
         self.browser_config = BrowserConfig(
@@ -303,21 +315,21 @@ class IranianFlightCrawler:
             extra_headers={
                 "Accept-Language": "fa-IR,fa;q=0.9,en;q=0.8",
                 "Accept-Encoding": "gzip, deflate, br",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             },
             use_persistent_context=True,
-            user_data_dir="/tmp/crawl4ai_persian_profile"
+            user_data_dir="/tmp/crawl4ai_persian_profile",
         )
-        
+
         self.run_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             timeout=30000,
             wait_for_timeout=15000,
             js_only=False,
             screenshot=False,
-            verbose=False
+            verbose=False,
         )
-    
+
     def init_database_schema(self):
         """Create database tables with Persian text support"""
         schema_sql = """
@@ -346,7 +358,7 @@ class IranianFlightCrawler:
         CREATE INDEX IF NOT EXISTS idx_flights_scraped 
         ON flights (scraped_at);
         """
-        
+
         with psycopg2.connect(**self.db_config) as conn:
             with conn.cursor() as cur:
                 cur.execute(schema_sql)
