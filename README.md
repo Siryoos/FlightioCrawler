@@ -208,6 +208,16 @@ For real-world deployments the project includes several production utilities:
 
 See [docs/real_data_setup.md](docs/real_data_setup.md) for full instructions.
 
+### Monitoring Stack
+
+Deployment manifests for Prometheus, Grafana and Alertmanager are stored in the
+`k8s` directory. Use the helper scripts to manage them on your cluster:
+
+```bash
+scripts/deploy-monitoring.sh   # deploys all monitoring components
+scripts/cleanup-monitoring.sh  # removes the monitoring stack
+```
+
 To enable real-data crawling, first run `python -m production_url_validator`
 to verify each site is accessible. Instantiate `RealDataCrawler` for your
 target and replace any dummy implementations. Always respect website terms of
