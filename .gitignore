@@ -52,3 +52,4 @@ node_modules/
 *.temp
 
 .next/
+data/flight_data.sqlite

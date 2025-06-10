@@ -252,6 +252,7 @@
             setDefaultDate();
             refreshSiteStatus();
             loadRecentFlights();
+            document.getElementById('test-site').addEventListener('change', connectLogWS);
         });
 
         function setupWebSockets() {
@@ -266,6 +267,29 @@
             dashboardWS.onclose = function() {
                 console.log('Dashboard WebSocket closed, attempting to reconnect...');
                 setTimeout(setupWebSockets, 5000);
+            };
+
+            // Connect log websocket for initially selected site
+            connectLogWS();
+        }
+
+        function connectLogWS() {
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const site = document.getElementById('test-site').value;
+            if (logWS) {
+                logWS.close();
+            }
+            logWS = new WebSocket(`${proto}://${window.location.host}/ws/sites/${site}/logs`);
+            logWS.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addLogEntry(data.level || 'INFO', data.message || '');
+                } catch (e) {
+                    console.error('Failed to parse log message', e);
+                }
+            };
+            logWS.onclose = function() {
+                setTimeout(connectLogWS, 5000);
             };
         }
 
@@ -522,18 +546,6 @@
             });
         }
 
-        // Simulate some log entries for demonstration
-        setInterval(() => {
-            const messages = [
-                'Crawler heartbeat - all systems operational',
-                'Rate limit check passed for flytoday.ir',
-                'Successfully parsed 15 flights from alibaba.ir',
-                'Cache hit rate: 87%'
-            ];
-            const levels = ['INFO', 'INFO', 'INFO', 'INFO'];
-            const randomIndex = Math.floor(Math.random() * messages.length);
-            addLogEntry(levels[randomIndex], messages[randomIndex]);
-        }, 5000);
     </script>
 </body>
 </html>
