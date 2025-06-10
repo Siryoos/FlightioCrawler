@@ -1915,7 +1915,7 @@
                 "transfer": "ترانسفر",
                 "showAvailable": "نمايش ظرفيت‌دارها",
                 "domesticTitle": "هتل داخلی",
-                "defaultRoomCancellationPlainText": "قوانین کنسلی با توجه به بازه ی تاریخ انتخابی شما ،متغیر است. برای دریافت اطلاعات دقیق با پشتیبانی در ارتباط باشید.",
+                "defaultRoomCancellationPlainText": "قوانین کنسلی با توجه به بازه ی تاریخ انتخابی شما ،متغیر است.برای دریافت اطلاعات دقیق با پشتیبانی در ارتباط باشید.",
                 "defaultRoomCancellationRowTextNonRefundable": "بعد از <b>{{date}}</b> ساعت <b>{{time}}</b> هیچگونه مبلغی در صورت کنسل شدن و یا عدم حضور مسافر در هتل بازگشت داده نمیشود.",
                 "defaultRoomCancellationRowTextRefundable": "اگر رزرو خود را تغییر دهید یا لغو کنید، بازپرداخت یا اعتباری برای استفاده برای اقامت آینده دریافت نخواهید کرد.",
                 "defaultRoomCancellationRowTextRefundableWithDate": "رزرو خود را قبل از <b>{{date}}</b> ساعت <b>{{time}}</b> کنسل کنید ،مبلغ کامل بازپرداخت خواهد شد. زمان بر اساس زمان محلی ملک است.",
