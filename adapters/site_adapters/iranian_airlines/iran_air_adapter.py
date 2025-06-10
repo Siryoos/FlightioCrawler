@@ -8,9 +8,9 @@ from playwright.async_api import Page, TimeoutError
 
 from adapters.base_adapters.persian_airline_crawler import PersianAirlineCrawler
 from utils.persian_text_processor import PersianTextProcessor
-from utils.rate_limiter import RateLimiter
-from utils.error_handler import ErrorHandler
-from utils.monitoring import Monitoring
+from rate_limiter import RateLimiter
+from error_handler import ErrorHandler
+from monitoring import Monitoring
 
 class IranAirAdapter(PersianAirlineCrawler):
     def __init__(self, config: Dict):
