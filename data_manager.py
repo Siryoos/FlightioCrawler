@@ -185,32 +185,6 @@ class DataManager:
         finally:
             session.close()
     
-    def cache_search_results(self, params: Dict, results: Dict[str, List[Dict]]) -> None:
-        """Cache search results in Redis"""
-        try:
-            # Generate cache key
-            key = self._generate_cache_key(params)
-            
-            # Convert all datetime objects in results to isoformat strings
-            def convert_dt(obj):
-                if isinstance(obj, dt.datetime):
-                    return obj.isoformat()
-                if isinstance(obj, dict):
-                    return {k: convert_dt(v) for k, v in obj.items()}
-                if isinstance(obj, list):
-                    return [convert_dt(i) for i in obj]
-                return obj
-            results_serializable = convert_dt(copy.deepcopy(results))
-            
-            # Cache results
-            self.redis.setex(
-                key,
-                config.CACHE_TTL,
-                json.dumps(results_serializable)
-            )
-            
-        except Exception as e:
-            logger.error(f"Error caching search results: {e}")
     
     def get_cached_results(self, params: Dict) -> Optional[Dict[str, List[Dict]]]:
         """Get cached search results from Redis"""
