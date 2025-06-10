@@ -82,25 +82,6 @@ class BaseSiteCrawler(StealthCrawler):
         """Search flights on the site"""
         raise NotImplementedError("Subclasses must implement search_flights")
 
-    async def _return_dummy_flights(self, search_params: Dict) -> List[Dict]:
-        """Return dummy flight data used when real crawling is unavailable."""
-        await asyncio.sleep(0)
-        now = datetime.now()
-        return [
-            {
-                "airline": "DemoAir",
-                "flight_number": "DM123",
-                "origin": search_params.get("origin", ""),
-                "destination": search_params.get("destination", ""),
-                "departure_time": now,
-                "arrival_time": now,
-                "price": 1000000,
-                "currency": "IRR",
-                "seat_class": search_params.get("seat_class", "economy"),
-                "duration": 60,
-                "source_url": getattr(self, "base_url", "")
-            }
-        ]
 
     async def continuous_monitoring(self, routes: List[Dict]) -> None:
         """Continuously search flights for the provided routes."""
