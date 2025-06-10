@@ -22,6 +22,7 @@ from site_crawlers import (
     BookCharter724Crawler,
     BookCharterCrawler,
     MrbilitCrawler,
+    SnapptripCrawler,
 )
 try:
     from crawl4ai.cache_mode import CacheMode
@@ -116,6 +117,10 @@ class IranianFlightCrawler:
                 self.monitor, self.error_handler
             ),
             "mrbilit.com": MrbilitCrawler(
+                self.rate_limiter, self.text_processor,
+                self.monitor, self.error_handler
+            ),
+            "snapptrip.com": SnapptripCrawler(
                 self.rate_limiter, self.text_processor,
                 self.monitor, self.error_handler
             )
