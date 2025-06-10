@@ -56,7 +56,24 @@ prices and times are realistic before storing them.
    Always validate each target by running `python -m production_url_validator`
    before enabling real crawling.
 
-7. **Legal Considerations**
+7. **Replay Saved Requests**
+
+   Archived HTML pages can be revalidated using `scripts/replay_requests.py`:
+
+   ```bash
+   python scripts/replay_requests.py
+   ```
+
+   Schedule this command to run daily to refresh snapshots and detect DOM
+   changes.
+
+8. **Snapshot Filenames**
+
+   All snapshots use `utils.file_utils.sanitize_filename` which preserves query
+   parameters in a normalized form. This avoids prefixes like
+   `https_parto-ticket` and prevents filename collisions.
+
+9. **Legal Considerations**
 
    Crawling production sites may be restricted by local laws and the target
    website's terms of service. Review `robots.txt` and obtain permission when
