@@ -13,6 +13,15 @@ CREATE SCHEMA IF NOT EXISTS crawler;
 -- Set search path
 SET search_path TO crawler, public;
 
+-- Routes configuration table
+CREATE TABLE IF NOT EXISTS crawl_routes (
+    route_id SERIAL PRIMARY KEY,
+    origin VARCHAR(10) NOT NULL,
+    destination VARCHAR(10) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Platform registry table
 CREATE TABLE platforms (
     platform_id SERIAL PRIMARY KEY,

@@ -86,6 +86,11 @@ class MonitorRequest(BaseModel):
 class StopMonitorRequest(BaseModel):
     routes: Optional[List[str]] = None
 
+
+class RouteRequest(BaseModel):
+    origin: str
+    destination: str
+
 class CrawlRequest(BaseModel):
     origin: str
     destination: str
@@ -235,6 +240,26 @@ async def stop_monitoring(req: StopMonitorRequest):
 async def monitor_status():
     routes = await crawler.price_monitor.get_monitored_routes()
     return {"monitoring": routes}
+
+
+@app.post("/routes")
+async def add_route(req: RouteRequest):
+    route_id = await crawler.data_manager.add_crawl_route(req.origin, req.destination)
+    routes = await crawler.data_manager.get_active_routes()
+    return {"id": route_id, "routes": routes}
+
+
+@app.get("/routes")
+async def list_routes():
+    routes = await crawler.data_manager.get_active_routes()
+    return {"routes": routes}
+
+
+@app.delete("/routes/{route_id}")
+async def delete_route(route_id: int):
+    removed = await crawler.data_manager.delete_crawl_route(route_id)
+    routes = await crawler.data_manager.get_active_routes()
+    return {"removed": removed, "routes": routes}
 
 
 @app.post("/crawl")
