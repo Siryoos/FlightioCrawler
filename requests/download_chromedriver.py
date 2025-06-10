@@ -9,12 +9,12 @@ def get_latest_chromedriver_version():
     # Get the latest version from the ChromeDriver download page
     response = requests.get("https://googlechromelabs.github.io/chrome-for-testing/")
     response.raise_for_status()
-    
+
     # Find the latest version
     versions = re.findall(r'"version": "(\d+\.\d+\.\d+\.\d+)"', response.text)
     if not versions:
         raise Exception("Could not find ChromeDriver version")
-    
+
     return versions[0]
 
 def download_chromedriver():
@@ -36,4 +36,4 @@ def download_chromedriver():
         sys.exit(1)
 
 if __name__ == "__main__":
-    download_chromedriver() 
+    download_chromedriver()
