@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="/" className="hover:underline">خانه</a>
             <a href="/sites" className="hover:underline">سایت‌ها</a>
             <a href="/insights" className="hover:underline">بینش‌ها</a>
+            <a href="/jobs" className="hover:underline">کرول جدید</a>
             <a href="/debug" className="hover:underline">اشکال‌زدایی</a>
           </nav>
         </header>
