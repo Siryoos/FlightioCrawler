@@ -84,6 +84,9 @@ DB_USER=crawler
 DB_PASSWORD=secure_password
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=
+REDIS_URL=redis://localhost:6379/0
 DEBUG_MODE=false
 ```
 
