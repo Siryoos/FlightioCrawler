@@ -34,3 +34,13 @@ def test_parse_time():
     assert isinstance(result, datetime.datetime)
     assert result.hour == 10
     assert result.minute == 30
+
+
+def test_extract_duration_hours():
+    processor = PersianTextProcessor()
+    assert processor.extract_duration("۲ ساعت") == 120
+
+
+def test_extract_duration_minutes():
+    processor = PersianTextProcessor()
+    assert processor.extract_duration("۹۰") == 90
