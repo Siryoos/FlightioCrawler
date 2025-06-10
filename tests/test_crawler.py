@@ -5,6 +5,7 @@ if importlib.util.find_spec("crawl4ai") is None:
 import inspect
 from site_crawlers import (
     FlytodayCrawler,
+    FlightioCrawler,
     AlibabaCrawler,
     SafarmarketCrawler,
     Mz724Crawler,
@@ -19,6 +20,7 @@ from site_crawlers import (
 def test_crawler_classes_exist():
     for cls in [
         FlytodayCrawler,
+        FlightioCrawler,
         AlibabaCrawler,
         SafarmarketCrawler,
         Mz724Crawler,

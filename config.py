@@ -148,6 +148,7 @@ class RedisConfig:
 @dataclass
 class CrawlerConfig:
     DOMAINS: List[str] = field(default_factory=lambda: [
+        'flightio.com',
         'flytoday.ir',
         'alibaba.ir',
         'safarmarket.com',
@@ -164,6 +165,7 @@ class CrawlerConfig:
         'alibaba.ir': 2,
         'safarmarket.com': 2,
         'mz724.ir': 2,
+        'flightio.com': 2,
         'partocrs.com': 2,
         'parto-ticket.ir': 2,
         'bookcharter724.ir': 2,

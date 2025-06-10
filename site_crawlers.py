@@ -194,6 +194,90 @@ class FlytodayCrawler(BaseSiteCrawler):
             await self.error_handler.handle_error(self.domain, e)
             return []
 
+class FlightioCrawler(BaseSiteCrawler):
+    """Crawler for Flightio.com"""
+
+    def __init__(self, *args, interval: int = 2700, **kwargs):
+        super().__init__(*args, interval=interval, **kwargs)
+        self.domain = "flightio.com"
+        self.base_url = "https://flightio.com"
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on Flightio by parsing the results page."""
+        start_time = datetime.now()
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                return []
+
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+
+            url = (
+                f"{self.base_url}/flight/{search_params.get('origin')}-"
+                f"{search_params.get('destination')}?depart={search_params.get('departure_date')}"
+                f"&adult={search_params.get('passengers', 1)}&child=0&infant=0&flightType=1&cabinType=1"
+            )
+            await self.crawler.navigate(url)
+
+            if not await self._wait_for_element('.resu', timeout=30):
+                raise Exception("Flight results not found")
+
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+            flights: List[Dict] = []
+
+            for item in soup.select('div.resu'):
+                try:
+                    price_el = item.select_one('div.price span')
+                    if not price_el:
+                        continue
+
+                    dep_el = item.select_one('div.date')
+                    departure_time = (
+                        self.text_processor.parse_time(dep_el.text) if dep_el else None
+                    )
+
+                    airline_el = item.select_one('strong.airline_name')
+                    airline = (
+                        self.text_processor.normalize_airline_name(airline_el.text)
+                        if airline_el else ''
+                    )
+
+                    flight_no_el = item.select_one('span.code_inn')
+                    flight_number = (
+                        self.text_processor.process(flight_no_el.text) if flight_no_el else ''
+                    )
+
+                    seat_class = item.select_one('div.price').get('rel', '')
+
+                    flights.append(
+                        {
+                            'airline': airline,
+                            'flight_number': flight_number,
+                            'origin': search_params.get('origin'),
+                            'destination': search_params.get('destination'),
+                            'departure_time': departure_time,
+                            'arrival_time': None,
+                            'price': self.text_processor.extract_price(price_el.text)[0],
+                            'currency': 'IRR',
+                            'seat_class': seat_class,
+                            'duration': 0,
+                            'source_url': url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
+
+            await self.monitor.track_request(self.domain, start_time.timestamp())
+            return flights
+        except Exception as e:
+            self.logger.error(f"Error crawling Flightio: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []
+
 class AlibabaCrawler(BaseSiteCrawler):
     """Crawler for Alibaba.ir"""
 
