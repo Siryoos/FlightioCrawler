@@ -5,9 +5,9 @@ from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
 from adapters.base_adapters.airline_crawler import AirlineCrawler
-from utils.rate_limiter import RateLimiter
-from utils.error_handler import ErrorHandler
-from utils.monitoring import Monitoring
+from rate_limiter import RateLimiter
+from error_handler import ErrorHandler
+from monitoring import Monitoring
 
 class EtihadAirwaysAdapter(AirlineCrawler):
     def __init__(self, config: Dict):

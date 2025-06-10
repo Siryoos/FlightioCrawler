@@ -9,20 +9,6 @@ sys.modules['playwright'] = types.ModuleType('playwright')
 sys.modules['playwright.async_api'] = types.ModuleType('playwright.async_api')
 sys.modules['playwright.async_api'].TimeoutError = Exception
 
-sys.modules['utils.rate_limiter'] = types.ModuleType('utils.rate_limiter')
-sys.modules['utils.rate_limiter'].RateLimiter = lambda *a, **k: None
-sys.modules['utils.error_handler'] = types.ModuleType('utils.error_handler')
-sys.modules['utils.error_handler'].ErrorHandler = lambda *a, **k: None
-utils_mon = types.ModuleType('utils.monitoring')
-class DummyMon:
-    def __init__(self, *a, **k):
-        pass
-    def record_success(self):
-        pass
-    def record_error(self):
-        pass
-utils_mon.Monitoring = DummyMon
-sys.modules['utils.monitoring'] = utils_mon
 
 base_mod = types.ModuleType('adapters.base_adapters.airline_crawler')
 class AirlineCrawler:

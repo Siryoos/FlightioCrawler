@@ -14,6 +14,22 @@ from error_handler import ErrorHandler
 # Configure logging
 logger = logging.getLogger(__name__)
 
+class Monitoring:
+    """Minimal monitoring interface used by site adapters."""
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+
+    def record_success(self) -> None:
+        """Record a successful crawl event."""
+        # Placeholder for future integration
+        logger.debug("Monitoring.record_success called")
+
+    def record_error(self) -> None:
+        """Record an error during crawling."""
+        # Placeholder for future integration
+        logger.debug("Monitoring.record_error called")
+
 @dataclass
 class CrawlerMetrics:
     """Metrics for a single crawler instance"""
