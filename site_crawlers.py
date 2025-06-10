@@ -137,27 +137,49 @@ class FlytodayCrawler(BaseSiteCrawler):
             )
             await self.crawler.navigate(url)
 
-            if not await self._wait_for_element('.flight-result', timeout=30):
+            if not await self._wait_for_element('.resu', timeout=30):
                 raise Exception("Flight results not found")
 
             html = await self.crawler.content()
             soup = BeautifulSoup(html, 'html.parser')
             flights: List[Dict] = []
 
-            for item in soup.select('.flight-result'):
+            for item in soup.select('div.resu'):
                 try:
+                    price_el = item.select_one('div.price span')
+                    if not price_el:
+                        continue
+
+                    dep_el = item.select_one('div.date')
+                    departure_time = (
+                        self.text_processor.parse_time(dep_el.text) if dep_el else None
+                    )
+
+                    airline_el = item.select_one('strong.airline_name')
+                    airline = (
+                        self.text_processor.normalize_airline_name(airline_el.text)
+                        if airline_el else ''
+                    )
+
+                    flight_no_el = item.select_one('span.code_inn')
+                    flight_number = (
+                        self.text_processor.process(flight_no_el.text) if flight_no_el else ''
+                    )
+
+                    seat_class = item.select_one('div.price').get('rel', '')
+
                     flights.append(
                         {
-                            'airline': self.process_text(item.select_one('.airline-name').text),
-                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'airline': airline,
+                            'flight_number': flight_number,
                             'origin': search_params.get('origin'),
                             'destination': search_params.get('destination'),
-                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
-                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
-                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'departure_time': departure_time,
+                            'arrival_time': None,
+                            'price': self.text_processor.extract_price(price_el.text)[0],
                             'currency': 'IRR',
-                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
-                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'seat_class': seat_class,
+                            'duration': 0,
                             'source_url': url,
                         }
                     )
@@ -483,27 +505,49 @@ class PartoCRSCrawler(BaseSiteCrawler):
             )
             await self.crawler.navigate(url)
 
-            if not await self._wait_for_element('.flight-result', timeout=30):
+            if not await self._wait_for_element('.resu', timeout=30):
                 raise Exception("Flight results not found")
 
             html = await self.crawler.content()
             soup = BeautifulSoup(html, 'html.parser')
             flights: List[Dict] = []
 
-            for item in soup.select('.flight-result'):
+            for item in soup.select('div.resu'):
                 try:
+                    price_el = item.select_one('div.price span')
+                    if not price_el:
+                        continue
+
+                    dep_el = item.select_one('div.date')
+                    departure_time = (
+                        self.text_processor.parse_time(dep_el.text) if dep_el else None
+                    )
+
+                    airline_el = item.select_one('strong.airline_name')
+                    airline = (
+                        self.text_processor.normalize_airline_name(airline_el.text)
+                        if airline_el else ''
+                    )
+
+                    flight_no_el = item.select_one('span.code_inn')
+                    flight_number = (
+                        self.text_processor.process(flight_no_el.text) if flight_no_el else ''
+                    )
+
+                    seat_class = item.select_one('div.price').get('rel', '')
+
                     flights.append(
                         {
-                            'airline': self.process_text(item.select_one('.airline-name').text),
-                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'airline': airline,
+                            'flight_number': flight_number,
                             'origin': search_params.get('origin'),
                             'destination': search_params.get('destination'),
-                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
-                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
-                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'departure_time': departure_time,
+                            'arrival_time': None,
+                            'price': self.text_processor.extract_price(price_el.text)[0],
                             'currency': 'IRR',
-                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
-                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'seat_class': seat_class,
+                            'duration': 0,
                             'source_url': url,
                         }
                     )
@@ -546,27 +590,49 @@ class PartoTicketCrawler(BaseSiteCrawler):
             )
             await self.crawler.navigate(url)
 
-            if not await self._wait_for_element('.flight-result', timeout=30):
+            if not await self._wait_for_element('.resu', timeout=30):
                 raise Exception("Flight results not found")
 
             html = await self.crawler.content()
             soup = BeautifulSoup(html, 'html.parser')
             flights: List[Dict] = []
 
-            for item in soup.select('.flight-result'):
+            for item in soup.select('div.resu'):
                 try:
+                    price_el = item.select_one('div.price span')
+                    if not price_el:
+                        continue
+
+                    dep_el = item.select_one('div.date')
+                    departure_time = (
+                        self.text_processor.parse_time(dep_el.text) if dep_el else None
+                    )
+
+                    airline_el = item.select_one('strong.airline_name')
+                    airline = (
+                        self.text_processor.normalize_airline_name(airline_el.text)
+                        if airline_el else ''
+                    )
+
+                    flight_no_el = item.select_one('span.code_inn')
+                    flight_number = (
+                        self.text_processor.process(flight_no_el.text) if flight_no_el else ''
+                    )
+
+                    seat_class = item.select_one('div.price').get('rel', '')
+
                     flights.append(
                         {
-                            'airline': self.process_text(item.select_one('.airline-name').text),
-                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'airline': airline,
+                            'flight_number': flight_number,
                             'origin': search_params.get('origin'),
                             'destination': search_params.get('destination'),
-                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
-                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
-                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'departure_time': departure_time,
+                            'arrival_time': None,
+                            'price': self.text_processor.extract_price(price_el.text)[0],
                             'currency': 'IRR',
-                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
-                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'seat_class': seat_class,
+                            'duration': 0,
                             'source_url': url,
                         }
                     )
@@ -609,27 +675,49 @@ class BookCharter724Crawler(BaseSiteCrawler):
             )
             await self.crawler.navigate(url)
 
-            if not await self._wait_for_element('.flight-result', timeout=30):
+            if not await self._wait_for_element('.resu', timeout=30):
                 raise Exception("Flight results not found")
 
             html = await self.crawler.content()
             soup = BeautifulSoup(html, 'html.parser')
             flights: List[Dict] = []
 
-            for item in soup.select('.flight-result'):
+            for item in soup.select('div.resu'):
                 try:
+                    price_el = item.select_one('div.price span')
+                    if not price_el:
+                        continue
+
+                    dep_el = item.select_one('div.date')
+                    departure_time = (
+                        self.text_processor.parse_time(dep_el.text) if dep_el else None
+                    )
+
+                    airline_el = item.select_one('strong.airline_name')
+                    airline = (
+                        self.text_processor.normalize_airline_name(airline_el.text)
+                        if airline_el else ''
+                    )
+
+                    flight_no_el = item.select_one('span.code_inn')
+                    flight_number = (
+                        self.text_processor.process(flight_no_el.text) if flight_no_el else ''
+                    )
+
+                    seat_class = item.select_one('div.price').get('rel', '')
+
                     flights.append(
                         {
-                            'airline': self.process_text(item.select_one('.airline-name').text),
-                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'airline': airline,
+                            'flight_number': flight_number,
                             'origin': search_params.get('origin'),
                             'destination': search_params.get('destination'),
-                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
-                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
-                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'departure_time': departure_time,
+                            'arrival_time': None,
+                            'price': self.text_processor.extract_price(price_el.text)[0],
                             'currency': 'IRR',
-                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
-                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'seat_class': seat_class,
+                            'duration': 0,
                             'source_url': url,
                         }
                     )
@@ -672,27 +760,49 @@ class BookCharterCrawler(BaseSiteCrawler):
             )
             await self.crawler.navigate(url)
 
-            if not await self._wait_for_element('.flight-result', timeout=30):
+            if not await self._wait_for_element('.resu', timeout=30):
                 raise Exception("Flight results not found")
 
             html = await self.crawler.content()
             soup = BeautifulSoup(html, 'html.parser')
             flights: List[Dict] = []
 
-            for item in soup.select('.flight-result'):
+            for item in soup.select('div.resu'):
                 try:
+                    price_el = item.select_one('div.price span')
+                    if not price_el:
+                        continue
+
+                    dep_el = item.select_one('div.date')
+                    departure_time = (
+                        self.text_processor.parse_time(dep_el.text) if dep_el else None
+                    )
+
+                    airline_el = item.select_one('strong.airline_name')
+                    airline = (
+                        self.text_processor.normalize_airline_name(airline_el.text)
+                        if airline_el else ''
+                    )
+
+                    flight_no_el = item.select_one('span.code_inn')
+                    flight_number = (
+                        self.text_processor.process(flight_no_el.text) if flight_no_el else ''
+                    )
+
+                    seat_class = item.select_one('div.price').get('rel', '')
+
                     flights.append(
                         {
-                            'airline': self.process_text(item.select_one('.airline-name').text),
-                            'flight_number': item.select_one('.flight-number').text.strip(),
+                            'airline': airline,
+                            'flight_number': flight_number,
                             'origin': search_params.get('origin'),
                             'destination': search_params.get('destination'),
-                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text),
-                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text),
-                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0],
+                            'departure_time': departure_time,
+                            'arrival_time': None,
+                            'price': self.text_processor.extract_price(price_el.text)[0],
                             'currency': 'IRR',
-                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text),
-                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text),
+                            'seat_class': seat_class,
+                            'duration': 0,
                             'source_url': url,
                         }
                     )
