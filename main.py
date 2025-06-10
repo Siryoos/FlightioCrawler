@@ -328,6 +328,7 @@ async def get_all_sites_status():
         sites_status[site_name] = {
             "domain": site_name,
             "base_url": getattr(crawler_instance, 'base_url', ''),
+            "link": getattr(crawler_instance, 'base_url', ''),
             "enabled": site_name in crawler.enabled_sites,
             "is_active": await crawler.error_handler.can_make_request(site_name),
             "circuit_breaker_state": crawler.error_handler.get_circuit_state(site_name),
