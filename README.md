@@ -295,6 +295,10 @@ CRAWLER.DOMAINS.append("newsite.com")
 
 Refer to [docs/chain_of_thought_monitoring.md](docs/chain_of_thought_monitoring.md) for a high-level design covering URL validation, content detection, extraction logic and monitoring best practices.
 
+## Future Work
+
+Planned improvements for real data crawling are tracked in [docs/new_tasks.md](docs/new_tasks.md).
+
 ## License | مجوز
 
 This project is licensed under the MIT License - see the LICENSE file for details. 
