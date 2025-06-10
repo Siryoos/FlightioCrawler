@@ -4,6 +4,7 @@ import os
 from typing import Dict, List, Optional
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, WebSocket, Header, Query
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import PlainTextResponse
@@ -492,11 +493,14 @@ async def stream_site_logs(websocket: WebSocket, site_name: str):
     handler = WebSocketLogHandler()
     logger.addHandler(handler)
     try:
-        while True:
+        while websocket.client_state == WebSocketState.CONNECTED:
             await asyncio.sleep(1)
-    except Exception:
+    except WebSocketDisconnect:
+        pass
+    finally:
         logger.removeHandler(handler)
-        await websocket.close()
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close()
 
 
 @app.websocket("/ws/dashboard")
@@ -504,7 +508,7 @@ async def dashboard_updates(websocket: WebSocket):
     """Real-time dashboard updates for all sites"""
     await websocket.accept()
     try:
-        while True:
+        while websocket.client_state == WebSocketState.CONNECTED:
             dashboard_data = {
                 "timestamp": datetime.now().isoformat(),
                 "sites": {},
@@ -524,8 +528,11 @@ async def dashboard_updates(websocket: WebSocket):
                 }
             await websocket.send_json(dashboard_data)
             await asyncio.sleep(5)
-    except Exception:
-        await websocket.close()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close()
 
 # Run app
 if __name__ == "__main__":
