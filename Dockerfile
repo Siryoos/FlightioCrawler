@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     fonts-noto \
     fonts-noto-cjk \
     fonts-noto-color-emoji \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
