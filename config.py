@@ -156,7 +156,8 @@ class CrawlerConfig:
         'partocrs.com',
         'parto-ticket.ir',
         'bookcharter724.ir',
-        'bookcharter.ir'
+        'bookcharter.ir',
+        'mrbilit.com'
     ])
     REQUEST_TIMEOUT: int = 30
     MAX_RETRIES: int = 3
@@ -169,7 +170,8 @@ class CrawlerConfig:
         'partocrs.com': 2,
         'parto-ticket.ir': 2,
         'bookcharter724.ir': 2,
-        'bookcharter.ir': 2
+        'bookcharter.ir': 2,
+        'mrbilit.com': 2
     })
     USER_AGENTS: List[str] = field(default_factory=lambda: [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',

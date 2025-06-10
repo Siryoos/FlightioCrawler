@@ -901,3 +901,87 @@ class BookCharterCrawler(BaseSiteCrawler):
             self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
             return []
+
+class MrbilitCrawler(BaseSiteCrawler):
+    """Crawler for mrbilit.com"""
+
+    def __init__(self, *args, interval: int = 900, **kwargs):
+        super().__init__(*args, interval=interval, **kwargs)
+        self.domain = "mrbilit.com"
+        self.base_url = "https://mrbilit.com"
+
+    async def _build_api_payload(self, search_params: Dict) -> Dict:
+        return {
+            "sourceAirportCode": search_params.get("origin"),
+            "targetAirportCode": search_params.get("destination"),
+            "leaveDate": search_params.get("departure_date"),
+            "returnDate": search_params.get("return_date", ""),
+            "adultCount": search_params.get("passengers", 1),
+            "childCount": search_params.get("children", 0),
+            "infantCount": search_params.get("infants", 0),
+            "economy": True,
+            "business": True,
+        }
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on Mrbilit using its JSON API."""
+        start_time = datetime.now()
+
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+
+            url = "https://flight.atighgasht.com/api/Flights"
+            payload = await self._build_api_payload(search_params)
+
+            headers = await self.randomize_request_headers()
+            headers.update({
+                "Content-Type": "application/json;charset=utf-8",
+            })
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=config.CRAWLER.REQUEST_TIMEOUT,
+                ) as resp:
+                    if resp.status != 200:
+                        raise Exception(f"HTTP {resp.status}")
+                    data = await resp.json()
+
+            flights: List[Dict] = []
+            for flight in data.get("flights", []):
+                try:
+                    provider = flight.get("providers", [{}])[0]
+                    flights.append(
+                        {
+                            "airline": self.process_text(flight.get("airline", "")),
+                            "flight_number": flight.get("flightNumber", ""),
+                            "origin": search_params.get("origin"),
+                            "destination": search_params.get("destination"),
+                            "departure_time": flight.get("departTime"),
+                            "arrival_time": flight.get("arriveTime"),
+                            "price": provider.get("price", 0),
+                            "currency": provider.get("currency", "IRR"),
+                            "seat_class": flight.get("cabinClass", ""),
+                            "duration": flight.get("duration", 0),
+                            "source_url": self.base_url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
+
+            await self.monitor.track_request(self.domain, start_time.timestamp())
+            return flights
+        except Exception as e:
+            self.logger.error(f"Error crawling {self.domain}: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []

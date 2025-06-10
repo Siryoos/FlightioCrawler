@@ -13,6 +13,7 @@ from site_crawlers import (
     PartoTicketCrawler,
     BookCharter724Crawler,
     BookCharterCrawler,
+    MrbilitCrawler,
     BaseSiteCrawler,
 )
 
@@ -28,6 +29,7 @@ def test_crawler_classes_exist():
         PartoTicketCrawler,
         BookCharter724Crawler,
         BookCharterCrawler,
+        MrbilitCrawler,
     ]:
         assert issubclass(cls, BaseSiteCrawler)
         assert inspect.iscoroutinefunction(cls.search_flights)

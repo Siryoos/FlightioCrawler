@@ -14,6 +14,7 @@ EXPECTED_DOMAINS = {
     'parto-ticket.ir',
     'bookcharter724.ir',
     'bookcharter.ir',
+    'mrbilit.com',
 }
 
 def test_domains_list():
@@ -28,5 +29,6 @@ def test_crawler_classes_exist():
         'PartoTicketCrawler',
         'BookCharter724Crawler',
         'BookCharterCrawler',
+        'MrbilitCrawler',
     ]:
         assert re.search(rf'class\s+{cls}\b', SITE_CRAWLERS_TEXT)
