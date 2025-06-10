@@ -1,0 +1,898 @@
+{
+  "url": "https://www.snapptrip.com/flights/THR-tehran/SYZ-shiraz?adultCount=1&childCount=0&infantCount=0&adults=1&children=0&infants=0&departDate=2025-06-11&authToken=null&origin=THR&origin_city=tehran&destination=SYZ&destination_city=shiraz&roundTrip=false&dateType=jalali&departureDate=2025-06-12&tripType=oneway&source=price_table&channel=web&originCity=Tehran&originCityName=%25D8%25AA%25D9%2587%25D8%25B1%25D8%25A7%25D9%2586&originCode=THR&destinationCity=Shiraz&destinationCityName=%25D8%25B4%25DB%258C%25D8%25B1%25D8%25A7%25D8%25B2&destinationCode=SYZ&cabinType=ECONOMY&date=2025-06-11&refer=flights-home&is_price_table_best_price=false",
+  "final_url": "https://www.snapptrip.com/flights/THR-tehran/SYZ-shiraz?adultCount=1&childCount=0&infantCount=0&adults=1&children=0&infants=0&departDate=2025-06-11&authToken=null&origin=THR&origin_city=tehran&destination=SYZ&destination_city=shiraz&roundTrip=false&dateType=jalali&departureDate=2025-06-12&tripType=oneway&source=price_table&channel=web&originCity=Tehran&originCityName=%25D8%25AA%25D9%2587%25D8%25B1%25D8%25A7%25D9%2586&originCode=THR&destinationCity=Shiraz&destinationCityName=%25D8%25B4%25DB%258C%25D8%25B1%25D8%25A7%25D8%25B2&destinationCode=SYZ&cabinType=ECONOMY&date=2025-06-11&refer=flights-home&is_price_table_best_price=false",
+  "timestamp": "2025-06-10T11:14:24.527285",
+  "crawler_info": {
+    "javascript_enabled": true,
+    "selenium_used": true,
+    "crawl_time": 76.67139768600464
+  },
+  "response": {
+    "final_url": "https://www.snapptrip.com/flights/THR-tehran/SYZ-shiraz?adultCount=1&childCount=0&infantCount=0&adults=1&children=0&infants=0&departDate=2025-06-11&authToken=null&origin=THR&origin_city=tehran&destination=SYZ&destination_city=shiraz&roundTrip=false&dateType=jalali&departureDate=2025-06-12&tripType=oneway&source=price_table&channel=web&originCity=Tehran&originCityName=%25D8%25AA%25D9%2587%25D8%25B1%25D8%25A7%25D9%2586&originCode=THR&destinationCity=Shiraz&destinationCityName=%25D8%25B4%25DB%258C%25D8%25B1%25D8%25A7%25D8%25B2&destinationCode=SYZ&cabinType=ECONOMY&date=2025-06-11&refer=flights-home&is_price_table_best_price=false",
+    "performance": {
+      "resources": [
+        {
+          "duration": 1036.3999999761581,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/b2001dabf2d5f585.css",
+          "type": "link"
+        },
+        {
+          "duration": 1184.2999999523163,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/cba18cd1bcdd5702.css",
+          "type": "link"
+        },
+        {
+          "duration": 1035.9000000357628,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/bdd72303346536ca.css",
+          "type": "link"
+        },
+        {
+          "duration": 1223.6000000238419,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/a1c6702b543923e8.css",
+          "type": "link"
+        },
+        {
+          "duration": 1232.5,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/0a75b0fb7005aff8.css",
+          "type": "link"
+        },
+        {
+          "duration": 1262.699999988079,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/be0b185fe839c1eb.css",
+          "type": "link"
+        },
+        {
+          "duration": 1321.3999999761581,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/229c9ecfe6aaefeb.css",
+          "type": "link"
+        },
+        {
+          "duration": 1294,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/50b4658077e87170.css",
+          "type": "link"
+        },
+        {
+          "duration": 1311.6000000238419,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/cd6e6bb751973eb1.css",
+          "type": "link"
+        },
+        {
+          "duration": 1232.3999999761581,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/e60b09987e758891.css",
+          "type": "link"
+        },
+        {
+          "duration": 1310.300000011921,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/56b8a3a8cc549896.css",
+          "type": "link"
+        },
+        {
+          "duration": 1836.5,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/87c73c54-bae1887a2e0a16c0.js",
+          "type": "script"
+        },
+        {
+          "duration": 1853.1000000238419,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/webpack-7b8995a5abf940ac.js",
+          "type": "link"
+        },
+        {
+          "duration": 1851.8999999761581,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/1863-bfbaf408a0502368.js",
+          "type": "script"
+        },
+        {
+          "duration": 1853.300000011921,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/main-app-c00e7980d1fd5698.js",
+          "type": "script"
+        },
+        {
+          "duration": 2429.300000011921,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/8298-81886739e7b49b85.js",
+          "type": "script"
+        },
+        {
+          "duration": 4305.899999976158,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/4728-eaffac8070a7e2a0.js",
+          "type": "script"
+        },
+        {
+          "duration": 4376.099999964237,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/7261-4aa05f9b0aab5d09.js",
+          "type": "script"
+        },
+        {
+          "duration": 4812.699999988079,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/app/global-error-fff6184042551ef8.js",
+          "type": "script"
+        },
+        {
+          "duration": 4783.300000011921,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/7bf36345-c596e5294412f48e.js",
+          "type": "script"
+        },
+        {
+          "duration": 4812.400000035763,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/app/layout-1ef00cf6318cd604.js",
+          "type": "script"
+        },
+        {
+          "duration": 4842,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/9689-4c61046094dc29ec.js",
+          "type": "script"
+        },
+        {
+          "duration": 4844.100000023842,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/8070-dd242e7463ecd066.js",
+          "type": "script"
+        },
+        {
+          "duration": 5183.199999988079,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/4172-d686184d3810b5fd.js",
+          "type": "script"
+        },
+        {
+          "duration": 5246,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/8805-7e9b0b4c3f897991.js",
+          "type": "script"
+        },
+        {
+          "duration": 5757.699999988079,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/1647-3bcb879072329ba3.js",
+          "type": "script"
+        },
+        {
+          "duration": 5248,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/app/%5Borigin%5D/%5Bdestination%5D/layout-abdd8a3d9f5b7498.js",
+          "type": "script"
+        },
+        {
+          "duration": 5247.800000011921,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/4822-cb094c1498ce6928.js",
+          "type": "script"
+        },
+        {
+          "duration": 5778,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/365-ba3b17e69137e686.js",
+          "type": "script"
+        },
+        {
+          "duration": 5930.399999976158,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/7148-c7e2e50820f64f3d.js",
+          "type": "script"
+        },
+        {
+          "duration": 5932.5,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/6419-553cb9640a4c9ddb.js",
+          "type": "script"
+        },
+        {
+          "duration": 806.7999999523163,
+          "name": "https://store.snapptrip.com/marketing-banners/waiting.mobileDF_1748780963.jpg",
+          "type": "img"
+        },
+        {
+          "duration": 2783.2999999523163,
+          "name": "https://www.googletagmanager.com/gtm.js?id=GTM-MT54VMN",
+          "type": "link"
+        },
+        {
+          "duration": 5933.5,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/2837.94addc3e0b6f418f.js",
+          "type": "link"
+        },
+        {
+          "duration": 5933.599999964237,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/app/%5Borigin%5D/%5Bdestination%5D/page-ca09eb18f930a8c4.js",
+          "type": "script"
+        },
+        {
+          "duration": 1041,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/media/logo.1a28b22f.png",
+          "type": "img"
+        },
+        {
+          "duration": 243.5,
+          "name": "https://sentry.pinsvc.net/api/5/envelope/?sentry_version=7&sentry_key=25fe72668e1d28af8fddbb971d1fd2ed&sentry_client=sentry.javascript.nextjs%2F9.15.0",
+          "type": "fetch"
+        },
+        {
+          "duration": 82.39999997615814,
+          "name": "https://sentry.pinsvc.net/api/5/envelope/?sentry_version=7&sentry_key=25fe72668e1d28af8fddbb971d1fd2ed&sentry_client=sentry.javascript.nextjs%2F9.15.0",
+          "type": "fetch"
+        },
+        {
+          "duration": 325.10000002384186,
+          "name": "https://gpi.snapptrip.com/api/features/sdk-Z2itvy5yPKT5xu",
+          "type": "fetch"
+        },
+        {
+          "duration": 395.80000001192093,
+          "name": "https://www.snapptrip.com/hotel/api/v2/now",
+          "type": "fetch"
+        },
+        {
+          "duration": 1131,
+          "name": "https://flight.snapptrip.com/dom-flights/v1/one-way/search?source=price_table",
+          "type": "fetch"
+        },
+        {
+          "duration": 354.30000001192093,
+          "name": "https://flight.snapptrip.com/price-table/oneway",
+          "type": "fetch"
+        },
+        {
+          "duration": 685.1000000238419,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/9360.20246619d89afee5.js",
+          "type": "script"
+        },
+        {
+          "duration": 391.9000000357628,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/50213d1bf39e4633.css",
+          "type": "link"
+        },
+        {
+          "duration": 193.60000002384186,
+          "name": "https://www.snapptrip.com/favicon.ico",
+          "type": "other"
+        },
+        {
+          "duration": 527.6999999880791,
+          "name": "https://cdn.yektanet.com/rg_woebegone/scripts_v3/y0HDPOGG/rg.complete.js?v=202505010011",
+          "type": "script"
+        },
+        {
+          "duration": 2361.800000011921,
+          "name": "https://mc.yandex.ru/metrika/tag.js",
+          "type": "script"
+        },
+        {
+          "duration": 564.6000000238419,
+          "name": "https://s1.mediaad.org/serve/50111/retargeting.js",
+          "type": "script"
+        },
+        {
+          "duration": 2489.099999964237,
+          "name": "https://ssl.widgets.webengage.com/js/webengage-min-v-6.0.js",
+          "type": "script"
+        },
+        {
+          "duration": 416.19999998807907,
+          "name": "https://audience.yektanet.com/api/v1/scripts/preview/validate/?app_id=IGy1WsMi",
+          "type": "xmlhttprequest"
+        },
+        {
+          "duration": 655.1999999880791,
+          "name": "https://ua.yektanet.com/cookie/iframe/",
+          "type": "iframe"
+        },
+        {
+          "duration": 708.7000000476837,
+          "name": "https://ua.yektanet.com/api/analytics-event/v1/collect?aa=event&abe=L&abf=4c5ec8eb-a88d-4353-8ff4-b0919ffef9c2&abj=0&aed=adv&abh=1341&sv=3&st=rg.complete.js&fis=1&ffu=1&ac=https%3A%2F%2Fwww.snapptrip.com%2Fflights%2FTHR-tehran%2FSYZ-shiraz%3FadultCount%3D1%26childCount%3D0%26infantCount%3D0%26adults%3D1%26children%3D0%26infants%3D0%26departDate%3D2025-06-11%26authToken%3Dnull%26origin%3DTHR%26origin_city%3Dtehran%26destination%3DSYZ%26destination_city%3Dshiraz%26roundTrip%3Dfalse%26dateType%3Djalali%26departureDate%3D2025-06-12%26tripType%3Doneway%26source%3Dprice_table%26channel%3Dweb%26originCity%3DTehran%26originCityName%3D%2525D8%2525AA%2525D9%252587%2525D8%2525B1%2525D8%2525A7%2525D9%252586%26originCode%3DTHR%26destinationCity%3DShiraz%26destinationCityName%3D%2525D8%2525B4%2525DB%25258C%2525D8%2525B1%2525D8%2525A7%2525D8%2525B2%26destinationCode%3DSYZ%26cabinType%3DECONOMY%26date%3D2025-06-11%26refer%3Dflights-home%26is_price_table_best_price%3Dfalse&ae=%7B%22adultCount%22%3A%221%22%2C%22childCount%22%3A%220%22%2C%22infantCount%22%3A%220%22%2C%22adults%22%3A%221%22%2C%22children%22%3A%220%22%2C%22infants%22%3A%220%22%2C%22departDate%22%3A%222025-06-11%22%2C%22authToken%22%3A%22null%22%2C%22origin%22%3A%22THR%22%2C%22origin_city%22%3A%22tehran%22%2C%22destination%22%3A%22SYZ%22%2C%22destination_city%22%3A%22shiraz%22%2C%22roundTrip%22%3A%22false%22%2C%22dateType%22%3A%22jalali%22%2C%22departureDate%22%3A%222025-06-12%22%2C%22tripType%22%3A%22oneway%22%2C%22source%22%3A%22price_table%22%2C%22channel%22%3A%22web%22%2C%22originCity%22%3A%22Tehran%22%2C%22originCityName%22%3A%22%25D8%25AA%25D9%2587%25D8%25B1%25D8%25A7%25D9%2586%22%2C%22originCode%22%3A%22THR%22%2C%22destinationCity%22%3A%22Shiraz%22%2C%22destinationCityName%22%3A%22%25D8%25B4%25DB%258C%25D8%25B1%25D8%25A7%25D8%25B2%22%2C%22destinationCode%22%3A%22SYZ%22%2C%22cabinType%22%3A%22ECONOMY%22%2C%22date%22%3A%222025-06-11%22%2C%22refer%22%3A%22flights-home%22%2C%22is_price_table_best_price%22%3A%22false%22%7D&ad=snapptrip.com&as=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2-%20%D9%BE%D8%B1%D9%88%D8%A7%D8%B2%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2%20%D9%82%D8%B3%D8%B7%DB%8C!&aef=IGy1WsMi&aec=1329&ai=c3c39810-0d48-3b88-9ebb-b1e86f3f67c2&abw=749&abb=4173&aby=800&abz=600&al=764&am=433&abk=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%A8%D9%87%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2",
+          "type": "beacon"
+        },
+        {
+          "duration": 707.1999999880791,
+          "name": "https://ua.yektanet.com/api/analytics-event/v1/collect?aa=event&abe=L&abf=b0fb00c7-e1fd-4d7c-9c87-9ec6ad94a799&abj=1&aed=adv&abh=1341&sv=3&st=rg.complete.js&fis=1&ffu=1&psc=539&psi=6948&ac=https%3A%2F%2Fwww.snapptrip.com%2Fflights%2FTHR-tehran%2FSYZ-shiraz%3FadultCount%3D1%26childCount%3D0%26infantCount%3D0%26adults%3D1%26children%3D0%26infants%3D0%26departDate%3D2025-06-11%26authToken%3Dnull%26origin%3DTHR%26origin_city%3Dtehran%26destination%3DSYZ%26destination_city%3Dshiraz%26roundTrip%3Dfalse%26dateType%3Djalali%26departureDate%3D2025-06-12%26tripType%3Doneway%26source%3Dprice_table%26channel%3Dweb%26originCity%3DTehran%26originCityName%3D%2525D8%2525AA%2525D9%252587%2525D8%2525B1%2525D8%2525A7%2525D9%252586%26originCode%3DTHR%26destinationCity%3DShiraz%26destinationCityName%3D%2525D8%2525B4%2525DB%25258C%2525D8%2525B1%2525D8%2525A7%2525D8%2525B2%26destinationCode%3DSYZ%26cabinType%3DECONOMY%26date%3D2025-06-11%26refer%3Dflights-home%26is_price_table_best_price%3Dfalse&ae=%7B%22adultCount%22%3A%221%22%2C%22childCount%22%3A%220%22%2C%22infantCount%22%3A%220%22%2C%22adults%22%3A%221%22%2C%22children%22%3A%220%22%2C%22infants%22%3A%220%22%2C%22departDate%22%3A%222025-06-11%22%2C%22authToken%22%3A%22null%22%2C%22origin%22%3A%22THR%22%2C%22origin_city%22%3A%22tehran%22%2C%22destination%22%3A%22SYZ%22%2C%22destination_city%22%3A%22shiraz%22%2C%22roundTrip%22%3A%22false%22%2C%22dateType%22%3A%22jalali%22%2C%22departureDate%22%3A%222025-06-12%22%2C%22tripType%22%3A%22oneway%22%2C%22source%22%3A%22price_table%22%2C%22channel%22%3A%22web%22%2C%22originCity%22%3A%22Tehran%22%2C%22originCityName%22%3A%22%25D8%25AA%25D9%2587%25D8%25B1%25D8%25A7%25D9%2586%22%2C%22originCode%22%3A%22THR%22%2C%22destinationCity%22%3A%22Shiraz%22%2C%22destinationCityName%22%3A%22%25D8%25B4%25DB%258C%25D8%25B1%25D8%25A7%25D8%25B2%22%2C%22destinationCode%22%3A%22SYZ%22%2C%22cabinType%22%3A%22ECONOMY%22%2C%22date%22%3A%222025-06-11%22%2C%22refer%22%3A%22flights-home%22%2C%22is_price_table_best_price%22%3A%22false%22%7D&ad=snapptrip.com&as=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2-%20%D9%BE%D8%B1%D9%88%D8%A7%D8%B2%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2%20%D9%82%D8%B3%D8%B7%DB%8C!&aef=IGy1WsMi&aec=1329&ai=c3c39810-0d48-3b88-9ebb-b1e86f3f67c2&abw=749&abb=4173&aby=800&abz=600&al=764&am=433&abk=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%A8%D9%87%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2",
+          "type": "beacon"
+        },
+        {
+          "duration": 703.8000000119209,
+          "name": "https://ua.yektanet.com/api/analytics-event/v1/collect?aa=event&abe=L&abf=719af25c-2fd0-4550-90f8-a4b2d3288a3b&abj=0&aed=adv&abh=1341&sv=3&st=rg.complete.js&fis=1&ffu=1&ac=https%3A%2F%2Fwww.snapptrip.com%2Fflights%2FTHR-tehran%2FSYZ-shiraz%3FadultCount%3D1%26childCount%3D0%26infantCount%3D0%26adults%3D1%26children%3D0%26infants%3D0%26departDate%3D2025-06-11%26authToken%3Dnull%26origin%3DTHR%26origin_city%3Dtehran%26destination%3DSYZ%26destination_city%3Dshiraz%26roundTrip%3Dfalse%26dateType%3Djalali%26departureDate%3D2025-06-12%26tripType%3Doneway%26source%3Dprice_table%26channel%3Dweb%26originCity%3DTehran%26originCityName%3D%2525D8%2525AA%2525D9%252587%2525D8%2525B1%2525D8%2525A7%2525D9%252586%26originCode%3DTHR%26destinationCity%3DShiraz%26destinationCityName%3D%2525D8%2525B4%2525DB%25258C%2525D8%2525B1%2525D8%2525A7%2525D8%2525B2%26destinationCode%3DSYZ%26cabinType%3DECONOMY%26date%3D2025-06-11%26refer%3Dflights-home%26is_price_table_best_price%3Dfalse&ae=%7B%22adultCount%22%3A%221%22%2C%22childCount%22%3A%220%22%2C%22infantCount%22%3A%220%22%2C%22adults%22%3A%221%22%2C%22children%22%3A%220%22%2C%22infants%22%3A%220%22%2C%22departDate%22%3A%222025-06-11%22%2C%22authToken%22%3A%22null%22%2C%22origin%22%3A%22THR%22%2C%22origin_city%22%3A%22tehran%22%2C%22destination%22%3A%22SYZ%22%2C%22destination_city%22%3A%22shiraz%22%2C%22roundTrip%22%3A%22false%22%2C%22dateType%22%3A%22jalali%22%2C%22departureDate%22%3A%222025-06-12%22%2C%22tripType%22%3A%22oneway%22%2C%22source%22%3A%22price_table%22%2C%22channel%22%3A%22web%22%2C%22originCity%22%3A%22Tehran%22%2C%22originCityName%22%3A%22%25D8%25AA%25D9%2587%25D8%25B1%25D8%25A7%25D9%2586%22%2C%22originCode%22%3A%22THR%22%2C%22destinationCity%22%3A%22Shiraz%22%2C%22destinationCityName%22%3A%22%25D8%25B4%25DB%258C%25D8%25B1%25D8%25A7%25D8%25B2%22%2C%22destinationCode%22%3A%22SYZ%22%2C%22cabinType%22%3A%22ECONOMY%22%2C%22date%22%3A%222025-06-11%22%2C%22refer%22%3A%22flights-home%22%2C%22is_price_table_best_price%22%3A%22false%22%7D&ad=snapptrip.com&as=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2-%20%D9%BE%D8%B1%D9%88%D8%A7%D8%B2%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2%20%D9%82%D8%B3%D8%B7%DB%8C!&aef=IGy1WsMi&aec=1329&ai=c3c39810-0d48-3b88-9ebb-b1e86f3f67c2&abw=749&abb=4173&aby=800&abz=600&al=764&am=433&abk=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%A8%D9%87%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2",
+          "type": "beacon"
+        },
+        {
+          "duration": 244.5999999642372,
+          "name": "https://ma-cdn.pegah.tech/v1/retargeting/50111/advertiser.json",
+          "type": "xmlhttprequest"
+        },
+        {
+          "duration": 395.89999997615814,
+          "name": "https://www.snapptrip.com/flights/_next/image?url=https%3A%2F%2Ffs.snapptrip.com%2Fjs%2Fassets%2Fapps%2Fcore%2Fwebsite%2Fflights-domestic%2Fweb%2F_next%2Fstatic%2Fmedia%2Flogo.1a28b22f.png&w=256&q=75",
+          "type": "img"
+        },
+        {
+          "duration": 228,
+          "name": "https://mediacdn.mediaad.org/static/fingerprint.html",
+          "type": "iframe"
+        },
+        {
+          "duration": 364.30000001192093,
+          "name": "https://api.mediaad.org/v2/events/page/loaded",
+          "type": "xmlhttprequest"
+        },
+        {
+          "duration": 481.2999999523163,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/5819.1dab203d3f4ecee0.js",
+          "type": "script"
+        },
+        {
+          "duration": 308.80000001192093,
+          "name": "https://store.snapptrip.com/marketing-banners/DFSmallinlinebanner-Mobile-624x144_1748780756.jpg",
+          "type": "img"
+        },
+        {
+          "duration": 479.5,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/7688.e84d3ffe945e5f1b.js",
+          "type": "script"
+        },
+        {
+          "duration": 876.8000000119209,
+          "name": "https://hapi.snapptrip.com/ut/v3/public?token=web",
+          "type": "fetch"
+        },
+        {
+          "duration": 352,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/7721.331f27fa97523798.js",
+          "type": "script"
+        },
+        {
+          "duration": 155.30000001192093,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/media/cafe-bazaar.5f94dc61.svg",
+          "type": "img"
+        },
+        {
+          "duration": 157.89999997615814,
+          "name": "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/media/myket.f89c17c9.svg",
+          "type": "img"
+        },
+        {
+          "duration": 371.2999999523163,
+          "name": "https://trustseal.enamad.ir/logo.aspx?id=83827&Code=RBoh3Kq5s0Z8xE4tbcGh",
+          "type": "img"
+        },
+        {
+          "duration": 446.19999998807907,
+          "name": "https://logo.samandehi.ir/logo.aspx?id=128793&p=nbpdodrfaqgwyndtbsiyqfti",
+          "type": "img"
+        },
+        {
+          "duration": 2351,
+          "name": "https://farasa.cao.ir/PluginLib/JDSApp/img/pax",
+          "type": "img"
+        },
+        {
+          "duration": 427.30000001192093,
+          "name": "https://store.snapptrip.com/assets/airlines/57x57/FP.png",
+          "type": "img"
+        },
+        {
+          "duration": 436.80000001192093,
+          "name": "https://store.snapptrip.com/assets/airlines/48x48/FP.png",
+          "type": "img"
+        },
+        {
+          "duration": 842.8999999761581,
+          "name": "https://ua.yektanet.com/api/analytics-event/v1/collect?aa=event&abe=I&abf=6a0dcb13-3350-456b-aa87-3cffefcf5c78&abj=0&aed=adv&abh=1341&sv=3&st=rg.complete.js&fis=1&ffu=1&ac=https%3A%2F%2Fwww.snapptrip.com%2Fflights%2FTHR-tehran%2FSYZ-shiraz%3FadultCount%3D1%26childCount%3D0%26infantCount%3D0%26adults%3D1%26children%3D0%26infants%3D0%26departDate%3D2025-06-11%26authToken%3Dnull%26origin%3DTHR%26origin_city%3Dtehran%26destination%3DSYZ%26destination_city%3Dshiraz%26roundTrip%3Dfalse%26dateType%3Djalali%26departureDate%3D2025-06-12%26tripType%3Doneway%26source%3Dprice_table%26channel%3Dweb%26originCity%3DTehran%26originCityName%3D%2525D8%2525AA%2525D9%252587%2525D8%2525B1%2525D8%2525A7%2525D9%252586%26originCode%3DTHR%26destinationCity%3DShiraz%26destinationCityName%3D%2525D8%2525B4%2525DB%25258C%2525D8%2525B1%2525D8%2525A7%2525D8%2525B2%26destinationCode%3DSYZ%26cabinType%3DECONOMY%26date%3D2025-06-11%26refer%3Dflights-home%26is_price_table_best_price%3Dfalse&ae=%7B%22adultCount%22%3A%221%22%2C%22childCount%22%3A%220%22%2C%22infantCount%22%3A%220%22%2C%22adults%22%3A%221%22%2C%22children%22%3A%220%22%2C%22infants%22%3A%220%22%2C%22departDate%22%3A%222025-06-11%22%2C%22authToken%22%3A%22null%22%2C%22origin%22%3A%22THR%22%2C%22origin_city%22%3A%22tehran%22%2C%22destination%22%3A%22SYZ%22%2C%22destination_city%22%3A%22shiraz%22%2C%22roundTrip%22%3A%22false%22%2C%22dateType%22%3A%22jalali%22%2C%22departureDate%22%3A%222025-06-12%22%2C%22tripType%22%3A%22oneway%22%2C%22source%22%3A%22price_table%22%2C%22channel%22%3A%22web%22%2C%22originCity%22%3A%22Tehran%22%2C%22originCityName%22%3A%22%25D8%25AA%25D9%2587%25D8%25B1%25D8%25A7%25D9%2586%22%2C%22originCode%22%3A%22THR%22%2C%22destinationCity%22%3A%22Shiraz%22%2C%22destinationCityName%22%3A%22%25D8%25B4%25DB%258C%25D8%25B1%25D8%25A7%25D8%25B2%22%2C%22destinationCode%22%3A%22SYZ%22%2C%22cabinType%22%3A%22ECONOMY%22%2C%22date%22%3A%222025-06-11%22%2C%22refer%22%3A%22flights-home%22%2C%22is_price_table_best_price%22%3A%22false%22%7D&ad=snapptrip.com&ba=2e0d7f59-28ff-493d-aee9-08b57588819d&as=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2-%20%D9%BE%D8%B1%D9%88%D8%A7%D8%B2%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2%20%D9%82%D8%B3%D8%B7%DB%8C!&aef=IGy1WsMi&aec=1329&ai=c3c39810-0d48-3b88-9ebb-b1e86f3f67c2&abw=749&abb=3027&aby=800&abz=600&al=764&am=433&abk=%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%A8%D9%87%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2",
+          "type": "beacon"
+        },
+        {
+          "duration": 123,
+          "name": "https://mc.yandex.ru/metrika/advert.gif",
+          "type": "img"
+        },
+        {
+          "duration": 311,
+          "name": "https://mc.yandex.ru/watch/94125519?wmode=7&page-url=https%3A%2F%2Fwww.snapptrip.com%2Fflights%2FTHR-tehran%2FSYZ-shiraz%3FadultCount%3D1%26childCount%3D0%26infantCount%3D0%26adults%3D1%26children%3D0%26infants%3D0%26departDate%3D2025-06-11%26authToken%3Dnull%26origin%3DTHR%26origin_city%3Dtehran%26destination%3DSYZ%26destination_city%3Dshiraz%26roundTrip%3Dfalse%26dateType%3Djalali%26departureDate%3D2025-06-12%26tripType%3Doneway%26source%3Dprice_table%26channel%3Dweb%26originCity%3DTehran%26originCityName%3D%2525D8%2525AA%2525D9%252587%2525D8%2525B1%2525D8%2525A7%2525D9%252586%26originCode%3DTHR%26destinationCity%3DShiraz%26destinationCityName%3D%2525D8%2525B4%2525DB%25258C%2525D8%2525B1%2525D8%2525A7%2525D8%2525B2%26destinationCode%3DSYZ%26cabinType%3DECONOMY%26date%3D2025-06-11%26refer%3Dflights-home%26is_price_table_best_price%3Dfalse&nohit=1&charset=utf-8&uah=chu%0A%22Google%20Chrome%22%3Bv%3D%22137%22%2C%22Chromium%22%3Bv%3D%22137%22%2C%22Not%2FA)Brand%22%3Bv%3D%2224%22%0Acha%0Ax86%0Achb%0A64%0Achf%0A137.0.7151.69%0Achl%0A%22Google%20Chrome%22%3Bv%3D%22137.0.7151.69%22%2C%22Chromium%22%3Bv%3D%22137.0.7151.69%22%2C%22Not%2FA)Brand%22%3Bv%3D%2224.0.0.0%22%0Achm%0A%3F0%0Achp%0AWindows%0Achv%0A10.0.0&browser-info=pv%3A1%3Avf%3A91r6djxnfagi0ac8j9551etimz4v%3Afu%3A0%3Aen%3Autf-8%3Ala%3Aen-US%3Av%3A2063%3Acn%3A1%3Adp%3A0%3Als%3A1165639668664%3Ahid%3A144600299%3Az%3A210%3Ai%3A20250610111422%3Aet%3A1749541463%3Ac%3A1%3Arn%3A33162312%3Au%3A1749541463626374941%3Aw%3A749x433%3As%3A800x600x24%3Ask%3A1%3Awv%3A2%3Aco%3A0%3Ahdl%3A1%3Acpf%3A1%3Ans%3A1749541453322%3Arqnl%3A1%3Ast%3A1749541463%3At%3A%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2-%20%D9%BE%D8%B1%D9%88%D8%A7%D8%B2%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2%20%D9%82%D8%B3%D8%B7%DB%8C!&t=gdpr(14)clc(0-0-0)aw(1)rcm(1)cdl(na)eco(46727684)ti(1)",
+          "type": "fetch"
+        },
+        {
+          "duration": 1602.7000000476837,
+          "name": "https://11b5650c0.webengage.co/storage-frame-1.18.htm?cdn=y&cbf=webengage-engagement-callback-frame&lc=11b5650c0",
+          "type": "iframe"
+        }
+      ],
+      "timing": {
+        "connectEnd": 1749541453457,
+        "connectStart": 1749541453425,
+        "domComplete": 1749541460234,
+        "domContentLoadedEventEnd": 1749541455670,
+        "domContentLoadedEventStart": 1749541455670,
+        "domInteractive": 1749541455670,
+        "domLoading": 1749541454278,
+        "domainLookupEnd": 1749541453424,
+        "domainLookupStart": 1749541453324,
+        "fetchStart": 1749541453323,
+        "loadEventEnd": 1749541460234,
+        "loadEventStart": 1749541460234,
+        "navigationStart": 1749541453322,
+        "redirectEnd": 0,
+        "redirectStart": 0,
+        "requestStart": 1749541453457,
+        "responseEnd": 1749541454308,
+        "responseStart": 1749541454272,
+        "secureConnectionStart": 1749541453432,
+        "toJSON": {},
+        "unloadEventEnd": 0,
+        "unloadEventStart": 0
+      }
+    },
+    "console_logs": [],
+    "cookies": [
+      {
+        "domain": ".snapptrip.com",
+        "expiry": 1781077462,
+        "httpOnly": false,
+        "name": "_ym_uid",
+        "path": "/",
+        "sameSite": "None",
+        "secure": true,
+        "value": "1749541463626374941"
+      },
+      {
+        "domain": ".snapptrip.com",
+        "expiry": 1749613462,
+        "httpOnly": false,
+        "name": "_ym_isad",
+        "path": "/",
+        "sameSite": "None",
+        "secure": true,
+        "value": "2"
+      },
+      {
+        "domain": "www.snapptrip.com",
+        "expiry": 1752133461,
+        "httpOnly": false,
+        "name": "_yngt",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "2e0d7f59-28ff-493d-aee9-08b57588819d"
+      },
+      {
+        "domain": "www.snapptrip.com",
+        "expiry": 1749627862,
+        "httpOnly": false,
+        "name": "yektanet_session_last_activity",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "6/10/2025"
+      },
+      {
+        "domain": "www.snapptrip.com",
+        "expiry": 1749543262,
+        "httpOnly": false,
+        "name": "analytics_session_token",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "c3c39810-0d48-3b88-9ebb-b1e86f3f67c2"
+      },
+      {
+        "domain": "www.snapptrip.com",
+        "httpOnly": false,
+        "name": "_yngt_iframe",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "1"
+      },
+      {
+        "domain": "www.snapptrip.com",
+        "expiry": 1781077460,
+        "httpOnly": false,
+        "name": "analytics_token",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "5f78058a-7151-365a-04d3-68141dd582f9"
+      },
+      {
+        "domain": ".snapptrip.com",
+        "expiry": 1749543264,
+        "httpOnly": false,
+        "name": "_ym_visorc",
+        "path": "/",
+        "sameSite": "None",
+        "secure": true,
+        "value": "w"
+      },
+      {
+        "domain": "www.snapptrip.com",
+        "expiry": 1781077664,
+        "httpOnly": true,
+        "name": "cookiesession1",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "678B28CB1F71DAF1876B93AFC07490EF"
+      },
+      {
+        "domain": ".snapptrip.com",
+        "expiry": 1781077462,
+        "httpOnly": false,
+        "name": "_ym_d",
+        "path": "/",
+        "sameSite": "None",
+        "secure": true,
+        "value": "1749541463"
+      },
+      {
+        "domain": "www.snapptrip.com",
+        "expiry": 1781077454,
+        "httpOnly": false,
+        "name": "channel",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "web"
+      }
+    ],
+    "xhr_endpoints": [
+      "https://sentry.pinsvc.net/api/5/envelope/?sentry_version=7&sentry_key=25fe72668e1d28af8fddbb971d1fd2ed&sentry_client=sentry.javascript.nextjs%2F9.15.0",
+      "https://sentry.pinsvc.net/api/5/envelope/?sentry_version=7&sentry_key=25fe72668e1d28af8fddbb971d1fd2ed&sentry_client=sentry.javascript.nextjs%2F9.15.0",
+      "https://gpi.snapptrip.com/api/features/sdk-Z2itvy5yPKT5xu",
+      "https://www.snapptrip.com/hotel/api/v2/now",
+      "https://flight.snapptrip.com/dom-flights/v1/one-way/search?source=price_table",
+      "https://flight.snapptrip.com/price-table/oneway",
+      "https://audience.yektanet.com/api/v1/scripts/preview/validate/?app_id=IGy1WsMi",
+      "https://ma-cdn.pegah.tech/v1/retargeting/50111/advertiser.json",
+      "https://api.mediaad.org/v2/events/page/loaded",
+      "https://hapi.snapptrip.com/ut/v3/public?token=web",
+      "https://mc.yandex.ru/watch/94125519?wmode=7&page-url=https%3A%2F%2Fwww.snapptrip.com%2Fflights%2FTHR-tehran%2FSYZ-shiraz%3FadultCount%3D1%26childCount%3D0%26infantCount%3D0%26adults%3D1%26children%3D0%26infants%3D0%26departDate%3D2025-06-11%26authToken%3Dnull%26origin%3DTHR%26origin_city%3Dtehran%26destination%3DSYZ%26destination_city%3Dshiraz%26roundTrip%3Dfalse%26dateType%3Djalali%26departureDate%3D2025-06-12%26tripType%3Doneway%26source%3Dprice_table%26channel%3Dweb%26originCity%3DTehran%26originCityName%3D%2525D8%2525AA%2525D9%252587%2525D8%2525B1%2525D8%2525A7%2525D9%252586%26originCode%3DTHR%26destinationCity%3DShiraz%26destinationCityName%3D%2525D8%2525B4%2525DB%25258C%2525D8%2525B1%2525D8%2525A7%2525D8%2525B2%26destinationCode%3DSYZ%26cabinType%3DECONOMY%26date%3D2025-06-11%26refer%3Dflights-home%26is_price_table_best_price%3Dfalse&nohit=1&charset=utf-8&uah=chu%0A%22Google%20Chrome%22%3Bv%3D%22137%22%2C%22Chromium%22%3Bv%3D%22137%22%2C%22Not%2FA)Brand%22%3Bv%3D%2224%22%0Acha%0Ax86%0Achb%0A64%0Achf%0A137.0.7151.69%0Achl%0A%22Google%20Chrome%22%3Bv%3D%22137.0.7151.69%22%2C%22Chromium%22%3Bv%3D%22137.0.7151.69%22%2C%22Not%2FA)Brand%22%3Bv%3D%2224.0.0.0%22%0Achm%0A%3F0%0Achp%0AWindows%0Achv%0A10.0.0&browser-info=pv%3A1%3Avf%3A91r6djxnfagi0ac8j9551etimz4v%3Afu%3A0%3Aen%3Autf-8%3Ala%3Aen-US%3Av%3A2063%3Acn%3A1%3Adp%3A0%3Als%3A1165639668664%3Ahid%3A144600299%3Az%3A210%3Ai%3A20250610111422%3Aet%3A1749541463%3Ac%3A1%3Arn%3A33162312%3Au%3A1749541463626374941%3Aw%3A749x433%3As%3A800x600x24%3Ask%3A1%3Awv%3A2%3Aco%3A0%3Ahdl%3A1%3Acpf%3A1%3Ans%3A1749541453322%3Arqnl%3A1%3Ast%3A1749541463%3At%3A%D8%A8%D9%84%DB%8C%D8%B7%20%D9%87%D9%88%D8%A7%D9%BE%DB%8C%D9%85%D8%A7%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2-%20%D9%BE%D8%B1%D9%88%D8%A7%D8%B2%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%D8%B4%DB%8C%D8%B1%D8%A7%D8%B2%20%D9%82%D8%B3%D8%B7%DB%8C!&t=gdpr(14)clc(0-0-0)aw(1)rcm(1)cdl(na)eco(46727684)ti(1)"
+    ],
+    "javascript_enabled": true
+  },
+  "metadata": {
+    "title": "بلیط هواپیما تهران شیراز- پرواز تهران شیراز قسطی!",
+    "description": "بلیط هواپیما تهران شیراز با مناسبترین قیمت بصورت چارتری و سیستمی.ارزانترین پرواز تهران شیراز با کنسلی رایگان",
+    "keywords": [],
+    "author": "",
+    "robots": "noindex,follow",
+    "canonical": "https://www.snapptrip.com/flights/THR-tehran/SYZ-shiraz",
+    "language": "fa",
+    "og_data": {
+      "og:title": "بلیط هواپیما تهران شیراز- پرواز تهران شیراز قسطی!",
+      "og:description": "بلیط هواپیما تهران شیراز با مناسبترین قیمت بصورت چارتری و سیستمی.ارزانترین پرواز تهران شیراز با کنسلی رایگان",
+      "og:url": "https://www.snapptrip.com/flights/THR-tehran/SYZ-shiraz",
+      "og:site_name": "اسنپ تریپ",
+      "og:locale": "fa_IR",
+      "og:image": "http://localhost/favicon.ico",
+      "og:type": "website"
+    },
+    "twitter_data": {
+      "twitter:card": "summary",
+      "twitter:title": "بلیط هواپیما تهران شیراز- پرواز تهران شیراز قسطی!",
+      "twitter:description": "بلیط هواپیما تهران شیراز با مناسبترین قیمت بصورت چارتری و سیستمی.ارزانترین پرواز تهران شیراز با کنسلی رایگان",
+      "twitter:image": "http://localhost/favicon.ico"
+    },
+    "json_ld": [],
+    "schema_org": [
+      {
+        "@context": "https://schema.org/",
+        "@type": "Product",
+        "name": "بلیط پرواز تهران به شیراز",
+        "description": "خرید بلیط هواپیما تهران شیراز با بهترین قیمت بصورت چارتری و سیستمی. ارزان ترین پرواز تهران شیراز با پشتیبانی 24 ساعته اسنپ‌ تریپ .",
+        "image": "www.snapptrip.comhttps://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/media/logo.1a28b22f.png",
+        "offers": {
+          "@type": "Offer",
+          "priceCurrency": "IRR",
+          "price": "34001000",
+          "availability": "https://schema.org/InStock",
+          "url": "https://www.snapptrip.com/flights//THR-tehran/SYZ-shiraz",
+          "validFrom": "2025-06-12"
+        }
+      }
+    ]
+  },
+  "links": {
+    "internal": [
+      "https://www.snapptrip.com",
+      "https://www.snapptrip.com/",
+      "https://www.snapptrip.com/international-hotel",
+      "https://www.snapptrip.com/flights",
+      "https://www.snapptrip.com/inter-flights",
+      "https://www.snapptrip.com/bus",
+      "https://www.snapptrip.com/villa",
+      "https://www.snapptrip.com/tour",
+      "https://www.snapptrip.com/app",
+      "https://www.snapptrip.com/blog/landingbuilder/b2b/",
+      "https://www.snapptrip.com/blog",
+      "https://www.snapptrip.com/policy",
+      "https://www.snapptrip.com/about",
+      "https://www.snapptrip.com/contact",
+      "https://www.snapptrip.com/flights/THR-tehran/SYZ-shiraz"
+    ],
+    "external": [
+      "https://business.snapptrip.com",
+      "https://careers.snapptrip.com",
+      "https://www.instagram.com/snapptrip",
+      "https://t.me/snapptrip",
+      "https://www.aparat.com/SnappTrip",
+      "https://twitter.com/snapptrip",
+      "https://www.linkedin.com/company/snapptrip-com",
+      "https://redirect.appmetrica.yandex.com/serve/171456018746713582",
+      "https://myket.ir/app/com.pintapin.pintapin",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/b2001dabf2d5f585.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/cba18cd1bcdd5702.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/bdd72303346536ca.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/a1c6702b543923e8.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/be0b185fe839c1eb.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/0a75b0fb7005aff8.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/229c9ecfe6aaefeb.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/cd6e6bb751973eb1.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/50b4658077e87170.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/e60b09987e758891.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/56b8a3a8cc549896.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/50213d1bf39e4633.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/webpack-7b8995a5abf940ac.js",
+      "https://www.googletagmanager.com/gtm.js?id=GTM-MT54VMN",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/2837.94addc3e0b6f418f.js"
+    ],
+    "mailto": [],
+    "tel": [
+      "tel:+982192000123",
+      "tel:+982196669066"
+    ],
+    "javascript": [],
+    "anchors": [],
+    "files": {
+      "pdf": [],
+      "doc": [],
+      "xls": [],
+      "other": []
+    }
+  },
+  "resources": {
+    "images": [
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/media/logo.1a28b22f.png",
+      "https://www.snapptrip.com/flights/_next/image?url=https%3A%2F%2Ffs.snapptrip.com%2Fjs%2Fassets%2Fapps%2Fcore%2Fwebsite%2Fflights-domestic%2Fweb%2F_next%2Fstatic%2Fmedia%2Flogo.1a28b22f.png&w=384&q=75",
+      "https://www.snapptrip.com/flights/_next/image?url=https%3A%2F%2Ffs.snapptrip.com%2Fjs%2Fassets%2Fapps%2Fcore%2Fwebsite%2Fflights-domestic%2Fweb%2F_next%2Fstatic%2Fmedia%2Flogo.1a28b22f.png&w=256&q=75",
+      "https://store.snapptrip.com/assets/airlines/48x48/FP.png",
+      "https://store.snapptrip.com/marketing-banners/DFSmallinlinebanner-Desktop-1728x144_1748780756.jpg",
+      "https://store.snapptrip.com/assets/airlines/57x57/FP.png",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/media/cafe-bazaar.5f94dc61.svg",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/media/myket.f89c17c9.svg",
+      "https://trustseal.enamad.ir/logo.aspx?id=83827&Code=RBoh3Kq5s0Z8xE4tbcGh",
+      "https://logo.samandehi.ir/logo.aspx?id=128793&p=nbpdodrfaqgwyndtbsiyqfti",
+      "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQwIiBoZWlnaHQ9IjM2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KCTxwYXRoIGQ9Im0xMjAgMjQzbDk0LTU0IDAtMTA5IC05NCA1NCAwIDEwOSAwIDB6IiBmaWxsPSIjODA4Mjg1Ii8+Cgk8cGF0aCBkPSJtMTIwIDI1NGwtMTAzLTYwIDAtMTE5IDEwMy02MCAxMDMgNjAgMCAxMTkgLTEwMyA2MHoiIHN0eWxlPSJmaWxsOm5vbmU7c3Ryb2tlLWxpbmVqb2luOnJvdW5kO3N0cm9rZS13aWR0aDo1O3N0cm9rZTojMDBhZWVmIi8+Cgk8cGF0aCBkPSJtMjE0IDgwbC05NC01NCAtOTQgNTQgOTQgNTQgOTQtNTR6IiBmaWxsPSIjMDBhZWVmIi8+Cgk8cGF0aCBkPSJtMjYgODBsMCAxMDkgOTQgNTQgMC0xMDkgLTk0LTU0IDAgMHoiIGZpbGw9IiM1ODU5NWIiLz4KCTxwYXRoIGQ9Im0xMjAgMTU3bDQ3LTI3IDAtMjMgLTQ3LTI3IC00NyAyNyAwIDU0IDQ3IDI3IDQ3LTI3IiBzdHlsZT0iZmlsbDpub25lO3N0cm9rZS1saW5lY2FwOnJvdW5kO3N0cm9rZS1saW5lam9pbjpyb3VuZDtzdHJva2Utd2lkdGg6MTU7c3Ryb2tlOiNmZmYiLz4KCTx0ZXh0IHg9IjE1IiB5PSIzMDAiIGZvbnQtc2l6ZT0iMjVweCIgZm9udC1mYW1pbHk9IidCIFlla2FuJyIgc3R5bGU9ImZpbGw6IzI5Mjk1Mjtmb250LXdlaWdodDpib2xkIj7Yudi22Ygg2KfYqtit2KfYr9uM2Ycg2qnYtNmI2LHbjDwvdGV4dD4KCTx0ZXh0IHg9IjgiIHk9IjM0MyIgZm9udC1zaXplPSIyNXB4IiBmb250LWZhbWlseT0iJ0IgWWVrYW4nIiBzdHlsZT0iZmlsbDojMjkyOTUyO2ZvbnQtd2VpZ2h0OmJvbGQiPtqp2LPYqCDZiCDaqdin2LHZh9in24wg2YXYrNin2LLbjDwvdGV4dD4KPC9zdmc+",
+      "https://farasa.cao.ir/PluginLib/JDSApp/img/pax",
+      "https://mc.yandex.ru/watch/94125519"
+    ],
+    "scripts": [
+      "https://mc.yandex.ru/metrika/tag.js",
+      "https://cdn.yektanet.com/rg_woebegone/scripts_v3/y0HDPOGG/rg.complete.js?v=202505010011",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/87c73c54-bae1887a2e0a16c0.js",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/8298-81886739e7b49b85.js",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/main-app-c00e7980d1fd5698.js",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/1863-bfbaf408a0502368.js",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/polyfills-42372ed130431b0a.js",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/chunks/webpack-7b8995a5abf940ac.js",
+      "https://www.googletagmanager.com/gtm.js?id=GTM-MT54VMN",
+      "https://s1.mediaad.org/serve/50111/retargeting.js",
+      "https://ssl.widgets.webengage.com/js/webengage-min-v-6.0.js",
+      "https://c.webengage.com/upf2.js?upfc=N4IgrgDgZiBcAuAnMBTANCANgSwMYoDsBnFAYQHsATFOEARjoCMBWANmYAZcOQNMxslWgA4ALMObCUAQzqj5UAOwBmRrkpRl%2BAEx1WlaSwCcwriqgaozOrywRaAC3jwIRWAHp3Adx8A6IgTSEBBI2BC%2BuOQAtu5QOADmTkTuACoAEgBKALTwKA6I0gTuAMoAmgBaWUQO2AUAXgD80pRgmPAUYATwALx0AGS4NZiUHV3dHH3YBFCF7eSdPRPNrfBEvQNDlIiE45PTs2sT1BDSiPAAItK53doc2sxZHKxZDH3SYPAOKeQA1jsErUwfXIiGw8Sm3XSGWBoPBBAA%2BrhsPAAJ7dXL5Qp9ahEeBTK7YcgEbplcrYlC4%2FF4omI5Fo6q1aR1PqIeYESgpUEQbozTAkbFXFApFEQFDdABW0kwUuw5JOZzA20u11u90ezzo2j6oQgwtF3SJKC80hRfSI80Q%2BG6EFB%2BHh8EMmBQG0KBBQmG6XhQjBhYKmpDpkLyBQIvrhAdRADlpFExQBSe7nYQJ5gAQVTKfORhTwkUmeT9wAQnR8ynU3nE9n7sJWGH%2FVQxVDyZTAtSCBG0cUavVm3jW4T23To7HuqWi6JM4Wc6Qx8xi7Py7PC1qcX2CUSKNQSRUBoYpnqxQBRUgAeUjJ4AsqUBSq7g8ni9%2BtsoChEDyEkksg5os7sER4TaeAoPajrAYwFLwABtpiryJC2IgMCwCAtjxCg5C0CiIAAL5AAA&jsonp=_we_jsonp_global_cb_1749541464442"
+    ],
+    "stylesheets": [
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/b2001dabf2d5f585.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/cba18cd1bcdd5702.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/bdd72303346536ca.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/a1c6702b543923e8.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/be0b185fe839c1eb.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/0a75b0fb7005aff8.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/229c9ecfe6aaefeb.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/cd6e6bb751973eb1.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/50b4658077e87170.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/e60b09987e758891.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/56b8a3a8cc549896.css",
+      "https://fs.snapptrip.com/js/assets/apps/core/website/flights-domestic/web/_next/static/css/50213d1bf39e4633.css"
+    ],
+    "videos": [],
+    "audios": [],
+    "iframes": [
+      "https://ua.yektanet.com/cookie/iframe/",
+      "https://mediacdn.mediaad.org/static/fingerprint.html",
+      "https://11b5650c0.webengage.co/storage-frame-1.18.htm?cdn=y&cbf=webengage-engagement-callback-frame&lc=11b5650c0"
+    ],
+    "fonts": [],
+    "icons": []
+  },
+  "content_analysis": {
+    "headings": {
+      "h1": [
+        "بلیط هواپیما تهران به شیراز"
+      ],
+      "h2": [
+        "بلیط پروازهای داخلی"
+      ],
+      "h3": [
+        "پاسخ به برخی از سوالات",
+        "بهترین زمان برای خرید بلیط هواپیما تهران شیراز چند روز قبل است؟",
+        "مدت زمان پرواز تهران شیراز چقدر است؟",
+        "چه عواملی بر قیمت بلیط هواپیما تهران شیراز تاثیرگذار است؟",
+        "پس از خرید بلیط هواپیما تهران شیراز به کدام فرودگاه برویم؟",
+        "پرواز تهران به شیراز در چه روزهایی انجام می‌شود؟",
+        "چگونه می‌توان بلیط هواپیما تهران به شیراز را با ارزان‌ترین قیمت خرید؟",
+        "قوانین و شرایط کنسلی بلیط هواپیما تهران شیراز به چه صورت است؟"
+      ],
+      "h4": [],
+      "h5": [
+        "۱ پرواز تهران به شیراز"
+      ],
+      "h6": [
+        "پرداخت اقساطی با اسنپ‌پیclose",
+        "ثبت درخواست رزرو تلفنی"
+      ]
+    },
+    "forms": [
+      {
+        "action": "",
+        "method": "GET",
+        "id": "",
+        "name": "",
+        "inputs": [
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "min_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "max_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "min_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "max_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "checkbox",
+            "name": "airlines.value.FP",
+            "id": "",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "min_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "max_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "min_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "range",
+            "name": "",
+            "id": "max_range_total_price",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "checkbox",
+            "name": "flightType.value.SYSTEM",
+            "id": "",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "checkbox",
+            "name": "flightType.value.CHARTER",
+            "id": "",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "checkbox",
+            "name": "filterCabinType.value.ECONOMY",
+            "id": "",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "checkbox",
+            "name": "filterCabinType.value.PREMIUM_ECONOMY",
+            "id": "",
+            "required": false,
+            "placeholder": ""
+          },
+          {
+            "tag": "input",
+            "type": "checkbox",
+            "name": "filterCabinType.value.BUSINESS",
+            "id": "",
+            "required": false,
+            "placeholder": ""
+          }
+        ]
+      },
+      {
+        "action": "",
+        "method": "GET",
+        "id": "",
+        "name": "",
+        "inputs": [
+          {
+            "tag": "input",
+            "type": "tel",
+            "name": "freeTransferMobileNumber",
+            "id": "",
+            "required": false,
+            "placeholder": "شماره موبایل"
+          },
+          {
+            "tag": "button",
+            "type": "submit",
+            "name": "",
+            "id": "",
+            "required": false,
+            "placeholder": ""
+          }
+        ]
+      }
+    ],
+    "tables": [],
+    "lists": {
+      "ul": 1,
+      "ol": 0,
+      "dl": 0
+    },
+    "text_stats": {
+      "total_length": 6865,
+      "word_count": 948,
+      "paragraph_count": 7,
+      "average_paragraph_length": 40.43
+    },
+    "interactive_elements": {
+      "buttons": 38,
+      "inputs": 18,
+      "selects": 0,
+      "textareas": 0,
+      "links": 42
+    },
+    "semantic_elements": {
+      "nav": 2,
+      "article": 1,
+      "section": 8,
+      "aside": 1,
+      "header": 1,
+      "footer": 1,
+      "main": 1
+    }
+  },
+  "ajax_data": {
+    "api_endpoints": [],
+    "websocket_urls": [],
+    "data_attributes": {}
+  }
+}
