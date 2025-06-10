@@ -113,7 +113,10 @@ python main_crawler.py
 curl http://localhost:8000/health
 
 # View logs
-tail -f flight_crawler.log
+tail -f logs/flight_crawler.log
+
+# View error logs
+tail -f logs/error.log
 ```
 
 3. Launch the API and UI:
@@ -140,6 +143,11 @@ print(f"Found {len(flights)} flights")
 python scripts/crawl_airport_combinations.py
 ```
 Open `http://localhost:8000/ui` in your browser to access the control panel.
+
+6. Import sample pages for debugging:
+```bash
+python scripts/parse_saved_pages.py
+```
 
 ## User Guide | راهنمای کاربر
 
