@@ -1,0 +1,586 @@
+{
+  "url": "https://parto-ticket.ir/Ticket-Tehran-Kish.html?t=1404-03-21",
+  "final_url": "https://parto-ticket.ir/Ticket-Tehran-Kish.html?t=1404-03-21",
+  "timestamp": "2025-06-10T08:01:49.485090",
+  "crawler_info": {
+    "javascript_enabled": true,
+    "selenium_used": true,
+    "crawl_time": 55.24965810775757
+  },
+  "response": {
+    "final_url": "https://parto-ticket.ir/Ticket-Tehran-Kish.html?t=1404-03-21",
+    "performance": {
+      "resources": [
+        {
+          "duration": 286.80000001192093,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/css/reset.css?v=80.03",
+          "type": "link"
+        },
+        {
+          "duration": 287.4000000357628,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/css/main.css?v=90.492",
+          "type": "link"
+        },
+        {
+          "duration": 681.6999999880791,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/css/responsive.css?v=90.41",
+          "type": "link"
+        },
+        {
+          "duration": 289.89999997615814,
+          "name": "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/lange_newcss_1748770276.css",
+          "type": "link"
+        },
+        {
+          "duration": 693.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jquery-3.6.0.min.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 290.89999997615814,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/amibdatepicker.js?v=3.42",
+          "type": "script"
+        },
+        {
+          "duration": 675.6000000238419,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/popupwindow.js?v=6.12",
+          "type": "script"
+        },
+        {
+          "duration": 271.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/custom.js?v=17.69",
+          "type": "script"
+        },
+        {
+          "duration": 293,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jquery.sticky-kit.min.js?v=1.1",
+          "type": "script"
+        },
+        {
+          "duration": 284.80000001192093,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/custom2.js?v=14.250",
+          "type": "script"
+        },
+        {
+          "duration": 285.80000001192093,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/conteris.js?v=7.799",
+          "type": "script"
+        },
+        {
+          "duration": 285.19999998807907,
+          "name": "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/lange_newjs_1748770276.js",
+          "type": "script"
+        },
+        {
+          "duration": 720.3999999761581,
+          "name": "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/lange_logo_1738831866.jpg",
+          "type": "img"
+        },
+        {
+          "duration": 719.6999999880791,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/css/timeTo.css",
+          "type": "link"
+        },
+        {
+          "duration": 796.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/css/bank.css?v=1.12",
+          "type": "link"
+        },
+        {
+          "duration": 819.3000000119209,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/css/jslider.css?v=1.31",
+          "type": "link"
+        },
+        {
+          "duration": 828.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/css/result.css?v=4.87",
+          "type": "link"
+        },
+        {
+          "duration": 829.9000000357628,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jkblayout.min.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 833,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jquery.mask.min.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 830.6999999880791,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/airtour_ok.png?v=3.81",
+          "type": "img"
+        },
+        {
+          "duration": 831.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/Kish_ok.png?v=3.81",
+          "type": "img"
+        },
+        {
+          "duration": 1591.199999988079,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/Zagros_ok.png?v=3.81",
+          "type": "img"
+        },
+        {
+          "duration": 829.9000000357628,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/ATA_ok.png?v=3.81",
+          "type": "img"
+        },
+        {
+          "duration": 833,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/Caspian_ok.png?v=3.81",
+          "type": "img"
+        },
+        {
+          "duration": 2961.100000023842,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/qheshm_ok.png?v=3.81",
+          "type": "img"
+        },
+        {
+          "duration": 832.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/airtour-al.png?v=4",
+          "type": "img"
+        },
+        {
+          "duration": 2961.100000023842,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/Zagros-al.png?v=4",
+          "type": "img"
+        },
+        {
+          "duration": 2961.399999976158,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/Kish-al.png?v=4",
+          "type": "img"
+        },
+        {
+          "duration": 844.2999999523163,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/qheshm-al.png?v=4",
+          "type": "img"
+        },
+        {
+          "duration": 2961.199999988079,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/ATA-al.png?v=4",
+          "type": "img"
+        },
+        {
+          "duration": 830.1000000238419,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jquery.time-to.min.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 832.1999999880791,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/tmpl.js",
+          "type": "script"
+        },
+        {
+          "duration": 1970.800000011921,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jquery.dependClass-0.1.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 2857.800000011921,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/custom3.js?v=15.65",
+          "type": "script"
+        },
+        {
+          "duration": 2961.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/images/airline/Caspian-al.png?v=4",
+          "type": "img"
+        },
+        {
+          "duration": 831.8999999761581,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jqmeter.min.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 833.3999999761581,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/draggable-0.1.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 2960.5,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/jquery.slider.js?v=1.0",
+          "type": "script"
+        },
+        {
+          "duration": 831.4000000357628,
+          "name": "https://cdn.parto-ticket.ir/template/backc118/js/custom4.js?v=1.98",
+          "type": "script"
+        },
+        {
+          "duration": 750.3999999761581,
+          "name": "https://piwik.partocms.com/matomo.js",
+          "type": "script"
+        },
+        {
+          "duration": 788.6999999880791,
+          "name": "https://piwik.partocms.com/matomo.php?action_name=%D8%A8%D9%84%DB%8C%D8%B7%20%DA%86%D8%A7%D8%B1%D8%AA%D8%B1%20%D8%AA%D9%87%D8%B1%D8%A7%D9%86%20%DA%A9%DB%8C%D8%B4%20%7C%20%D9%BE%D8%B1%D8%AA%D9%88%20%D8%AA%DB%8C%DA%A9%D8%AA&idsite=15&rec=1&r=397019&h=8&m=1&s=44&url=https%3A%2F%2Fparto-ticket.ir%2FTicket-Tehran-Kish.html%3Ft%3D1404-03-21&_id=509f409ba3949b6d&_idn=1&send_image=0&_refts=0&pv_id=7GPyhu&pf_net=303&pf_srv=653&pf_tfr=109&uadata=%7B%22formFactors%22%3A%5B%22Desktop%22%5D%2C%22fullVersionList%22%3A%5B%7B%22brand%22%3A%22Google%20Chrome%22%2C%22version%22%3A%22137.0.7151.69%22%7D%2C%7B%22brand%22%3A%22Chromium%22%2C%22version%22%3A%22137.0.7151.69%22%7D%2C%7B%22brand%22%3A%22Not%2FA)Brand%22%2C%22version%22%3A%2224.0.0.0%22%7D%5D%2C%22mobile%22%3Afalse%2C%22model%22%3A%22%22%2C%22platform%22%3A%22Windows%22%2C%22platformVersion%22%3A%2210.0.0%22%7D&pdf=1&qt=0&realp=0&wma=0&fla=0&java=0&ag=0&cookie=1&res=800x600",
+          "type": "beacon"
+        },
+        {
+          "duration": 101,
+          "name": "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/lange_fav_ico_1738831866.ico",
+          "type": "other"
+        }
+      ],
+      "timing": {
+        "connectEnd": 1749529902503,
+        "connectStart": 1749529902322,
+        "domComplete": 1749529906246,
+        "domContentLoadedEventEnd": 1749529906240,
+        "domContentLoadedEventStart": 1749529906239,
+        "domInteractive": 1749529906239,
+        "domLoading": 1749529903160,
+        "domainLookupEnd": 1749529902290,
+        "domainLookupStart": 1749529902200,
+        "fetchStart": 1749529902200,
+        "loadEventEnd": 1749529906247,
+        "loadEventStart": 1749529906246,
+        "navigationStart": 1749529902199,
+        "redirectEnd": 0,
+        "redirectStart": 0,
+        "requestStart": 1749529902503,
+        "responseEnd": 1749529903265,
+        "responseStart": 1749529903156,
+        "secureConnectionStart": 1749529902406,
+        "toJSON": {},
+        "unloadEventEnd": 0,
+        "unloadEventStart": 0
+      }
+    },
+    "console_logs": [
+      {
+        "level": "WARNING",
+        "message": "https://cdn.parto-ticket.ir/template/backc118/js/jquery-3.6.0.min.js?v=1.0 1:31592 \"jQuery.Deferred exception: Cannot read properties of null (reading 'className')\" \"TypeError: Cannot read properties of null (reading 'className')\\n    at new AMIB.datePicker (https://cdn.parto-ticket.ir/template/backc118/js/amibdatepicker.js?v=3.42:89:17)\\n    at HTMLDocument.\\u003Canonymous> (https://cdn.parto-ticket.ir/template/backc118/js/custom2.js?v=14.250:1521:22)\\n    at e (https://cdn.parto-ticket.ir/template/backc118/js/jquery-3.6.0.min.js?v=1.0:2:30038)\\n    at t (https://cdn.parto-ticket.ir/template/backc118/js/jquery-3.6.0.min.js?v=1.0:2:30340)\" undefined",
+        "source": "console-api",
+        "timestamp": 1749529906257
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://cdn.parto-ticket.ir/template/backc118/js/jquery-3.6.0.min.js?v=1.0 1:31702 Uncaught TypeError: Cannot read properties of null (reading 'className')",
+        "source": "javascript",
+        "timestamp": 1749529907382
+      }
+    ],
+    "cookies": [
+      {
+        "domain": "parto-ticket.ir",
+        "expiry": 1749531704,
+        "httpOnly": false,
+        "name": "_pk_ses.15.e928",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "1"
+      },
+      {
+        "domain": "parto-ticket.ir",
+        "expiry": 1760243503,
+        "httpOnly": false,
+        "name": "LastSeaarch",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "Tehran%28THR%29%D8%AA%D9%87%D8%B1%D8%A7%D9%86%7C10000%7CKish%28KIH%29%DA%A9%DB%8C%D8%B4%7C10003"
+      },
+      {
+        "domain": "parto-ticket.ir",
+        "expiry": 1749529963,
+        "httpOnly": false,
+        "name": "g1",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "1%7C1749529966"
+      },
+      {
+        "domain": "parto-ticket.ir",
+        "httpOnly": false,
+        "name": "PHPSESSID",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "vueecuvu87s5iamnpb20d8tbm4"
+      },
+      {
+        "domain": "parto-ticket.ir",
+        "expiry": 1783485105,
+        "httpOnly": false,
+        "name": "_pk_id.15.e928",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "509f409ba3949b6d.1749529905."
+      },
+      {
+        "domain": "parto-ticket.ir",
+        "expiry": 1749616303,
+        "httpOnly": false,
+        "name": "parto-ticket.ir",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "OK"
+      }
+    ],
+    "xhr_endpoints": [],
+    "javascript_enabled": true
+  },
+  "metadata": {
+    "title": "بلیط چارتر تهران کیش | پرتو تیکت",
+    "description": "خرید آنلاین بلیط هواپیما تهران کیش، بلیط چارتر و لحظه آخری از تهران به کیش ارزانترین قیمت و پشتیبانی 24 ساعته و استرداد آنلاین ",
+    "keywords": [
+      "Tehran",
+      "Kish",
+      "Airplane Ticket",
+      "flight",
+      "charter",
+      ""
+    ],
+    "author": "",
+    "robots": "",
+    "canonical": "https://parto-ticket.ir/Ticket-Tehran-Kish.html",
+    "language": "fa",
+    "og_data": {},
+    "twitter_data": {},
+    "json_ld": [],
+    "schema_org": []
+  },
+  "links": {
+    "internal": [
+      "https://parto-ticket.ir/",
+      "https://parto-ticket.ir/Hotel.html",
+      "https://parto-ticket.ir/whatsapp_start.html?phone=989365845700",
+      "https://parto-ticket.ir/Blog-3380-آموزش-رزرو-بلیط-هواپیما-و-چارتر.html",
+      "https://parto-ticket.ir/about.html",
+      "https://parto-ticket.ir/Blog-2739-قوانین-بلیط-هواپیما-چارتر.html",
+      "https://parto-ticket.ir/Blog-2740-جریمه-استرداد-بلیط-هواپیما-سیستمی.html",
+      "https://parto-ticket.ir/Blog-65731-میزان-بار-مجاز-پروازهای-خارجی.html",
+      "https://parto-ticket.ir/Ticket-Tehran-Kish.html?t=1404-03-20",
+      "https://parto-ticket.ir/Ticket-Tehran-Kish.html?t=1404-03-22",
+      "https://parto-ticket.ir/Hotel.html?City=کیش&id=10003&date=1404/03/21",
+      "https://parto-ticket.ir/Ticket-Tehran-Mashhad.html",
+      "https://parto-ticket.ir/Ticket-Tehran-Shiraz.html",
+      "https://parto-ticket.ir/Ticket-Tehran-Kish.html",
+      "https://parto-ticket.ir/Ticket-Tehran-Ahwaz.html",
+      "https://parto-ticket.ir/Ticket-Tehran-Tabriz.html",
+      "https://parto-ticket.ir/Ticket-Tehran-Abadan.html",
+      "https://parto-ticket.ir/Ticket-Mashhad-Tehran.html",
+      "https://parto-ticket.ir/Ticket-Mashhad-Isfahan.html",
+      "https://parto-ticket.ir/Ticket-Mashhad-Shiraz.html",
+      "https://parto-ticket.ir/Ticket-Mashhad-Kish.html",
+      "https://parto-ticket.ir/Ticket-Mashhad-Tabriz.html",
+      "https://parto-ticket.ir/Ticket-Mashhad-Ahwaz.html",
+      "https://parto-ticket.ir/Ticket-Kish-Tehran.html",
+      "https://parto-ticket.ir/Ticket-Kish-Shiraz.html",
+      "https://parto-ticket.ir/Ticket-Kish-Mashhad.html",
+      "https://parto-ticket.ir/Ticket-Kish-Isfahan.html",
+      "https://parto-ticket.ir/Ticket-Kish-Ahwaz.html",
+      "https://parto-ticket.ir/Ticket-Kish-Bandar Abass.html",
+      "https://parto-ticket.ir/Ticket-Ahwaz-Tehran.html",
+      "https://parto-ticket.ir/Ticket-Ahwaz-Mashhad.html",
+      "https://parto-ticket.ir/Ticket-Isfahan-Tehran.html",
+      "https://parto-ticket.ir/Ticket-Isfahan-Mashhad.html",
+      "https://parto-ticket.ir/Ticket-Shiraz-Tehran.html",
+      "https://parto-ticket.ir/Ticket-Shiraz-Mashhad.html",
+      "https://parto-ticket.ir/Payment.html",
+      "https://parto-ticket.ir/whatsapp_start.html",
+      "https://parto-ticket.ir/manifest.json"
+    ],
+    "external": [
+      "https://t.me/partoticket",
+      "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/parto-ticket.ir.apk",
+      "https://cafebazaar.ir/app/com.parto.app",
+      "tg://resolve?domain=parto_support",
+      "https://cdn.parto-ticket.ir/template/backc118/../../uploads/parto-ticket.ir/lange_fav_ico_1738831866.ico",
+      "https://cdn.parto-ticket.ir/template/backc118/css/reset.css?v=80.03",
+      "https://cdn.parto-ticket.ir/template/backc118/css/main.css?v=90.492",
+      "https://cdn.parto-ticket.ir/template/backc118/css/responsive.css?v=90.41",
+      "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/lange_newcss_1748770276.css",
+      "https://cdn.parto-ticket.ir/template/backc118/css/timeTo.css",
+      "https://cdn.parto-ticket.ir/template/backc118/css/bank.css?v=1.12",
+      "https://cdn.parto-ticket.ir/template/backc118/css/result.css?v=4.87",
+      "https://cdn.parto-ticket.ir/template/backc118/css/jslider.css?v=1.31"
+    ],
+    "mailto": [],
+    "tel": [
+      "tel:+989365845700",
+      "tel:09365845700 خارج از ساعات اداری"
+    ],
+    "javascript": [
+      "javascript:void"
+    ],
+    "anchors": [
+      "#",
+      "#login_popup",
+      "#register_popup",
+      "#peigiri_box",
+      "#fromprice",
+      "#fromtime",
+      "#Expiration_price_box"
+    ],
+    "files": {
+      "pdf": [],
+      "doc": [],
+      "xls": [],
+      "other": []
+    }
+  },
+  "resources": {
+    "images": [
+      "https://cdn.parto-ticket.ir/template/backc118/../../uploads/parto-ticket.ir/lange_logo_1738831866.jpg",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/Zagros_ok.png?v=3.81",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/airtour_ok.png?v=3.81",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/Kish_ok.png?v=3.81",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/ATA_ok.png?v=3.81",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/Caspian_ok.png?v=3.81",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/qheshm_ok.png?v=3.81",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/Zagros-al.png?v=4",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/airtour-al.png?v=4",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/Kish-al.png?v=4",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/qheshm-al.png?v=4",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/ATA-al.png?v=4",
+      "https://cdn.parto-ticket.ir/template/backc118/images/airline/Caspian-al.png?v=4"
+    ],
+    "scripts": [
+      "https://piwik.partocms.com/matomo.js",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jquery-3.6.0.min.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/popupwindow.js?v=6.12",
+      "https://cdn.parto-ticket.ir/template/backc118/js/amibdatepicker.js?v=3.42",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jquery.sticky-kit.min.js?v=1.1",
+      "https://cdn.parto-ticket.ir/template/backc118/js/custom.js?v=17.69",
+      "https://cdn.parto-ticket.ir/template/backc118/js/custom2.js?v=14.250",
+      "https://cdn.parto-ticket.ir/template/backc118/js/conteris.js?v=7.799",
+      "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/lange_newjs_1748770276.js",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jkblayout.min.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jquery.mask.min.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jquery.time-to.min.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/custom3.js?v=15.65",
+      "https://cdn.parto-ticket.ir/template/backc118/js/tmpl.js",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jquery.dependClass-0.1.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/draggable-0.1.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jquery.slider.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/jqmeter.min.js?v=1.0",
+      "https://cdn.parto-ticket.ir/template/backc118/js/custom4.js?v=1.98"
+    ],
+    "stylesheets": [
+      "https://cdn.parto-ticket.ir/template/backc118/css/reset.css?v=80.03",
+      "https://cdn.parto-ticket.ir/template/backc118/css/main.css?v=90.492",
+      "https://cdn.parto-ticket.ir/template/backc118/css/responsive.css?v=90.41",
+      "https://cdn.parto-ticket.ir/uploads/parto-ticket.ir/lange_newcss_1748770276.css",
+      "https://cdn.parto-ticket.ir/template/backc118/css/timeTo.css",
+      "https://cdn.parto-ticket.ir/template/backc118/css/bank.css?v=1.12",
+      "https://cdn.parto-ticket.ir/template/backc118/css/result.css?v=4.87",
+      "https://cdn.parto-ticket.ir/template/backc118/css/jslider.css?v=1.31"
+    ],
+    "videos": [],
+    "audios": [],
+    "iframes": [],
+    "fonts": [],
+    "icons": [
+      "https://cdn.parto-ticket.ir/template/backc118/../../uploads/parto-ticket.ir/lange_fav_ico_1738831866.ico"
+    ]
+  },
+  "content_analysis": {
+    "headings": {
+      "h1": [
+        "بلیط هواپیماتهرانبهکیش1404/03/21(چهارشنبه)"
+      ],
+      "h2": [
+        "نرخ کلاس ها و ظرفیت این پرواز",
+        "مسیرهای منتخب بلیط هواپیما و چارتر",
+        "مسیرهای منتخب بلیط هواپیما و چارتر 2",
+        "مسیرهای منتخب بلیط هواپیما و چارتر 3",
+        "مسیرهای منتخب بلیط هواپیما و چارتر 4",
+        "راهنمای نصب اپلیکیشن iOS",
+        "iOS App Installation Guide",
+        "دليل تثبيت تطبيق iOS"
+      ],
+      "h3": [],
+      "h4": [
+        "جستجوی حرفه ای",
+        "به کمک نیاز دارید ؟"
+      ],
+      "h5": [
+        "زمان پرواز",
+        "تعداد ظرفیت",
+        "شماره پرواز",
+        "نوع پرواز",
+        "نوع هواپیما",
+        "ایرلاین"
+      ],
+      "h6": []
+    },
+    "forms": [
+      {
+        "action": "",
+        "method": "GET",
+        "id": "search_form",
+        "name": "",
+        "inputs": [
+          {
+            "tag": "input",
+            "type": "slider",
+            "name": "time",
+            "id": "Slider5",
+            "required": false,
+            "placeholder": ""
+          }
+        ]
+      },
+      {
+        "action": "",
+        "method": "GET",
+        "id": "register",
+        "name": "register",
+        "inputs": []
+      },
+      {
+        "action": "",
+        "method": "GET",
+        "id": "login",
+        "name": "",
+        "inputs": []
+      }
+    ],
+    "tables": [
+      {
+        "id": "",
+        "class": "",
+        "rows": 1,
+        "headers": []
+      }
+    ],
+    "lists": {
+      "ul": 14,
+      "ol": 0,
+      "dl": 0
+    },
+    "text_stats": {
+      "total_length": 12630,
+      "word_count": 923,
+      "paragraph_count": 25,
+      "average_paragraph_length": 49.2
+    },
+    "interactive_elements": {
+      "buttons": 3,
+      "inputs": 19,
+      "selects": 1,
+      "textareas": 4,
+      "links": 104
+    },
+    "semantic_elements": {
+      "nav": 0,
+      "article": 0,
+      "section": 0,
+      "aside": 0,
+      "header": 0,
+      "footer": 0,
+      "main": 0
+    }
+  },
+  "ajax_data": {
+    "api_endpoints": [],
+    "websocket_urls": [],
+    "data_attributes": {}
+  }
+}
