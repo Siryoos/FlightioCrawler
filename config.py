@@ -144,6 +144,12 @@ class RedisConfig:
     PORT: int = int(os.getenv('REDIS_PORT', '6379'))
     DB: int = int(os.getenv('REDIS_DB', '0'))
     PASSWORD: str = os.getenv('REDIS_PASSWORD', '')
+    URL: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Construct the Redis connection URL from components."""
+        auth = f":{self.PASSWORD}@" if self.PASSWORD else ""
+        self.URL = f"redis://{auth}{self.HOST}:{self.PORT}/{self.DB}"
 
 @dataclass
 class CrawlerConfig:
@@ -239,11 +245,15 @@ class Config:
     # Misc settings
     CRAWLER_TIMEOUT: int = 30
 
+    # Populated after initialization
+    REDIS_URL: str = field(init=False, default="")
+
     # Will be populated after initialization
     SITES: Dict[str, Dict[str, Any]] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         self.SITES = self._load_site_configs()
+        self.REDIS_URL = self.REDIS.URL
 
     def _load_site_configs(self) -> Dict[str, Dict[str, Any]]:
         """Load site configuration files and build rate limit settings."""
@@ -271,6 +281,7 @@ class Config:
 
 # Create global config instance
 config = Config()
+REDIS_URL = config.REDIS_URL
 
 # Export configuration
-__all__ = ['config', 'PRODUCTION_SITES']
+__all__ = ['config', 'PRODUCTION_SITES', 'REDIS_URL']
