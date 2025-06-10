@@ -15,6 +15,7 @@ EXPECTED_DOMAINS = {
     'bookcharter724.ir',
     'bookcharter.ir',
     'mrbilit.com',
+    'snapptrip.com',
 }
 
 def test_domains_list():
@@ -30,5 +31,6 @@ def test_crawler_classes_exist():
         'BookCharter724Crawler',
         'BookCharterCrawler',
         'MrbilitCrawler',
+        'SnapptripCrawler',
     ]:
         assert re.search(rf'class\s+{cls}\b', SITE_CRAWLERS_TEXT)

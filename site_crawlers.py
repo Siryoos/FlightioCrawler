@@ -366,11 +366,77 @@ class AlibabaCrawler(BaseSiteCrawler):
             
             # Track successful request
             await self.monitor.track_request(self.domain, start_time.timestamp())
-            
+
             return flights
-            
+
         except Exception as e:
             self.logger.error(f"Error crawling Alibaba: {e}")
+            await self.error_handler.handle_error(self.domain, e)
+            return []
+
+class SnapptripCrawler(BaseSiteCrawler):
+    """Crawler for Snapptrip.com"""
+
+    def __init__(self, *args, interval: int = 900, **kwargs):
+        super().__init__(*args, interval=interval, **kwargs)
+        self.domain = "snapptrip.com"
+        self.base_url = "https://www.snapptrip.com"
+
+    async def search_flights(self, search_params: Dict) -> List[Dict]:
+        """Search flights on Snapptrip"""
+        start_time = datetime.now()
+
+        try:
+            if not await self.error_handler.can_make_request(self.domain):
+                self.logger.warning(f"Circuit breaker open for {self.domain}")
+                return []
+
+            if not await self.check_rate_limit():
+                wait_time = await self.get_wait_time()
+                if wait_time:
+                    await asyncio.sleep(wait_time)
+
+            url = (
+                f"{self.base_url}/flights/{search_params.get('origin')}-"
+                f"{search_params.get('destination')}?depart={search_params.get('departure_date')}"
+                f"&adult={search_params.get('passengers', 1)}"
+            )
+            await self.crawler.navigate(url)
+
+            if not await self._wait_for_element('.flight-item', timeout=30):
+                raise Exception("Flight results not found")
+
+            html = await self.crawler.content()
+            soup = BeautifulSoup(html, 'html.parser')
+
+            flights = []
+            for item in soup.select('.flight-item'):
+                try:
+                    flights.append(
+                        {
+                            'airline': self.process_text(item.select_one('.airline-name').text) if item.select_one('.airline-name') else '',
+                            'flight_number': item.select_one('.flight-number').text.strip() if item.select_one('.flight-number') else '',
+                            'origin': search_params.get('origin'),
+                            'destination': search_params.get('destination'),
+                            'departure_time': self.text_processor.parse_time(item.select_one('.departure-time').text) if item.select_one('.departure-time') else None,
+                            'arrival_time': self.text_processor.parse_time(item.select_one('.arrival-time').text) if item.select_one('.arrival-time') else None,
+                            'price': self.text_processor.extract_price(item.select_one('.price').text)[0] if item.select_one('.price') else 0,
+                            'currency': 'IRR',
+                            'seat_class': self.text_processor.normalize_seat_class(item.select_one('.seat-class').text) if item.select_one('.seat-class') else '',
+                            'duration': self.text_processor.extract_duration(item.select_one('.duration').text) if item.select_one('.duration') else 0,
+                            'source_url': url,
+                        }
+                    )
+                except Exception as parse_err:
+                    self.logger.error(f"Error parsing flight: {parse_err}")
+                    continue
+
+            await self.monitor.track_request(self.domain, start_time.timestamp())
+
+            return flights
+
+        except Exception as e:
+            self.logger.error(f"Error crawling {self.domain}: {e}")
             await self.error_handler.handle_error(self.domain, e)
             return []
 
