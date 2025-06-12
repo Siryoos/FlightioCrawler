@@ -225,23 +225,31 @@ class PersianTextProcessor:
             return 0.0, 'IRR'
     
     def extract_duration(self, duration_text: str) -> int:
-        """Extract duration in minutes from text"""
+        """Extract duration in minutes from text."""
         try:
             processed = self.process(duration_text)
 
-            # Determine if the original text specified hours before
-            is_hours = 'ساعت' in processed or 'hour' in processed.lower()
+            # Look for explicit hours and minutes patterns first
+            hours = 0
+            minutes = 0
 
-            # Remove non-numeric characters to extract the numeric part
-            digits_only = re.sub(r'[^\d]', '', processed)
+            hour_match = re.search(r"(\d+)\s*(?:ساعت|hour)", processed, re.IGNORECASE)
+            if hour_match:
+                hours = int(hour_match.group(1))
+
+            minute_match = re.search(r"(\d+)\s*(?:دقیقه|min|minute)", processed, re.IGNORECASE)
+            if minute_match:
+                minutes = int(minute_match.group(1))
+
+            if hours or minutes:
+                return hours * 60 + minutes
+
+            # Fallback to parsing a single numeric value
+            digits_only = re.sub(r"[^\d]", "", processed)
             if not digits_only:
                 return 0
 
-            minutes = int(digits_only)
-            if is_hours:
-                minutes *= 60
-
-            return minutes
+            return int(digits_only)
         except Exception as e:
             print(f"Error extracting duration from {duration_text}: {e}")
             return 0
