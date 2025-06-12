@@ -44,3 +44,9 @@ def test_extract_duration_hours():
 def test_extract_duration_minutes():
     processor = PersianTextProcessor()
     assert processor.extract_duration("۹۰") == 90
+
+
+def test_extract_duration_hours_and_minutes():
+    processor = PersianTextProcessor()
+    # "۲ ساعت و ۳۰ دقیقه" should be 150 minutes
+    assert processor.extract_duration("۲ ساعت و ۳۰ دقیقه") == 150
