@@ -22,7 +22,7 @@ class BaseSiteCrawler(ABC):
         
     def _create_rate_limiter(self):
         """Create rate limiter based on config"""
-        from core.rate_limiter import RateLimiter
+        from rate_limiter import RateLimiter
         return RateLimiter(self.config.get('rate_limit', {}))
         
     def _create_parser(self):
