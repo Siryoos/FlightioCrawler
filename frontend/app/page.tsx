@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { create } from 'zustand';
 import MultiCitySearch, { Leg } from './components/MultiCitySearch';
+import FlightSearchForm from './components/FlightSearchForm';
 import PriceComparisonGrid, { PriceRow } from './components/PriceComparisonGrid';
 import CrawlerStatusMonitor from './components/CrawlerStatusMonitor';
 import CrawledDataGrid, { CrawledFlight } from './components/CrawledDataGrid';
@@ -15,22 +16,30 @@ type Flight = {
   price: number;
 };
 
-interface SearchState {
+interface FlightSearchData {
   origin: string;
   destination: string;
-  date: string;
-  setOrigin: (v: string) => void;
-  setDestination: (v: string) => void;
-  setDate: (v: string) => void;
+  departureDate: string;
+  returnDate?: string;
+  passengers: number;
+  tripType: 'oneWay' | 'roundTrip';
+}
+
+interface SearchState {
+  searchData: FlightSearchData;
+  setSearchData: (data: FlightSearchData) => void;
 }
 
 const useSearchStore = create<SearchState>((set) => ({
-  origin: '',
-  destination: '',
-  date: '',
-  setOrigin: (v) => set({ origin: v }),
-  setDestination: (v) => set({ destination: v }),
-  setDate: (v) => set({ date: v })
+  searchData: {
+    origin: '',
+    destination: '',
+    departureDate: '',
+    returnDate: '',
+    passengers: 1,
+    tripType: 'oneWay'
+  },
+  setSearchData: (data) => set({ searchData: data })
 }));
 
 function fetchFlights(origin: string, destination: string, date: string) {
@@ -46,12 +55,13 @@ function fetchCrawled(limit: number) {
 }
 
 export default function Page() {
-  const { origin, destination, date, setOrigin, setDestination, setDate } = useSearchStore();
+  const { searchData, setSearchData } = useSearchStore();
   const [priceRows, setPriceRows] = useState<PriceRow[]>([]);
   const [activeTab, setActiveTab] = useState<'search' | 'crawled'>('search');
+  
   const { data: flights = [], refetch, isFetching } = useQuery({
-    queryKey: ['flights', origin, destination, date],
-    queryFn: () => fetchFlights(origin, destination, date),
+    queryKey: ['flights', searchData.origin, searchData.destination, searchData.departureDate],
+    queryFn: () => fetchFlights(searchData.origin, searchData.destination, searchData.departureDate),
     enabled: false
   });
 
@@ -61,6 +71,12 @@ export default function Page() {
     enabled: activeTab === 'crawled'
   });
 
+  const handleSearch = (data: FlightSearchData) => {
+    setSearchData(data);
+    // Trigger the search with new data
+    setTimeout(() => refetch(), 100);
+  };
+
   const handleMultiSearch = async (legs: Leg[]) => {
     const rows: PriceRow[] = [];
     for (const leg of legs) {
@@ -69,63 +85,75 @@ export default function Page() {
     }
     setPriceRows(rows);
   };
+
   return (
-    <main className="max-w-xl mx-auto p-4 space-y-4">
-      <h1 className="text-2xl font-bold mb-4 text-center">جستجوی پرواز</h1>
+    <main className="max-w-4xl mx-auto p-4 space-y-6">
+      <h1 className="text-3xl font-bold mb-6 text-center">جستجوی پرواز ایران</h1>
       <CrawlerStatusMonitor />
+      
       <div className="flex space-x-2 rtl:space-x-reverse my-4">
         <button
-          className={`flex-1 p-2 border ${activeTab === 'search' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+          className={`flex-1 p-3 border rounded-md font-medium ${activeTab === 'search' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-50'}`}
           onClick={() => setActiveTab('search')}
           data-testid="tab-search"
         >
           جستجو
         </button>
         <button
-          className={`flex-1 p-2 border ${activeTab === 'crawled' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+          className={`flex-1 p-3 border rounded-md font-medium ${activeTab === 'crawled' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-50'}`}
           onClick={() => { setActiveTab('crawled'); refetchCrawled(); }}
           data-testid="tab-crawled"
         >
           داده‌های خزیده‌شده
         </button>
       </div>
+
       {activeTab === 'search' ? (
         <>
-          <div className="space-y-2">
-            <input className="w-full p-2 border" placeholder="مبدا" value={origin} onChange={(e) => setOrigin(e.target.value)} />
-            <input className="w-full p-2 border" placeholder="مقصد" value={destination} onChange={(e) => setDestination(e.target.value)} />
-            <input type="date" className="w-full p-2 border" value={date} onChange={(e) => setDate(e.target.value)} />
-            <button className="w-full bg-blue-600 text-white p-2" onClick={() => refetch()} disabled={isFetching}>جستجو</button>
-          </div>
-          <div className="mt-4">
-            {isFetching ? 'در حال دریافت...' : (
+          <FlightSearchForm onSearch={handleSearch} />
+          
+          <div className="mt-6">
+            {isFetching ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p className="mt-2">در حال جستجو...</p>
+              </div>
+            ) : (
               flights.length ? (
-                <table className="w-full border">
-                  <thead>
-                    <tr>
-                      <th className="border p-1">شماره پرواز</th>
-                      <th className="border p-1">مبدا</th>
-                      <th className="border p-1">مقصد</th>
-                      <th className="border p-1">تاریخ</th>
-                      <th className="border p-1">قیمت</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {flights.map((f: Flight) => (
-                      <tr key={f.flight_number} className="text-center">
-                        <td className="border p-1">{f.flight_number}</td>
-                        <td className="border p-1">{f.origin}</td>
-                        <td className="border p-1">{f.destination}</td>
-                        <td className="border p-1">{f.date}</td>
-                        <td className="border p-1">{f.price}</td>
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">شماره پرواز</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">مبدا</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">مقصد</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">تاریخ</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">قیمت</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : 'نتیجه‌ای یافت نشد'
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {flights.map((f: Flight) => (
+                        <tr key={f.flight_number} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm">{f.flight_number}</td>
+                          <td className="px-4 py-3 text-sm">{f.origin}</td>
+                          <td className="px-4 py-3 text-sm">{f.destination}</td>
+                          <td className="px-4 py-3 text-sm">{f.date}</td>
+                          <td className="px-4 py-3 text-sm font-medium">{f.price?.toLocaleString()} تومان</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : searchData.origin && searchData.destination && searchData.departureDate ? (
+                <div className="text-center py-8 text-gray-500">
+                  نتیجه‌ای برای جستجوی شما یافت نشد
+                </div>
+              ) : null
             )}
           </div>
+
           <div className="mt-8">
+            <h2 className="text-xl font-semibold mb-4">جستجوی چند مسیره</h2>
             <MultiCitySearch onSearch={handleMultiSearch} />
             <PriceComparisonGrid rows={priceRows} />
           </div>

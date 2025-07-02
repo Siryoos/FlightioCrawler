@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import PersianDatePicker from './PersianDatePicker';
+import AirportSelector from './AirportSelector';
 
 export type Leg = { origin: string; destination: string; date: string };
 
@@ -19,8 +20,18 @@ export default function MultiCitySearch({ onSearch }: { onSearch: (legs: Leg[]) 
     <div className="space-y-2" data-testid="multi-city-search">
       {legs.map((leg, i) => (
         <div key={i} className="flex space-x-2 rtl:space-x-reverse">
-          <input className="p-2 border flex-1" placeholder="مبدا" value={leg.origin} onChange={(e) => updateLeg(i, 'origin', e.target.value)} />
-          <input className="p-2 border flex-1" placeholder="مقصد" value={leg.destination} onChange={(e) => updateLeg(i, 'destination', e.target.value)} />
+          <AirportSelector 
+            className="flex-1" 
+            placeholder="مبدا" 
+            value={leg.origin} 
+            onChange={(value) => updateLeg(i, 'origin', value)} 
+          />
+          <AirportSelector 
+            className="flex-1" 
+            placeholder="مقصد" 
+            value={leg.destination} 
+            onChange={(value) => updateLeg(i, 'destination', value)} 
+          />
           <PersianDatePicker value={leg.date} onChange={(v) => updateLeg(i, 'date', v)} />
         </div>
       ))}
