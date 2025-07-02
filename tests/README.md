@@ -2,7 +2,8 @@
 
 Install dependencies:
 ```
-pip install -r requirements.txt
+pip install poetry
+poetry install --with dev
 ```
 
 Run tests:

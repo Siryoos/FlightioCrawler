@@ -89,11 +89,10 @@ sudo nano /etc/redis/redis.conf
 sudo systemctl restart redis-server
 ```
 
-### مرحله ۳: نصب وابستگی‌های Python
+### مرحله ۳: نصب Poetry و وابستگی‌ها
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+pip install poetry
+poetry install --without dev
 ```
 
 ### مرحله ۴: راه‌اندازی Celery

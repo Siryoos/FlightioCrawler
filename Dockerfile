@@ -23,8 +23,11 @@ RUN groupadd -r flightio && useradd -r -g flightio flightio
 WORKDIR /app
 
 # Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+COPY pyproject.toml .
+RUN pip install poetry \
+    && poetry export --without-hashes --format=requirements.txt > requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt \
+    && rm requirements.txt \
     && playwright install chromium
 
 # Copy application code

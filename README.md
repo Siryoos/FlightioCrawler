@@ -48,15 +48,15 @@ git clone https://github.com/yourusername/FlightioCrawler.git
 cd FlightioCrawler
 ```
 
-2. Create and activate a virtual environment:
+2. Install Poetry and project dependencies:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install poetry
+poetry install --with dev
 ```
 
-3. Install dependencies:
+3. Activate the environment:
 ```bash
-pip install -r requirements.txt
+poetry shell
 ```
 
 4. Install Playwright browsers:
