@@ -1,4 +1,6 @@
 import logging
+import logging.config
+import json
 import asyncio
 import os
 from typing import Dict, List, Optional
@@ -34,15 +36,21 @@ from api.v1 import (
 )
 
 # Configure logging
-debug_mode = os.getenv("DEBUG_MODE", "0").lower() in ("1", "true", "yes")
-log_level = (
-    logging.DEBUG
-    if debug_mode
-    else getattr(logging, config.MONITORING.LOG_LEVEL.upper(), logging.INFO)
-)
-logging.basicConfig(
-    level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+if os.path.exists("config/logging_config.json"):
+    with open("config/logging_config.json", "rt") as f:
+        config_data = json.load(f)
+    logging.config.dictConfig(config_data)
+else:
+    debug_mode = os.getenv("DEBUG_MODE", "0").lower() in ("1", "true", "yes")
+    log_level = (
+        logging.DEBUG
+        if debug_mode
+        else getattr(logging, config.MONITORING.LOG_LEVEL.upper(), logging.INFO)
+    )
+    logging.basicConfig(
+        level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
 logger = logging.getLogger(__name__)
 
 # Create FastAPI app with versioning
