@@ -1,328 +1,161 @@
-import asyncio
-import logging
-from datetime import datetime
-from typing import Dict, List, Optional
-from bs4 import BeautifulSoup
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+"""
+Refactored Parto Ticket adapter using EnhancedPersianAdapter.
+"""
 
-from adapters.site_adapters.base_crawler import BaseSiteCrawler
+from typing import Dict, List, Optional, Any
+from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from adapters.site_adapters.iranian_airlines.parto_crs_adapter import PartoCRSAdapter
-from data.transformers.persian_text_processor import PersianTextProcessor
-from utils.logger import get_logger
-from utils.persian_text_processor import PersianTextProcessor
-from rate_limiter import RateLimiter
-from error_handler import ErrorHandler
-from monitoring import Monitoring
 
-logger = get_logger(__name__)
 
-class PartoTicketAdapter(PersianAirlineCrawler):
-    """Adapter for crawling parto-ticket.ir with Parto CRS integration"""
+class PartoTicketAdapter(EnhancedPersianAdapter):
+    """Parto Ticket adapter with minimal code duplication and CRS integration."""
     
-    def __init__(self, config: Dict):
-        super().__init__(config)
-        self.base_url = "https://www.parto-ticket.ir"
-        self.search_url = f"{self.base_url}/flight-search"
-        self.persian_processor = PersianTextProcessor()
-        self.rate_limiter = RateLimiter(
-            requests_per_second=config.get("rate_limiting", {}).get("requests_per_second", 2),
-            burst_limit=config.get("rate_limiting", {}).get("burst_limit", 5)
-        )
-        self.error_handler = ErrorHandler(
-            max_retries=config.get("error_handling", {}).get("max_retries", 3),
-            retry_delay=config.get("error_handling", {}).get("retry_delay", 5)
-        )
-        self.monitoring = Monitoring(config.get("monitoring", {}))
-        self.enable_crs_integration = config.get("enable_crs_integration", False)
-        self.crs_config = config.get("crs_config", {})
-        self.crs_agency_code = config.get("crs_agency_code")
-        self.crs_commission_rate = config.get("crs_commission_rate", 0)
-        self.crs_adapter = PartoCRSAdapter(config.get('crs_config', {}))
+    def _initialize_adapter(self) -> None:
+        """Initialize Parto Ticket specific components."""
+        super()._initialize_adapter()
         
+        # Parto Ticket specific CRS integration
+        self.enable_crs_integration = self.config.get("enable_crs_integration", False)
+        self.crs_config = self.config.get("crs_config", {})
+        self.crs_agency_code = self.config.get("crs_agency_code")
+        self.crs_commission_rate = self.config.get("crs_commission_rate", 0)
+        
+        if self.enable_crs_integration:
+            self.crs_adapter = PartoCRSAdapter(self.crs_config)
+    
+    def _get_base_url(self) -> str:
+        return "https://www.parto-ticket.ir"
+    
+    def _extract_currency(self, element, config: Dict[str, Any]) -> str:
+        return "IRR"
+    
+    def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
+        """
+        Parse Parto Ticket specific flight element structure.
+        
+        Uses parent class for common parsing with Iranian text processing.
+        """
+        flight_data = super()._parse_flight_element(element)
+        
+        if flight_data:
+            # Add Parto Ticket specific fields
+            config = self.config["extraction_config"]["results_parsing"]
+            
+            # Parto Ticket specific: fare conditions
+            fare_conditions = self._extract_fare_conditions(element)
+            if fare_conditions:
+                flight_data["fare_conditions"] = fare_conditions
+            
+            # Parto Ticket specific: available seats
+            available_seats = self._extract_available_seats(element)
+            if available_seats:
+                flight_data["available_seats"] = available_seats
+            
+            # Parto Ticket specific: ticket type
+            ticket_type = self._extract_text(element, config.get("ticket_type"))
+            if ticket_type:
+                flight_data["ticket_type"] = self.persian_processor.process_text(ticket_type)
+            
+            # Mark as aggregator result
+            flight_data["is_aggregator"] = True
+            flight_data["aggregator_name"] = "parto_ticket"
+        
+        return flight_data
+    
     async def crawl(self, search_params: Dict) -> List[Dict]:
         """
-        Main crawling method that orchestrates the entire process
+        Enhanced crawl method with CRS integration.
         """
-        try:
-            self.monitoring.start_request()
-            
-            # Validate search parameters
-            self._validate_search_params(search_params)
-            
-            # Initialize browser session
-            async with self._create_browser_session() as session:
-                # Navigate to search page
-                await self._navigate_to_search_page(session)
-                
-                # Fill search form
-                await self._fill_search_form(session, search_params)
-                
-                # Extract flight results
-                results = await self._extract_flight_results(session)
-                
-                # Integrate with CRS if enabled
-                if self.enable_crs_integration:
-                    results = await self._integrate_with_crs(results, search_params)
-                
-                # Validate results
-                validated_results = self._validate_results(results)
-                
-                self.monitoring.end_request(success=True)
-                return validated_results
-                
-        except Exception as e:
-            self.monitoring.end_request(success=False, error=str(e))
-            logging.error(f"Error in Parto Ticket crawler: {str(e)}")
-            return []
+        results = await super().crawl(search_params)
+        
+        # Integrate with CRS if enabled
+        if self.enable_crs_integration and results:
+            results = await self._integrate_with_crs(results, search_params)
+        
+        return results
     
-    async def _navigate_to_search_page(self, session) -> None:
-        """
-        Navigate to the flight search page
-        """
-        try:
-            await self.rate_limiter.acquire()
-            await session.navigate(self.search_url)
-            await session.wait_for_selector(self.config["extraction_config"]["search_form"]["origin_field"])
-        except Exception as e:
-            logging.error(f"Error navigating to search page: {str(e)}")
-            raise
-    
-    async def _fill_search_form(self, session, search_params: Dict) -> None:
-        """
-        Fill out the search form with the provided parameters
-        """
-        try:
-            # Convert dates to Jalali if needed
-            if self.config["persian_processing"]["jalali_calendar"]:
-                departure_date = self.persian_processor.gregorian_to_jalali(search_params["departure_date"])
-            else:
-                departure_date = search_params["departure_date"]
-
-            # Fill origin
-            await session.fill(
-                self.config["extraction_config"]["search_form"]["origin_field"],
-                search_params["origin"]
-            )
-
-            # Fill destination
-            await session.fill(
-                self.config["extraction_config"]["search_form"]["destination_field"],
-                search_params["destination"]
-            )
-
-            # Fill date
-            await session.fill(
-                self.config["extraction_config"]["search_form"]["date_field"],
-                departure_date
-            )
-
-            # Fill passengers
-            await session.select_option(
-                self.config["extraction_config"]["search_form"]["passengers_field"],
-                str(search_params["passengers"])
-            )
-
-            # Fill seat class
-            await session.select_option(
-                self.config["extraction_config"]["search_form"]["class_field"],
-                search_params["seat_class"]
-            )
-
-            # Submit form
-            await session.click("button[type='submit']")
-            await session.wait_for_selector(self.config["extraction_config"]["results_parsing"]["container"])
-
-        except Exception as e:
-            logging.error(f"Error filling search form: {str(e)}")
-            raise
-    
-    async def _extract_flight_results(self, session) -> List[Dict]:
-        """
-        Extract flight results from the search results page
-        """
-        try:
-            results = []
-            flight_elements = await session.query_selector_all(
-                self.config["extraction_config"]["results_parsing"]["container"]
-            )
-
-            for element in flight_elements:
-                flight_html = await element.inner_html()
-                flight_data = await self._parse_flight_element(flight_html)
-                if flight_data:
-                    results.append(flight_data)
-
-            return results
-
-        except Exception as e:
-            logging.error(f"Error extracting flight results: {str(e)}")
-            raise
-    
-    async def _parse_flight_element(self, flight_html: str) -> Optional[Dict]:
-        """
-        Parse individual flight element HTML into structured data
-        """
-        try:
-            # Extract basic flight information
-            airline = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["airline"])
-            flight_number = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["flight_number"])
-            departure_time = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["departure_time"])
-            arrival_time = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["arrival_time"])
-            duration = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["duration"])
-            price_text = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["price"])
-            seat_class = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["seat_class"])
-
-            # Extract additional information
-            fare_conditions = await self._extract_fare_conditions(flight_html)
-            available_seats = await self._extract_available_seats(flight_html)
-            aircraft_type = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["aircraft_type"])
-            ticket_type = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["ticket_type"])
-
-            # Process price
-            price, currency = self.persian_processor.extract_price_and_currency(price_text)
-
-            # Process duration
-            duration_minutes = self.persian_processor.parse_duration(duration)
-
-            # Create flight data dictionary
-            flight_data = {
-                "airline": airline,
-                "flight_number": flight_number,
-                "departure_time": departure_time,
-                "arrival_time": arrival_time,
-                "duration_minutes": duration_minutes,
-                "price": price,
-                "currency": currency,
-                "seat_class": seat_class,
-                "fare_conditions": fare_conditions,
-                "available_seats": available_seats,
-                "aircraft_type": aircraft_type,
-                "ticket_type": ticket_type,
-                "raw_data": flight_html
-            }
-
-            return flight_data
-
-        except Exception as e:
-            logging.error(f"Error parsing flight element: {str(e)}")
-            return None
-    
-    async def _extract_fare_conditions(self, flight_html: str) -> Dict:
-        """
-        Extract fare conditions from flight HTML
-        """
+    def _extract_fare_conditions(self, element) -> Optional[Dict]:
+        """Extract fare conditions from flight element."""
         try:
             fare_conditions = {}
-            conditions_container = await self._extract_element(flight_html, self.config["extraction_config"]["results_parsing"]["fare_conditions"])
             
-            if conditions_container:
-                fare_conditions["cancellation"] = await self._extract_text(conditions_container, ".cancellation")
-                fare_conditions["change"] = await self._extract_text(conditions_container, ".change")
-                fare_conditions["refund"] = await self._extract_text(conditions_container, ".refund")
-
-            return fare_conditions
-
+            # Extract cancellation policy
+            cancellation = self._extract_text(element, ".cancellation-policy")
+            if cancellation:
+                fare_conditions["cancellation"] = self.persian_processor.process_text(cancellation)
+            
+            # Extract change policy
+            changes = self._extract_text(element, ".change-policy")
+            if changes:
+                fare_conditions["changes"] = self.persian_processor.process_text(changes)
+            
+            # Extract baggage allowance
+            baggage = self._extract_text(element, ".baggage-allowance")
+            if baggage:
+                fare_conditions["baggage"] = self.persian_processor.process_text(baggage)
+            
+            return fare_conditions if fare_conditions else None
+            
         except Exception as e:
-            logging.error(f"Error extracting fare conditions: {str(e)}")
-            return {}
+            self.logger.error(f"Error extracting fare conditions: {e}")
+            return None
     
-    async def _extract_available_seats(self, flight_html: str) -> int:
-        """
-        Extract number of available seats from flight HTML
-        """
+    def _extract_available_seats(self, element) -> Optional[int]:
+        """Extract available seats from flight element."""
         try:
-            seats_text = await self._extract_text(flight_html, self.config["extraction_config"]["results_parsing"]["available_seats"])
+            seats_text = self._extract_text(element, ".available-seats")
             if seats_text:
                 return self.persian_processor.extract_number(seats_text)
-            return 0
-
+            return None
+            
         except Exception as e:
-            logging.error(f"Error extracting available seats: {str(e)}")
-            return 0
+            self.logger.error(f"Error extracting available seats: {e}")
+            return None
     
     async def _integrate_with_crs(self, results: List[Dict], search_params: Dict) -> List[Dict]:
-        """
-        Integrate flight results with CRS data
-        """
+        """Integrate flight results with CRS system."""
         try:
-            if not self.enable_crs_integration or not self.crs_config:
-                return results
-
-            # Get CRS data for each flight
+            enhanced_results = []
+            
             for flight in results:
+                # Get CRS data for each flight
                 crs_data = await self._get_crs_data(flight, search_params)
                 if crs_data:
                     flight.update(crs_data)
-
-            return results
-
+                
+                enhanced_results.append(flight)
+            
+            return enhanced_results
+            
         except Exception as e:
-            logging.error(f"Error integrating with CRS: {str(e)}")
+            self.logger.error(f"Error integrating with CRS: {e}")
             return results
     
     async def _get_crs_data(self, flight: Dict, search_params: Dict) -> Optional[Dict]:
-        """
-        Get additional data from CRS for a specific flight
-        """
+        """Get additional data from CRS system."""
         try:
-            # Here you would implement the actual CRS integration
-            # This is a placeholder implementation
-            return {
-                "commission": self.crs_commission_rate,
-                "fare_rules": "Standard fare rules",
-                "booking_class": "Y",
-                "fare_basis": "YEE",
-                "ticket_validity": "1 year"
-            }
-
+            if not self.crs_adapter:
+                return None
+            
+            # Query CRS for additional flight information
+            crs_results = await self.crs_adapter.crawl(search_params)
+            
+            # Match flight with CRS data
+            for crs_flight in crs_results:
+                if (crs_flight.get("flight_number") == flight.get("flight_number") and
+                    crs_flight.get("departure_time") == flight.get("departure_time")):
+                    
+                    return {
+                        "crs_booking_reference": crs_flight.get("booking_reference"),
+                        "crs_commission": self.crs_commission_rate,
+                        "crs_agency_code": self.crs_agency_code
+                    }
+            
+            return None
+            
         except Exception as e:
-            logging.error(f"Error getting CRS data: {str(e)}")
+            self.logger.error(f"Error getting CRS data: {e}")
             return None
     
-    def _validate_search_params(self, search_params: Dict) -> None:
-        """
-        Validate search parameters
-        """
-        required_fields = ["origin", "destination", "departure_date", "passengers", "seat_class"]
-        for field in required_fields:
-            if field not in search_params:
-                raise ValueError(f"Missing required search parameter: {field}")
-    
-    def _validate_results(self, results: List[Dict]) -> List[Dict]:
-        """
-        Validate flight results against configuration rules
-        """
-        validated_results = []
-        for flight in results:
-            if self._is_valid_flight(flight):
-                validated_results.append(flight)
-        return validated_results
-    
-    def _is_valid_flight(self, flight: Dict) -> bool:
-        """
-        Check if a flight result is valid according to configuration rules
-        """
-        try:
-            # Check required fields
-            for field in self.config["data_validation"]["required_fields"]:
-                if field not in flight:
-                    return False
-
-            # Check price range
-            price_range = self.config["data_validation"]["price_range"]
-            if not (price_range["min"] <= flight["price"] <= price_range["max"]):
-                return False
-
-            # Check duration range
-            duration_range = self.config["data_validation"]["duration_range"]
-            if not (duration_range["min"] <= flight["duration_minutes"] <= duration_range["max"]):
-                return False
-
-            return True
-
-        except Exception as e:
-            logging.error(f"Error validating flight: {str(e)}")
-            return False 
+    def _get_required_search_fields(self) -> List[str]:
+        return ["origin", "destination", "departure_date", "passengers", "seat_class"] 
