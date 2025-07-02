@@ -1,27 +1,30 @@
 'use client';
 
-import { useState } from 'react';
-import { 
-  ALL_AIRPORTS, 
-  POPULAR_AIRPORTS, 
-  getAirportByCode, 
+import { useState, useEffect } from 'react';
+import {
+  POPULAR_AIRPORTS,
+  loadAirports,
+  getAirportByCode,
   searchAirports,
   getAirportsByCountry,
   getTopAirportsByPassengers,
-  Airport 
+  Airport
 } from '../components/AirportData';
 
 export default function AirportsPage() {
+  const [airports, setAirports] = useState<Airport[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCountry, setFilterCountry] = useState('all');
   const [sortBy, setSortBy] = useState('name');
 
-  const popularAirports = POPULAR_AIRPORTS.map(code => getAirportByCode(code)).filter(Boolean) as Airport[];
-  
-  let filteredAirports = searchTerm ? searchAirports(searchTerm) : ALL_AIRPORTS;
-  
+  useEffect(() => { loadAirports().then(setAirports); }, []);
+
+  const popularAirports = POPULAR_AIRPORTS.map(code => getAirportByCode(airports, code)).filter(Boolean) as Airport[];
+
+  let filteredAirports = searchTerm ? searchAirports(airports, searchTerm) : airports;
+
   if (filterCountry !== 'all') {
-    filteredAirports = getAirportsByCountry(filterCountry);
+    filteredAirports = getAirportsByCountry(airports, filterCountry);
   }
 
   // Sort airports
@@ -38,8 +41,8 @@ export default function AirportsPage() {
     }
   });
 
-  const topAirports = getTopAirportsByPassengers(10);
-  const countries = Array.from(new Set(ALL_AIRPORTS.map(a => a.country).filter(Boolean))).sort();
+  const topAirports = getTopAirportsByPassengers(airports, 10);
+  const countries = Array.from(new Set(airports.map(a => a.country).filter(Boolean))).sort();
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -208,7 +211,7 @@ export default function AirportsPage() {
       {/* Results Summary */}
       <div className="mb-4">
         <p className="text-sm text-gray-600">
-          نمایش {sortedAirports.length} فرودگاه از {ALL_AIRPORTS.length} فرودگاه
+          نمایش {sortedAirports.length} فرودگاه از {airports.length} فرودگاه
           {searchTerm && ` برای "${searchTerm}"`}
           {filterCountry !== 'all' && ` در ${filterCountry}`}
         </p>
@@ -242,7 +245,7 @@ export default function AirportsPage() {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">آمار کلی</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div>
-            <div className="text-2xl font-bold text-blue-600">{ALL_AIRPORTS.length}</div>
+            <div className="text-2xl font-bold text-blue-600">{airports.length}</div>
             <div className="text-sm text-gray-600">کل فرودگاه‌ها</div>
           </div>
           <div>
@@ -251,13 +254,13 @@ export default function AirportsPage() {
           </div>
           <div>
             <div className="text-2xl font-bold text-purple-600">
-              {ALL_AIRPORTS.filter(a => a.type === 'بین‌المللی').length}
+              {airports.filter(a => a.type === 'بین‌المللی').length}
             </div>
             <div className="text-sm text-gray-600">بین‌المللی</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-orange-600">
-              {ALL_AIRPORTS.filter(a => a.passengers && a.passengers > 0).length}
+              {airports.filter(a => a.passengers && a.passengers > 0).length}
             </div>
             <div className="text-sm text-gray-600">با آمار مسافر</div>
           </div>
