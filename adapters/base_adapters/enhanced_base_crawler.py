@@ -8,6 +8,12 @@ from dataclasses import dataclass, field
 import logging
 from datetime import datetime
 import asyncio
+import gc
+import psutil
+import os
+import weakref
+from contextlib import asynccontextmanager
+import aiohttp
 
 # Make playwright imports optional
 try:
@@ -42,6 +48,28 @@ from monitoring import Monitoring
 
 
 @dataclass
+class ResourceTracker:
+    """Track resource usage for memory monitoring"""
+    browser_count: int = 0
+    context_count: int = 0
+    page_count: int = 0
+    http_session_count: int = 0
+    memory_usage_mb: float = 0.0
+    peak_memory_mb: float = 0.0
+    
+    def update_memory_usage(self):
+        """Update current memory usage"""
+        process = psutil.Process(os.getpid())
+        self.memory_usage_mb = process.memory_info().rss / 1024 / 1024
+        if self.memory_usage_mb > self.peak_memory_mb:
+            self.peak_memory_mb = self.memory_usage_mb
+
+
+# Global resource tracker
+_resource_tracker = ResourceTracker()
+
+
+@dataclass
 class CrawlerConfig:
     """Enhanced configuration with type safety"""
 
@@ -52,6 +80,7 @@ class CrawlerConfig:
     monitoring: Dict[str, Any] = field(default_factory=dict)
     extraction_config: Dict[str, Any] = field(default_factory=dict)
     data_validation: Dict[str, Any] = field(default_factory=dict)
+    resource_limits: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         # Set defaults if not provided
@@ -67,6 +96,13 @@ class CrawlerConfig:
                 "retry_delay": 5,
                 "circuit_breaker": {},
             }
+        if not self.resource_limits:
+            self.resource_limits = {
+                "max_memory_mb": 1024,
+                "max_processing_time": 300,
+                "max_concurrent_sessions": 3,
+                "enable_memory_monitoring": True
+            }
 
 
 T = TypeVar("T", bound="EnhancedBaseCrawler")
@@ -78,19 +114,21 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
 
     This class automatically handles:
     - Component initialization (rate limiter, error handler, monitoring)
-    - Browser and page management
+    - Browser and page management with memory optimization
     - Common crawling workflow
     - Error handling and logging
     - Validation
+    - Resource cleanup and memory monitoring
     - Template method pattern implementation
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], http_session: Optional[aiohttp.ClientSession] = None):
         """
         Initialize crawler with automatic component setup.
 
         Args:
             config: Configuration dictionary
+            http_session: Optional shared aiohttp session
         """
         self.config = config
         self.base_url = self._get_base_url()
@@ -101,6 +139,20 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
+        self.http_session = http_session
+        self._own_http_session = False
+        
+        # Resource tracking
+        self._cleanup_tasks: List[asyncio.Task] = []
+        self._is_closed = False
+        
+        # Memory monitoring
+        self.resource_limits = config.get("resource_limits", {})
+        self.enable_memory_monitoring = self.resource_limits.get("enable_memory_monitoring", True)
+        
+        # Register for cleanup tracking
+        if self.enable_memory_monitoring:
+            weakref.finalize(self, self._cleanup_warning)
 
         # Automatic component initialization
         self.rate_limiter = self._create_rate_limiter()
@@ -111,14 +163,20 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         # Initialize adapter-specific components
         self._initialize_adapter()
 
+    def _cleanup_warning(self):
+        """Warning for cleanup not being called properly"""
+        if not self._is_closed:
+            self.logger.warning(f"Crawler {self.__class__.__name__} was not properly closed!")
+
     async def __aenter__(self: T) -> T:
         """Async context manager entry."""
         await self._setup_browser()
+        await self._setup_http_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
-        await self._cleanup_browser()
+        await self._cleanup_all_resources()
 
     @abstractmethod
     def _get_base_url(self) -> str:
@@ -132,12 +190,42 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         """
         pass
 
+    async def _setup_http_session(self) -> None:
+        """Setup HTTP session if not provided"""
+        if not self.http_session:
+            # Optimized connector settings for memory efficiency
+            connector = aiohttp.TCPConnector(
+                limit=10,  # Total connection pool size
+                limit_per_host=5,  # Per host limit
+                ttl_dns_cache=300,  # DNS cache TTL
+                use_dns_cache=True,
+                keepalive_timeout=30,
+                enable_cleanup_closed=True
+            )
+            
+            timeout = aiohttp.ClientTimeout(total=30, connect=10)
+            
+            self.http_session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=timeout,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9,fa;q=0.8',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                }
+            )
+            self._own_http_session = True
+            _resource_tracker.http_session_count += 1
+
     async def _setup_browser(self) -> None:
-        """Setup browser and page for crawling with enhanced options."""
+        """Setup browser and page for crawling with enhanced memory optimization."""
         if not self.playwright:
             self.playwright = await async_playwright().start()
 
-            # Enhanced browser options
+            # Memory-optimized browser options
             browser_options = {
                 "headless": True,
                 "args": [
@@ -146,58 +234,232 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
                     "--disable-blink-features=AutomationControlled",
                     "--disable-web-security",
                     "--disable-features=VizDisplayCompositor",
+                    # Memory optimization flags
+                    "--memory-pressure-off",
+                    "--max_old_space_size=512",
+                    "--disable-background-timer-throttling",
+                    "--disable-renderer-backgrounding",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-ipc-flooding-protection",
+                    # Disable unnecessary features for memory saving
+                    "--disable-extensions",
+                    "--disable-plugins",
+                    "--disable-images",  # Disable image loading
+                    "--disable-javascript-harmony-shipping",
+                    "--disable-webgl",
+                    "--disable-3d-apis",
+                    "--disable-accelerated-2d-canvas",
+                    "--disable-accelerated-jpeg-decoding",
+                    "--disable-accelerated-mjpeg-decode",
+                    "--disable-accelerated-video-decode",
+                    "--disable-gpu-memory-buffer-compositor-resources",
+                    "--disable-gpu-memory-buffer-video-frames",
+                    "--disable-software-rasterizer",
+                    # Network optimizations
+                    "--aggressive-cache-discard",
+                    "--enable-low-res-tiling",
+                    "--disable-background-networking"
                 ],
             }
 
             self.browser = await self.playwright.chromium.launch(**browser_options)
+            _resource_tracker.browser_count += 1
 
-            # Enhanced context options
+            # Memory-optimized context options
             context_options = {
-                "viewport": {"width": 1920, "height": 1080},
+                "viewport": {"width": 1366, "height": 768},  # Smaller viewport
                 "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "extra_http_headers": {
-                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Language": "en-US,en;q=0.9,fa;q=0.8",
                     "Accept-Encoding": "gzip, deflate, br",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive"
                 },
                 "java_script_enabled": True,
                 "bypass_csp": True,
+                # Memory optimization settings
+                "ignore_https_errors": True,
+                "color_scheme": "light",
+                "reduced_motion": "reduce",  # Disable animations
             }
 
             self.context = await self.browser.new_context(**context_options)
+            _resource_tracker.context_count += 1
+            
+            # Block resource-heavy content types for memory optimization
+            await self.context.route("**/*", self._route_handler)
+            
             self.page = await self.context.new_page()
+            _resource_tracker.page_count += 1
 
-            # Set additional page options
-            await self.page.set_extra_http_headers(
-                {"Accept-Language": "en-US,en;q=0.9", "Cache-Control": "no-cache"}
-            )
+            # Additional page optimizations
+            await self.page.set_extra_http_headers({
+                "Accept-Language": "en-US,en;q=0.9,fa;q=0.8", 
+                "Cache-Control": "no-cache"
+            })
+            
+            # Disable resource-heavy features
+            await self.page.evaluate("""
+                // Disable animations and transitions
+                const style = document.createElement('style');
+                style.textContent = `
+                    *, *::before, *::after {
+                        animation-duration: 0.01ms !important;
+                        animation-delay: -0.01ms !important;
+                        transition-duration: 0.01ms !important;
+                        transition-delay: -0.01ms !important;
+                    }
+                `;
+                document.head.appendChild(style);
+            """)
+            
+    async def _route_handler(self, route):
+        """Handle routing to block unnecessary resources"""
+        # Block images, fonts, and other heavy resources to save memory
+        resource_type = route.request.resource_type
+        if resource_type in ['image', 'media', 'font', 'stylesheet']:
+            await route.abort()
+        else:
+            await route.continue_()
 
     async def _cleanup_browser(self) -> None:
-        """Cleanup browser resources with enhanced error handling."""
-        cleanup_tasks = []
-
+        """Enhanced browser cleanup with memory optimization."""
+        cleanup_errors = []
+        
         try:
+            # Force garbage collection before cleanup
+            if self.enable_memory_monitoring:
+                gc.collect()
+                _resource_tracker.update_memory_usage()
+            
+            # Cleanup page
             if self.page:
-                cleanup_tasks.append(self.page.close())
+                try:
+                    # Clear page cache and memory
+                    await self.page.evaluate("window.gc && window.gc()")
+                    await self.page.close()
+                    _resource_tracker.page_count -= 1
+                except Exception as e:
+                    cleanup_errors.append(f"Page cleanup error: {e}")
+                finally:
+                    self.page = None
+
+            # Cleanup context
             if self.context:
-                cleanup_tasks.append(self.context.close())
+                try:
+                    await self.context.close()
+                    _resource_tracker.context_count -= 1
+                except Exception as e:
+                    cleanup_errors.append(f"Context cleanup error: {e}")
+                finally:
+                    self.context = None
+
+            # Cleanup browser
             if self.browser:
-                cleanup_tasks.append(self.browser.close())
+                try:
+                    await self.browser.close()
+                    _resource_tracker.browser_count -= 1
+                except Exception as e:
+                    cleanup_errors.append(f"Browser cleanup error: {e}")
+                finally:
+                    self.browser = None
 
-            # Run cleanup tasks concurrently
-            if cleanup_tasks:
-                await asyncio.gather(*cleanup_tasks, return_exceptions=True)
-
+            # Cleanup playwright
             if self.playwright:
-                await self.playwright.stop()
+                try:
+                    await self.playwright.stop()
+                except Exception as e:
+                    cleanup_errors.append(f"Playwright cleanup error: {e}")
+                finally:
+                    self.playwright = None
+
+            # Log cleanup errors if any
+            if cleanup_errors:
+                self.logger.warning(f"Browser cleanup errors: {'; '.join(cleanup_errors)}")
 
         except Exception as e:
-            self.logger.warning(f"Error during browser cleanup: {e}")
+            self.logger.error(f"Critical error during browser cleanup: {e}")
         finally:
-            self.page = None
-            self.context = None
-            self.browser = None
-            self.playwright = None
+            # Force garbage collection after cleanup
+            if self.enable_memory_monitoring:
+                gc.collect()
+                _resource_tracker.update_memory_usage()
+
+    async def _cleanup_http_session(self) -> None:
+        """Cleanup HTTP session"""
+        if self.http_session and self._own_http_session:
+            try:
+                await self.http_session.close()
+                _resource_tracker.http_session_count -= 1
+            except Exception as e:
+                self.logger.warning(f"Error closing HTTP session: {e}")
+            finally:
+                self.http_session = None
+                self._own_http_session = False
+
+    async def _cleanup_all_resources(self) -> None:
+        """Cleanup all resources in proper order"""
+        if self._is_closed:
+            return
+            
+        try:
+            # Cancel any running tasks
+            for task in self._cleanup_tasks:
+                if not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+            
+            # Cleanup browser resources
+            await self._cleanup_browser()
+            
+            # Cleanup HTTP session
+            await self._cleanup_http_session()
+            
+            # Force garbage collection
+            if self.enable_memory_monitoring:
+                gc.collect()
+                _resource_tracker.update_memory_usage()
+                
+            self._is_closed = True
+            
+        except Exception as e:
+            self.logger.error(f"Error during resource cleanup: {e}")
+
+    def _check_memory_limits(self) -> None:
+        """Check if memory usage exceeds limits"""
+        if not self.enable_memory_monitoring:
+            return
+            
+        _resource_tracker.update_memory_usage()
+        max_memory = self.resource_limits.get("max_memory_mb", 1024)
+        
+        if _resource_tracker.memory_usage_mb > max_memory:
+            self.logger.warning(
+                f"Memory usage ({_resource_tracker.memory_usage_mb:.1f}MB) exceeds limit ({max_memory}MB)"
+            )
+            # Force garbage collection
+            gc.collect()
+            _resource_tracker.update_memory_usage()
+            
+            if _resource_tracker.memory_usage_mb > max_memory * 1.2:  # 20% tolerance
+                raise MemoryError(f"Memory usage ({_resource_tracker.memory_usage_mb:.1f}MB) critically exceeds limit")
+
+    def get_resource_usage(self) -> Dict[str, Any]:
+        """Get current resource usage statistics"""
+        _resource_tracker.update_memory_usage()
+        return {
+            "browser_count": _resource_tracker.browser_count,
+            "context_count": _resource_tracker.context_count,
+            "page_count": _resource_tracker.page_count,
+            "http_session_count": _resource_tracker.http_session_count,
+            "memory_usage_mb": _resource_tracker.memory_usage_mb,
+            "peak_memory_mb": _resource_tracker.peak_memory_mb,
+            "is_closed": self._is_closed
+        }
 
     def _create_rate_limiter(self) -> RateLimiter:
         """Create rate limiter from config with enhanced defaults."""
@@ -259,10 +521,17 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         """
         start_time = datetime.now()
         validated_results = []
+        
+        # Check memory limits before starting
+        self._check_memory_limits()
+        
         try:
             # Main crawling logic
             await self._run_crawling_logic(search_params)
             validated_results = await self._extract_and_validate_results()
+            
+            # Check memory usage during processing
+            self._check_memory_limits()
 
         except Exception as e:
             self.logger.error(f"Crawling failed: {e}")
@@ -270,13 +539,22 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             # Potentially re-raise or handle as per strategy
             raise
         finally:
-            # Record metrics
+            # Force garbage collection
+            if self.enable_memory_monitoring:
+                gc.collect()
+                _resource_tracker.update_memory_usage()
+            
+            # Record metrics including memory usage
             duration = (datetime.now() - start_time).total_seconds()
+            resource_usage = self.get_resource_usage()
+            
             self.monitoring.record_crawl(
                 adapter_name=self.__class__.__name__,
                 duration=duration,
                 flights_found=len(validated_results),
                 success=not self.error_handler.has_critical_error(),
+                memory_usage_mb=resource_usage["memory_usage_mb"],
+                peak_memory_mb=resource_usage["peak_memory_mb"]
             )
         return validated_results
 
@@ -475,7 +753,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         pass
 
     async def _extract_flight_results(self) -> List[Dict[str, Any]]:
-        """Extract flight results with enhanced error handling and logging."""
+        """Extract flight results with enhanced error handling and memory optimization."""
         try:
             # Get container selector from config
             extraction_config = self.config.get("extraction_config", {})
@@ -492,41 +770,57 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
 
             # Get page content
             html = await self.page.content()
-            soup = BeautifulSoup(html, "html.parser")
+            
+            # Use generator for memory-efficient parsing
+            def parse_flights_generator():
+                soup = BeautifulSoup(html, "html.parser")
+                flight_elements = soup.select(container_selector)
+                
+                if not flight_elements:
+                    self.logger.warning("No flight elements found with configured selector")
+                    return
 
-            # Find flight elements
-            flight_elements = soup.select(container_selector)
-
-            if not flight_elements:
-                self.logger.warning("No flight elements found with configured selector")
-                return []
-
-            # Parse each element
-            results = []
-            for i, element in enumerate(flight_elements):
-                try:
-                    flight_data = self._parse_flight_element(element)
-                    if flight_data:
-                        # Add metadata
-                        flight_data.update(
-                            {
+                for i, element in enumerate(flight_elements):
+                    try:
+                        flight_data = self._parse_flight_element(element)
+                        if flight_data:
+                            # Add metadata
+                            flight_data.update({
                                 "scraped_at": datetime.now().isoformat(),
                                 "source_url": self.base_url,
                                 "element_index": i,
-                            }
-                        )
-                        results.append(flight_data)
-                except Exception as e:
-                    self.logger.warning(f"Error parsing flight element {i}: {e}")
-                    continue
+                            })
+                            yield flight_data
+                    except Exception as e:
+                        self.logger.warning(f"Error parsing flight element {i}: {e}")
+                        continue
+                    
+                    # Periodic memory check and cleanup during parsing
+                    if i % 50 == 0:  # Check every 50 elements
+                        if self.enable_memory_monitoring:
+                            self._check_memory_limits()
+                            if i % 100 == 0:  # Force GC every 100 elements
+                                gc.collect()
 
-            self.logger.info(
-                f"Extracted {len(results)} flight results from {len(flight_elements)} elements"
-            )
+            # Convert generator to list (can be optimized further with streaming)
+            results = list(parse_flights_generator())
+            
+            # Clear HTML content from memory
+            html = None
+            
+            # Force garbage collection after extraction
+            if self.enable_memory_monitoring:
+                gc.collect()
+                _resource_tracker.update_memory_usage()
+
+            self.logger.info(f"Extracted {len(results)} flight results")
             return results
 
         except Exception as e:
             self.logger.error(f"Error extracting flight results: {str(e)}")
+            # Force cleanup on error
+            if self.enable_memory_monitoring:
+                gc.collect()
             raise
 
     @abstractmethod

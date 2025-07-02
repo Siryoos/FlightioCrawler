@@ -24,6 +24,7 @@ import datetime as dt
 import re
 from html import escape
 from urllib.parse import quote
+import asyncio
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -857,7 +858,8 @@ class DataManager:
             return False
 
     async def get_active_routes(self) -> List[Dict[str, Any]]:
-        """Get all active crawl routes"""
+        """Get all active crawl routes from the database."""
+        loop = asyncio.get_running_loop()
         if not self.engine:
             return []
 
@@ -867,15 +869,7 @@ class DataManager:
                 session.query(CrawlRoute).filter(CrawlRoute.is_active == True).all()
             )
 
-            return [
-                {
-                    "id": r.id,
-                    "origin": r.origin,
-                    "destination": r.destination,
-                    "created_at": r.created_at.isoformat() if r.created_at else None,
-                }
-                for r in routes
-            ]
+            return [{"origin": r.origin, "destination": r.destination, "id": r.id} for r in routes]
 
         except Exception as e:
             logger.error(f"Error getting active routes: {e}")
@@ -886,57 +880,88 @@ class DataManager:
     async def get_airports(
         self, search: str = "", country: Optional[str] = None, limit: int = 1000
     ) -> List[Dict[str, Any]]:
-        """Get airports with optional filtering"""
-        if not self.engine:
-            return []
+        """Get airports, with caching."""
+        # Generate cache key
+        cache_key = f"airports:search={search}:country={country}:limit={limit}"
+
+        # Try to get from cache first
+        if self.redis:
+            try:
+                cached_data = await self.redis.get(cache_key)
+                if cached_data:
+                    logger.info(f"Returning cached airport data for key: {cache_key}")
+                    return json.loads(cached_data)
+            except Exception as e:
+                logger.warning(f"Redis cache get failed for airports: {e}")
+
+        # If not in cache, query database
+        logger.info(f"Querying database for airports with search='{search}', country='{country}'")
+        loop = asyncio.get_running_loop()
+        with self.get_session() as db_session:
+            query = db_session.query(Airport)
+            if search:
+                search_term = f"%{search}%"
+                query = query.filter(
+                    (Airport.name.ilike(search_term)) |
+                    (Airport.city.ilike(search_term)) |
+                    (Airport.iata.ilike(search_term))
+                )
+            if country:
+                query = query.filter(Airport.country.ilike(f"%{country}%"))
+            
+            airports = await loop.run_in_executor(None, lambda: query.limit(limit).all())
+            
+            results = [
+                {
+                    "iata": a.iata,
+                    "icao": a.icao,
+                    "name": a.name,
+                    "city": a.city,
+                    "country": a.country,
+                }
+                for a in airports
+            ]
+
+        # Store in cache for future use (e.g., for 1 hour)
+        if self.redis:
+            try:
+                await self.redis.set(cache_key, json.dumps(results), ex=3600)
+                logger.info(f"Stored airport data in cache for key: {cache_key}")
+            except Exception as e:
+                logger.warning(f"Redis cache set failed for airports: {e}")
+
+        return results
+
+    async def clear_cache(self, pattern: str = "*") -> int:
+        """
+        Clear cache entries from Redis based on a key pattern.
+
+        Args:
+            pattern: The pattern to match keys against (e.g., 'airports:*', '*').
+
+        Returns:
+            The number of keys deleted.
+        """
+        if not self.redis:
+            logger.warning("Redis is not available. Cannot clear cache.")
+            return 0
 
         try:
-            # Validate inputs
-            search = InputValidator.sanitize_string(search, 100)
-            if country:
-                country = InputValidator.sanitize_string(country, 100)
-            limit = InputValidator.validate_positive_integer(limit, 1, 10000)
-
-            session = self.get_session()
-            try:
-                query = session.query(Airport)
-
-                if search:
-                    search_term = f"%{search}%"
-                    query = query.filter(
-                        (Airport.name.ilike(search_term))
-                        | (Airport.city.ilike(search_term))
-                        | (Airport.iata.ilike(search_term))
-                        | (Airport.icao.ilike(search_term))
-                    )
-
-                if country:
-                    query = query.filter(Airport.country.ilike(f"%{country}%"))
-
-                airports = query.limit(limit).all()
-
-                return [
-                    {
-                        "id": a.id,
-                        "iata": a.iata,
-                        "icao": a.icao,
-                        "name": a.name,
-                        "city": a.city,
-                        "country": a.country,
-                        "type": a.type,
-                    }
-                    for a in airports
-                ]
-
-            finally:
-                session.close()
-
+            keys_to_delete = [key async for key in self.redis.scan_iter(match=pattern)]
+            if not keys_to_delete:
+                logger.info(f"No keys found matching pattern '{pattern}' to delete.")
+                return 0
+            
+            deleted_count = await self.redis.delete(*keys_to_delete)
+            logger.info(f"Deleted {deleted_count} keys from cache matching pattern '{pattern}'.")
+            return deleted_count
         except Exception as e:
-            logger.error(f"Error getting airports: {e}")
-            return []
+            logger.error(f"Failed to clear cache with pattern '{pattern}': {e}")
+            return 0
 
     async def get_countries(self) -> List[str]:
-        """Get list of countries from airports"""
+        """Get a distinct list of countries from the airports table."""
+        loop = asyncio.get_running_loop()
         if not self.engine:
             return []
 

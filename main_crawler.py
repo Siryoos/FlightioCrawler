@@ -60,16 +60,17 @@ class FlightData:
 class IranianFlightCrawler:
     """Main crawler orchestrator using AdapterFactory for all flight booking sites"""
 
-    def __init__(self, max_concurrent_crawls: int = 5) -> None:
+    def __init__(self, http_session: Optional[Any] = None, max_concurrent_crawls: int = 5) -> None:
         # Initialize core components
         self.monitor: CrawlerMonitor = CrawlerMonitor()
         self.error_handler: ErrorHandler = ErrorHandler()
         self.data_manager: DataManager = DataManager()
         self.rate_limiter: RateLimiter = RateLimiter()
         self.text_processor: PersianTextProcessor = PersianTextProcessor()
+        self.http_session = http_session
 
         # Initialize adapter factory
-        self.adapter_factory: AdapterFactory = AdapterFactory()
+        self.adapter_factory: AdapterFactory = AdapterFactory(http_session=self.http_session)
 
         # Initialize advanced features
         self.intelligent_search: IntelligentSearchEngine = IntelligentSearchEngine(
@@ -275,6 +276,10 @@ class IranianFlightCrawler:
         await asyncio.gather(*self.active_tasks, return_exceptions=True)
         self.active_tasks.clear()
         logger.info("All active tasks have been cancelled.")
+
+    def is_site_enabled(self, site_name: str) -> bool:
+        """Check if a site is enabled for crawling."""
+        return site_name in self.enabled_sites
 
     def get_health_status(self) -> Dict[str, Any]:
         """Get health status of the crawler and its components"""

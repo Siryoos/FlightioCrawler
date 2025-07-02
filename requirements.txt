@@ -20,6 +20,9 @@ jdatetime>=3.7.0
 # Monitoring and Logging
 prometheus-client>=0.14.1
 python-json-logger>=2.0.2
+psutil>=5.9.0
+memory-profiler>=0.61.0
+line-profiler>=4.0.0
 
 # Machine Learning
 scikit-learn>=1.0.2

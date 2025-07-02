@@ -203,9 +203,10 @@ class AdapterFactory:
     - Adapter validation
     """
 
-    def __init__(self, config_dir: str = "config/site_configs"):
+    def __init__(self, http_session: Optional[Any] = None, config_dir: str = "config/site_configs"):
         self.registry = AdapterRegistry()
         self.config_manager = ConfigurationManager(config_dir)
+        self.http_session = http_session
         self._initialize_adapters()
 
     def _initialize_adapters(self) -> None:
@@ -581,56 +582,48 @@ class AdapterFactory:
         self, name: str, config: Optional[Dict[str, Any]] = None
     ) -> EnhancedBaseCrawler:
         """
-        Create an adapter instance by name.
+        Create an adapter instance with merged configuration.
 
         Args:
-            name: Adapter name (e.g., 'lufthansa', 'iran_air')
-            config: Optional configuration override
+            name: Name of the adapter
+            config: Optional override configuration
 
         Returns:
-            Adapter instance
+            An instance of the requested adapter.
 
         Raises:
-            ValueError: If adapter not found
+            ValueError: If the adapter is not found.
         """
+        normalized_name = name.lower().replace("-", "_").replace(" ", "_")
+
+        # Load configuration
+        adapter_class = self.registry.get(normalized_name)
+        if not adapter_class:
+            similar = self._find_similar_adapters(normalized_name)
+            if similar:
+                raise ValueError(
+                    f"Adapter '{name}' not found. Did you mean one of: {', '.join(similar)}?"
+                )
+            raise ValueError(f"Adapter '{name}' not found.")
+
+        # Merge configurations
+        base_config = self.config_manager.load_config(normalized_name)
+        final_config = ConfigurationHelper.merge_config(base_config, config or {})
+
         try:
-            adapter_class = self.registry.get(name)
-
-            if not adapter_class:
-                # Try to find similar adapter names
-                similar = self._find_similar_adapters(name)
-                if similar:
-                    suggestion = f" Did you mean: {', '.join(similar[:3])}?"
-                else:
-                    suggestion = f" Available adapters: {', '.join(self.registry.list_adapters()[:5])}"
-
-                raise ValueError(f"Adapter '{name}' not found.{suggestion}")
-
-            # Get default configuration
-            default_config = self.registry.get_config(name)
-
-            # Merge with provided config
-            if config:
-                final_config = ConfigurationHelper.merge_config(default_config, config)
-            else:
-                final_config = default_config
-
-            # Validate configuration
-            errors = ConfigurationHelper.validate_config(final_config)
-            if errors:
-                logger.warning(f"Configuration issues for {name}: {errors}")
-
-            # Create adapter instance
-            adapter = adapter_class(final_config)
-
-            logger.info(f"Created adapter: {name}")
-            return adapter
-
+            # Pass http_session to the adapter's constructor
+            return adapter_class(config=final_config, http_session=self.http_session)
+        except TypeError:
+            # Fallback for adapters that don't accept http_session
+            logger.warning(f"Adapter '{name}' does not accept 'http_session' argument. "
+                           f"Consider updating its constructor.")
+            return adapter_class(config=final_config)
         except Exception as e:
-            error_report = ErrorReportingHelper.create_error_report(
-                "AdapterFactory", e, {"adapter_name": name}
+            ErrorReportingHelper.report_error(
+                "adapter_creation",
+                f"Failed to create adapter '{name}': {e}",
+                adapter_name=name,
             )
-            ErrorReportingHelper.log_error_report(error_report, logger)
             raise
 
     def _find_similar_adapters(self, name: str) -> List[str]:

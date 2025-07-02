@@ -9,6 +9,9 @@ import asyncio
 from dataclasses import dataclass
 from config import config
 from error_handler import ErrorHandler
+import psutil
+import gc
+import os
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -62,6 +65,34 @@ class CrawlerMonitor:
             )
         except Exception:
             self.redis = None
+        
+        # Memory monitoring setup
+        self.process = psutil.Process(os.getpid())
+
+    def get_memory_usage(self) -> Dict[str, Any]:
+        """Get current memory usage of the application."""
+        mem_info = self.process.memory_info()
+        return {
+            "rss_mb": mem_info.rss / (1024 * 1024),
+            "vms_mb": mem_info.vms / (1024 * 1024),
+            "percent": self.process.memory_percent(),
+            "gc_stats": gc.get_stats(),
+            "gc_objects": len(gc.get_objects()),
+        }
+
+    async def log_memory_usage_periodically(self, interval_seconds: int = 60):
+        """Periodically log memory usage metrics."""
+        while True:
+            try:
+                memory_usage = self.get_memory_usage()
+                logger.info(f"Memory Usage: RSS {memory_usage['rss_mb']:.2f} MB, "
+                            f"VMS {memory_usage['vms_mb']:.2f} MB, "
+                            f"GC Objects: {memory_usage['gc_objects']}")
+                # Here you could also send these metrics to a monitoring system like Prometheus
+            except Exception as e:
+                logger.error(f"Failed to log memory usage: {e}")
+            
+            await asyncio.sleep(interval_seconds)
 
     def record_request(self, domain: str, duration: float) -> None:
         """Record request metrics"""

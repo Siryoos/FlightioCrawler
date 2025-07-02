@@ -3,7 +3,7 @@ import asyncio
 import os
 from typing import Dict, List, Optional
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, WebSocket, Header, Query, Depends
+from fastapi import FastAPI, HTTPException, WebSocket, Header, Query, Depends, Security
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +18,8 @@ from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 from provider_insights import get_provider_insights
 from rate_limiter import RateLimitMiddleware, RateLimitManager, get_rate_limit_manager
+import aiohttp
+from fastapi.security import APIKeyHeader
 
 # Configure logging
 debug_mode = os.getenv("DEBUG_MODE", "0").lower() in ("1", "true", "yes")
@@ -38,6 +40,47 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# For simplicity, API_KEY is stored here. In production, use environment variables.
+API_KEY = os.getenv("ADMIN_API_KEY", "your-secret-api-key")
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
+async def get_api_key(api_key: str = Security(api_key_header)):
+    """Dependency to validate the API key."""
+    if api_key == API_KEY:
+        return api_key
+    else:
+        raise HTTPException(
+            status_code=403, detail="Could not validate credentials"
+        )
+
+@app.on_event("startup")
+async def startup_event():
+    """Application startup event."""
+    # Create a single aiohttp.ClientSession for the application
+    app.state.http_session = aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=60)
+    )
+    # Create crawler instance and pass the session
+    app.state.crawler = IranianFlightCrawler(http_session=app.state.http_session)
+    app.state.monitor = CrawlerMonitor()
+    
+    # Start background tasks
+    asyncio.create_task(app.state.monitor.log_memory_usage_periodically(interval_seconds=60))
+    
+    logger.info("Application startup complete. Crawler and HTTP session initialized.")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown event."""
+    logger.info("Application shutting down...")
+    # Gracefully close the crawler's active tasks
+    if hasattr(app.state, 'crawler') and app.state.crawler:
+        await app.state.crawler.shutdown()
+    # Close the shared aiohttp session
+    if hasattr(app.state, 'http_session') and not app.state.http_session.closed:
+        await app.state.http_session.close()
+    logger.info("Shutdown complete.")
+
 # Add rate limiting middleware
 rate_limit_middleware = RateLimitMiddleware(
     app=app, enable_ip_whitelist=True, enable_user_type_limits=True
@@ -56,12 +99,16 @@ app.add_middleware(
 # Mount UI static files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 
-# Create crawler instance
-crawler = IranianFlightCrawler()
+# Dependency to get the crawler instance
+async def get_crawler() -> IranianFlightCrawler:
+    if not hasattr(app.state, 'crawler') or not app.state.crawler:
+        raise HTTPException(status_code=503, detail="Crawler is not available")
+    return app.state.crawler
 
-# Create monitor instance
-monitor = CrawlerMonitor()
-
+async def get_monitor() -> CrawlerMonitor:
+    if not hasattr(app.state, 'monitor') or not app.state.monitor:
+        raise HTTPException(status_code=503, detail="Monitor is not available")
+    return app.state.monitor
 
 # Request models
 class SearchRequest(BaseModel):
@@ -132,6 +179,10 @@ class RateLimitResetRequest(BaseModel):
     endpoint_type: Optional[str] = None
 
 
+class CacheClearRequest(BaseModel):
+    pattern: str = Query("*", description="The key pattern to clear (e.g., 'airports:*'). Defaults to all keys.")
+
+
 # API endpoints
 @app.get("/")
 async def root():
@@ -140,7 +191,7 @@ async def root():
 
 
 @app.post("/search", response_model=SearchResponse)
-async def search_flights(request: SearchRequest, accept_language: str = Header("en")):
+async def search_flights(request: SearchRequest, accept_language: str = Header("en"), crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Search flights endpoint"""
     try:
         # Search flights
@@ -167,7 +218,7 @@ async def search_flights(request: SearchRequest, accept_language: str = Header("
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check(crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Health check endpoint"""
     try:
         # Get health status
@@ -187,7 +238,7 @@ async def health_check():
 
 
 @app.get("/metrics")
-async def get_metrics():
+async def get_metrics(monitor: CrawlerMonitor = Depends(get_monitor)):
     """Get metrics endpoint"""
     try:
         # Get all metrics
@@ -201,7 +252,7 @@ async def get_metrics():
 
 
 @app.get("/stats")
-async def get_stats():
+async def get_stats(crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Get stats endpoint"""
     try:
         # Use available stats methods
@@ -218,7 +269,7 @@ async def get_stats():
 
 
 @app.post("/reset")
-async def reset_stats():
+async def reset_stats(crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Reset stats endpoint"""
     try:
         # Reset all stats
@@ -235,7 +286,7 @@ async def reset_stats():
 
 
 @app.get("/flights/recent")
-async def recent_flights(limit: int = 100):
+async def recent_flights(limit: int = 100, crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Return recently crawled flights"""
     try:
         flights = crawler.data_manager.get_recent_flights(limit)
@@ -246,110 +297,118 @@ async def recent_flights(limit: int = 100):
 
 
 @app.post("/alerts")
-async def add_price_alert(alert: PriceAlertRequest):
+async def add_price_alert(alert: PriceAlertRequest, crawler: IranianFlightCrawler = Depends(get_crawler)):
     alert_id = await crawler.price_monitor.add_price_alert(PriceAlert(**alert.dict()))
-    return {"alert_id": alert_id}
+    return {"message": "Alert added successfully", "alert_id": alert_id}
 
 
 @app.delete("/alerts/{alert_id}")
-async def delete_price_alert(alert_id: str):
-    removed = await crawler.price_monitor.remove_price_alert(alert_id)
-    return {"removed": removed}
+async def delete_price_alert(alert_id: str, crawler: IranianFlightCrawler = Depends(get_crawler)):
+    success = await crawler.price_monitor.delete_price_alert(alert_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"message": "Alert deleted successfully"}
 
 
 @app.get("/alerts")
-async def list_price_alerts():
-    alerts = await crawler.price_monitor.get_active_alerts()
+async def list_price_alerts(crawler: IranianFlightCrawler = Depends(get_crawler)):
+    alerts = await crawler.price_monitor.get_all_alerts()
     return {"alerts": alerts}
 
 
 @app.post("/monitor/start")
-async def start_monitoring(req: MonitorRequest):
+async def start_monitoring(req: MonitorRequest, crawler: IranianFlightCrawler = Depends(get_crawler)):
     await crawler.price_monitor.start_monitoring(req.routes, req.interval_minutes)
-    routes = await crawler.price_monitor.get_monitored_routes()
-    return {"monitoring": routes}
+    return {"message": "Monitoring started"}
 
 
 @app.post("/monitor/stop")
-async def stop_monitoring(req: StopMonitorRequest):
+async def stop_monitoring(req: StopMonitorRequest, crawler: IranianFlightCrawler = Depends(get_crawler)):
     await crawler.price_monitor.stop_monitoring(req.routes)
-    routes = await crawler.price_monitor.get_monitored_routes()
-    return {"monitoring": routes}
+    return {"message": "Monitoring stopped"}
 
 
 @app.get("/monitor/status")
-async def monitor_status():
-    routes = await crawler.price_monitor.get_monitored_routes()
-    return {"monitoring": routes}
+async def monitor_status(crawler: IranianFlightCrawler = Depends(get_crawler)):
+    status = crawler.price_monitor.get_monitoring_status()
+    return {"status": status}
 
 
 @app.post("/routes")
-async def add_route(req: RouteRequest):
+async def add_route(req: RouteRequest, crawler: IranianFlightCrawler = Depends(get_crawler)):
     route_id = await crawler.data_manager.add_crawl_route(req.origin, req.destination)
-    routes = await crawler.data_manager.get_active_routes()
-    return {"id": route_id, "routes": routes}
+    return {"message": "Route added successfully", "route_id": route_id}
 
 
 @app.get("/routes")
-async def list_routes():
+async def list_routes(crawler: IranianFlightCrawler = Depends(get_crawler)):
     routes = await crawler.data_manager.get_active_routes()
     return {"routes": routes}
 
 
 @app.get("/airports")
-async def list_airports(q: str = "", country: str = "", limit: int = 1000):
-    airports = await crawler.data_manager.get_airports(q, country or None, limit)
+async def list_airports(q: str = "", country: str = "", limit: int = 1000, crawler: IranianFlightCrawler = Depends(get_crawler)):
+    airports = await crawler.data_manager.get_airports(q, country, limit)
     return {"airports": airports}
 
 
 @app.get("/airports/countries")
-async def list_countries():
+async def list_countries(crawler: IranianFlightCrawler = Depends(get_crawler)):
     countries = await crawler.data_manager.get_countries()
     return {"countries": countries}
 
 
 @app.delete("/routes/{route_id}")
-async def delete_route(route_id: int):
-    removed = await crawler.data_manager.delete_crawl_route(route_id)
-    routes = await crawler.data_manager.get_active_routes()
-    return {"removed": removed, "routes": routes}
+async def delete_route(route_id: int, crawler: IranianFlightCrawler = Depends(get_crawler)):
+    success = await crawler.data_manager.delete_crawl_route(route_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Route not found")
+    return {"message": "Route deleted successfully"}
 
 
 @app.post("/crawl")
-async def manual_crawl(req: CrawlRequest):
-    """Manually crawl selected routes and dates"""
-    results = {}
-    for d in req.dates:
-        flights = await crawler.crawl_all_sites(
-            {
-                "origin": req.origin,
-                "destination": req.destination,
-                "departure_date": d,
-                "passengers": req.passengers,
-                "seat_class": req.seat_class,
-            }
-        )
-        results[d] = flights
-    return {"results": results, "timestamp": datetime.now().isoformat()}
+async def manual_crawl(req: CrawlRequest, crawler: IranianFlightCrawler = Depends(get_crawler)):
+    all_flights = []
+    for date in req.dates:
+        flights = await crawler.crawl_all_sites({
+            "origin": req.origin,
+            "destination": req.destination,
+            "departure_date": date,
+            "passengers": req.passengers,
+            "seat_class": req.seat_class,
+        })
+        all_flights.extend(flights)
+    return {"flights": all_flights}
 
 
 @app.get("/trend/{route}")
-async def price_trend(route: str, days: int = 30):
-    return await crawler.price_monitor.generate_price_trend_chart(route, days)
+async def price_trend(route: str, days: int = 30, crawler: IranianFlightCrawler = Depends(get_crawler)):
+    trend = await crawler.data_manager.get_historical_prices(route, days)
+    return {"trend": trend}
 
 
 @app.websocket("/ws/prices/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await crawler.price_monitor.websocket_manager.connect(websocket, user_id)
+    # This needs access to the PriceMonitor's WebSocketManager
+    # which is part of the crawler. We can't use Depends in WebSockets.
+    crawler: IranianFlightCrawler = app.state.crawler
+    await crawler.price_monitor.websocket_manager.connect(user_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        crawler.price_monitor.websocket_manager.disconnect(user_id)
 
 
 @app.post("/predict")
-async def predict_prices(route: str, dates: List[str]):
-    return await crawler.ml_predictor.predict_future_prices(route, dates)
+async def predict_prices(route: str, dates: List[str], crawler: IranianFlightCrawler = Depends(get_crawler)):
+    predictions = await crawler.ml_predictor.predict_prices(route, dates)
+    return {"predictions": predictions}
 
 
 @app.post("/search/intelligent")
 async def intelligent_search(
+    crawler: IranianFlightCrawler = Depends(get_crawler),
     origin: str = Query(...),
     destination: str = Query(...),
     date: str = Query(...),
@@ -358,50 +417,39 @@ async def intelligent_search(
     date_range_days: int = Query(3),
 ):
     """Intelligent search endpoint"""
-    try:
-        search_params = {
-            "origin": origin,
-            "destination": destination,
-            "departure_date": date,
-        }
-        optimization = SearchOptimization(
-            enable_multi_route=enable_multi_route,
-            enable_date_range=enable_date_range,
-            date_range_days=date_range_days,
-        )
-        results = await crawler.intelligent_search_flights(search_params, optimization)
-        return {"results": results, "timestamp": datetime.now().isoformat()}
-    except Exception as e:
-        logger.error(f"Error in intelligent search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    optimization = SearchOptimization(
+        enable_multi_route=enable_multi_route,
+        enable_date_range=enable_date_range,
+        date_range_days=date_range_days,
+    )
+    results = await crawler.intelligent_search_flights({
+        "origin": origin,
+        "destination": destination,
+        "departure_date": date,
+    }, optimization)
+    return results
 
 
 @app.get("/api/v1/sites/status")
-async def get_all_sites_status():
-    """Get detailed status for all configured sites"""
-    sites_status = {}
-    for site_name, crawler_instance in crawler.crawlers.items():
-        sites_status[site_name] = {
-            "domain": site_name,
-            "base_url": getattr(crawler_instance, "base_url", ""),
-            "link": getattr(crawler_instance, "base_url", ""),
-            "enabled": site_name in crawler.enabled_sites,
-            "is_active": await crawler.error_handler.can_make_request(site_name),
-            "circuit_breaker_state": crawler.error_handler.get_circuit_state(site_name),
-            "rate_limit_status": {
-                "can_request": not crawler.rate_limiter.is_rate_limited(site_name),
-                "requests_remaining": crawler.rate_limiter.get_remaining_requests(
-                    site_name
-                ),
-                "reset_time": crawler.rate_limiter.get_reset_time(site_name),
-            },
-            "last_error": crawler.error_handler.get_last_error(site_name),
-            "last_successful_crawl": monitor.get_last_success(site_name),
-            "total_requests_today": monitor.get_request_count(site_name),
-            "success_rate_24h": monitor.get_success_rate(site_name),
-            "avg_response_time": monitor.get_avg_response_time(site_name),
-        }
-    return {"sites": sites_status, "timestamp": datetime.now().isoformat()}
+async def get_all_sites_status(crawler: IranianFlightCrawler = Depends(get_crawler)):
+    """Get status for all configured sites"""
+    status_data = {}
+    for site_name in crawler.get_available_adapters():
+        try:
+            adapter_info = crawler.get_adapter_info(site_name)
+            error_stats = crawler.error_handler.get_stats(site_name)
+            status_data[site_name] = {
+                "enabled": crawler.is_site_enabled(site_name),
+                "circuit_breaker_open": crawler.error_handler.is_circuit_open(site_name),
+                "error_rate": error_stats.get("error_rate", 0),
+                "success_rate": error_stats.get("success_rate", 1),
+                "total_requests": error_stats.get("total_requests", 0),
+                "last_error_time": error_stats.get("last_error_time"),
+                "config": adapter_info
+            }
+        except Exception as e:
+            status_data[site_name] = {"error": str(e)}
+    return status_data
 
 
 @app.get("/modules/{module_name}", response_class=PlainTextResponse)
@@ -430,8 +478,8 @@ async def get_module_source(module_name: str):
 
 
 @app.post("/api/v1/sites/{site_name}/test")
-async def test_individual_site(site_name: str, search_request: SearchRequest):
-    """Test a specific site crawler with given parameters"""
+async def test_individual_site(site_name: str, search_request: SearchRequest, crawler: IranianFlightCrawler = Depends(get_crawler)):
+    """Test a single site adapter with a given search request"""
     if site_name not in crawler.crawlers:
         raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
     start_time = datetime.now()
@@ -468,7 +516,7 @@ async def test_individual_site(site_name: str, search_request: SearchRequest):
 
 
 @app.get("/api/v1/sites/{site_name}/health")
-async def check_site_health(site_name: str):
+async def check_site_health(site_name: str, crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Comprehensive health check for individual site"""
     if site_name not in crawler.crawlers:
         raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
@@ -480,8 +528,6 @@ async def check_site_health(site_name: str):
         "timestamp": datetime.now().isoformat(),
     }
     try:
-        import aiohttp
-
         async with aiohttp.ClientSession() as session:
             start_time = datetime.now()
             async with session.get(base_url, timeout=10) as response:
@@ -512,7 +558,7 @@ async def check_site_health(site_name: str):
 
 
 @app.post("/api/v1/sites/{site_name}/reset")
-async def reset_site_errors(site_name: str):
+async def reset_site_errors(site_name: str, crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Reset error state and circuit breaker for a site"""
     if site_name not in crawler.crawlers:
         raise HTTPException(status_code=404, detail=f"Site {site_name} not found")
@@ -522,7 +568,7 @@ async def reset_site_errors(site_name: str):
 
 
 @app.post("/api/v1/sites/{site_name}/enable")
-async def enable_site_api(site_name: str):
+async def enable_site_api(site_name: str, crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Enable crawling for a site"""
     if crawler.enable_site(site_name):
         return {"site": site_name, "enabled": True}
@@ -530,7 +576,7 @@ async def enable_site_api(site_name: str):
 
 
 @app.post("/api/v1/sites/{site_name}/disable")
-async def disable_site_api(site_name: str):
+async def disable_site_api(site_name: str, crawler: IranianFlightCrawler = Depends(get_crawler)):
     """Disable crawling for a site"""
     if crawler.disable_site(site_name):
         return {"site": site_name, "enabled": False}
@@ -784,6 +830,23 @@ async def check_ip_whitelist_status(
     except Exception as e:
         logger.error(f"Error checking IP whitelist status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/cache/clear")
+async def clear_cache_endpoint(
+    request: CacheClearRequest,
+    crawler: IranianFlightCrawler = Depends(get_crawler),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Clear cache entries in Redis based on a pattern.
+    Requires a valid API key.
+    """
+    deleted_count = await crawler.data_manager.clear_cache(request.pattern)
+    return {
+        "message": f"Cache clear command executed for pattern: '{request.pattern}'.",
+        "keys_deleted": deleted_count
+    }
 
 
 # Run app
