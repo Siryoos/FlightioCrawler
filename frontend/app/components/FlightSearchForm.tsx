@@ -1,34 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import React from 'react';
+import dynamic from 'next/dynamic';
 import AirportSelector from './AirportSelector';
-import PersianDatePicker from './PersianDatePicker';
-import { Airport, getAirportByCode } from './AirportData';
+import { useSearchStore } from '../stores/searchStore';
+import { getAirportByCode } from './AirportData'; // Assuming this function exists and works with the store data
 
-interface FlightSearchData {
-  origin: string;
-  destination: string;
-  departureDate: string;
-  returnDate?: string;
-  passengers: number;
-  tripType: 'oneWay' | 'roundTrip';
-}
+const PersianDatePicker = dynamic(() => import('./PersianDatePicker'), {
+  ssr: false,
+  loading: () => <div className="w-full h-10 bg-gray-200 rounded-md animate-pulse"></div>
+});
 
 interface FlightSearchFormProps {
-  onSearch?: (data: FlightSearchData) => void;
+  onSearch?: (data: any) => void; // Simplified for refactoring
 }
 
 export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {}) {
-  const [origin, setOrigin] = useState<string>('MHD'); // مشهد
-  const [destination, setDestination] = useState<string>('IST'); // استانبول
-  const [departureDate, setDepartureDate] = useState('');
-  const [returnDate, setReturnDate] = useState('');
-  const [tripType, setTripType] = useState<'oneWay' | 'roundTrip'>('roundTrip');
-  const [passengers, setPassengers] = useState({
-    adults: 1,
-    children: 0,
-    infants: 0
-  });
+  const {
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    tripType,
+    passengers,
+    setField,
+    setTripType,
+    setPassengers,
+  } = useSearchStore();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,17 +35,17 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
         origin,
         destination,
         departureDate,
-        returnDate,
+        returnDate: tripType === 'roundTrip' ? returnDate : undefined,
         passengers: passengers.adults + passengers.children + passengers.infants,
-        tripType
+        tripType,
       });
     }
   };
 
   const swapAirports = () => {
     const temp = origin;
-    setOrigin(destination);
-    setDestination(temp);
+    setField('origin', destination);
+    setField('destination', temp);
   };
 
   return (
@@ -56,14 +54,15 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
       
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Trip Type */}
-        <div className="flex justify-center space-x-6 space-x-reverse">
+        <fieldset className="flex justify-center space-x-6 space-x-reverse">
+          <legend className="sr-only">نوع سفر</legend>
           <label className="flex items-center">
             <input
               type="radio"
               name="tripType"
               value="oneWay"
               checked={tripType === 'oneWay'}
-              onChange={(e) => setTripType(e.target.value as 'oneWay')}
+              onChange={() => setTripType('oneWay')}
               className="mr-2"
             />
             <span>یک‌طرفه</span>
@@ -74,22 +73,22 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
               name="tripType"
               value="roundTrip"
               checked={tripType === 'roundTrip'}
-              onChange={(e) => setTripType(e.target.value as 'roundTrip')}
+              onChange={() => setTripType('roundTrip')}
               className="mr-2"
             />
             <span>رفت و برگشت</span>
           </label>
-        </div>
+        </fieldset>
 
         {/* Origin and Destination */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="origin-selector" className="block text-sm font-medium text-gray-700 mb-2">
               مبدا
             </label>
             <AirportSelector
               value={origin}
-              onChange={setOrigin}
+              onChange={(value) => setField('origin', value)}
               placeholder="انتخاب فرودگاه مبدا"
             />
           </div>
@@ -101,18 +100,19 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
               onClick={swapAirports}
               className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors"
               title="تعویض مبدا و مقصد"
+              aria-label="تعویض مبدا و مقصد"
             >
               ⇄
             </button>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="destination-selector" className="block text-sm font-medium text-gray-700 mb-2">
               مقصد
             </label>
             <AirportSelector
               value={destination}
-              onChange={setDestination}
+              onChange={(value) => setField('destination', value)}
               placeholder="انتخاب فرودگاه مقصد"
             />
           </div>
@@ -121,37 +121,39 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
         {/* Dates */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="departure-date-picker" className="block text-sm font-medium text-gray-700 mb-2">
               تاریخ رفت
             </label>
             <PersianDatePicker
               value={departureDate}
-              onChange={setDepartureDate}
+              onChange={(date) => setField('departureDate', date)}
             />
           </div>
 
           {tripType === 'roundTrip' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="return-date-picker" className="block text-sm font-medium text-gray-700 mb-2">
                 تاریخ برگشت
               </label>
               <PersianDatePicker
                 value={returnDate}
-                onChange={setReturnDate}
+                onChange={(date) => setField('returnDate', date)}
               />
             </div>
           )}
         </div>
 
         {/* Passengers */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <fieldset className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <legend className="sr-only">تعداد مسافران</legend>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="adult-passengers" className="block text-sm font-medium text-gray-700 mb-2">
               بزرگسال
             </label>
             <select
+              id="adult-passengers"
               value={passengers.adults}
-              onChange={(e) => setPassengers(prev => ({ ...prev, adults: parseInt(e.target.value) }))}
+              onChange={(e) => setPassengers({ adults: parseInt(e.target.value) })}
               className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
@@ -161,12 +163,13 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="child-passengers" className="block text-sm font-medium text-gray-700 mb-2">
               کودک (۲-۱۱ سال)
             </label>
             <select
+              id="child-passengers"
               value={passengers.children}
-              onChange={(e) => setPassengers(prev => ({ ...prev, children: parseInt(e.target.value) }))}
+              onChange={(e) => setPassengers({ children: parseInt(e.target.value) })}
               className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(num => (
@@ -176,12 +179,13 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="infant-passengers" className="block text-sm font-medium text-gray-700 mb-2">
               نوزاد (زیر ۲ سال)
             </label>
             <select
+              id="infant-passengers"
               value={passengers.infants}
-              onChange={(e) => setPassengers(prev => ({ ...prev, infants: parseInt(e.target.value) }))}
+              onChange={(e) => setPassengers({ infants: parseInt(e.target.value) })}
               className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {[0, 1, 2, 3, 4].map(num => (
@@ -189,7 +193,7 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
               ))}
             </select>
           </div>
-        </div>
+        </fieldset>
 
         {/* Submit Button */}
         <button

@@ -12,6 +12,16 @@ from error_handler import ErrorHandler
 import psutil
 import gc
 import os
+from prometheus_client import (
+    Counter,
+    Histogram,
+    Gauge,
+    Summary,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    multiprocess,
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -69,6 +79,79 @@ class CrawlerMonitor:
         # Memory monitoring setup
         self.process = psutil.Process(os.getpid())
 
+        # Initialize Prometheus metrics
+        self._init_prometheus_metrics()
+
+    def _init_prometheus_metrics(self):
+        """Initialize Prometheus metrics"""
+        # Request metrics
+        self.crawler_requests_total = Counter(
+            "crawler_requests_total", "Total requests by crawler", ["site", "status"]
+        )
+
+        self.crawler_duration_seconds = Histogram(
+            "crawler_duration_seconds",
+            "Request duration by crawler",
+            ["site"],
+            buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0],
+        )
+
+        self.crawler_response_size_bytes = Histogram(
+            "crawler_response_size_bytes",
+            "Response size by crawler",
+            ["site"],
+            buckets=[100, 1000, 10000, 100000, 1000000],
+        )
+
+        # Error metrics
+        self.crawler_errors_total = Counter(
+            "crawler_errors_total", "Total errors by crawler", ["site", "error_type"]
+        )
+
+        # Circuit breaker metrics
+        self.circuit_breaker_state = Gauge(
+            "circuit_breaker_state", "Circuit breaker state by site", ["site"]
+        )
+
+        # Performance metrics
+        self.crawler_success_rate = Gauge(
+            "crawler_success_rate", "Success rate by crawler", ["site"]
+        )
+
+        self.crawler_avg_response_time = Gauge(
+            "crawler_avg_response_time", "Average response time by crawler", ["site"]
+        )
+
+        # Business metrics
+        self.flights_found_total = Counter(
+            "flights_found_total", "Total flights found by crawler", ["site", "route"]
+        )
+
+        self.crawler_searches_total = Counter(
+            "crawler_searches_total", "Total searches processed by crawler", ["site"]
+        )
+
+        self.crawler_searches_successful_total = Counter(
+            "crawler_searches_successful_total", "Total successful searches by crawler", ["site"]
+        )
+
+        self.crawler_search_success_rate = Gauge(
+            "crawler_search_success_rate", "Success rate of searches by crawler", ["site"]
+        )
+
+        self.price_changes_total = Counter(
+            "price_changes_total", "Total price changes detected", ["site", "direction"]
+        )
+
+        # System metrics
+        self.concurrent_requests = Gauge(
+            "concurrent_requests", "Number of concurrent requests", ["site"]
+        )
+
+        self.memory_usage_bytes = Gauge("memory_usage_bytes", "Memory usage in bytes")
+
+        self.cpu_usage_percent = Gauge("cpu_usage_percent", "CPU usage percentage")
+
     def get_memory_usage(self) -> Dict[str, Any]:
         """Get current memory usage of the application."""
         mem_info = self.process.memory_info()
@@ -94,9 +177,16 @@ class CrawlerMonitor:
             
             await asyncio.sleep(interval_seconds)
 
-    def record_request(self, domain: str, duration: float) -> None:
+    def record_request(self, domain: str, duration: float, success: bool = True, response_size: int = 0) -> None:
         """Record request metrics"""
         try:
+            # Prometheus metrics
+            status = "success" if success else "error"
+            self.crawler_requests_total.labels(site=domain, status=status).inc()
+            self.crawler_duration_seconds.labels(site=domain).observe(duration)
+            if response_size > 0:
+                self.crawler_response_size_bytes.labels(site=domain).observe(response_size)
+
             # Initialize domain metrics if not exists
             if domain not in self.metrics:
                 self.metrics[domain] = {
@@ -115,19 +205,39 @@ class CrawlerMonitor:
 
             # Update metrics
             metrics["total_requests"] += 1
-            metrics["successful_requests"] += 1
+            if success:
+                metrics["successful_requests"] += 1
+            else:
+                metrics["failed_requests"] += 1
             metrics["total_duration"] += duration
             metrics["min_duration"] = min(metrics["min_duration"], duration)
             metrics["max_duration"] = max(metrics["max_duration"], duration)
             metrics["last_request"] = datetime.now().isoformat()
             self.request_history[domain].append(time.time())
 
+            # Update Prometheus Gauges
+            success_rate = metrics["successful_requests"] / metrics["total_requests"]
+            avg_duration = metrics["total_duration"] / metrics["total_requests"]
+            self.crawler_success_rate.labels(site=domain).set(success_rate)
+            self.crawler_avg_response_time.labels(site=domain).set(avg_duration)
+
         except Exception as e:
             logger.error(f"Error recording request metrics: {e}")
 
-    def record_flights(self, domain: str, count: int) -> None:
-        """Record flights scraped"""
+    def record_error(self, domain: str, error_type: str):
+        """Record an error and update metrics."""
+        self.error_handler.record_error(domain, error_type)
+        self.crawler_errors_total.labels(site=domain, error_type=error_type).inc()
+
+    def record_flights(self, domain: str, count: int, route: str = "unknown") -> None:
+        """Record flights scraped and update search metrics"""
         try:
+            # Prometheus metric
+            self.flights_found_total.labels(site=domain, route=route).inc(count)
+            self.crawler_searches_total.labels(site=domain).inc()
+            if count > 0:
+                self.crawler_searches_successful_total.labels(site=domain).inc()
+
             # Initialize domain metrics if not exists
             if domain not in self.metrics:
                 self.metrics[domain] = {
@@ -139,6 +249,8 @@ class CrawlerMonitor:
                     "max_duration": 0,
                     "last_request": None,
                     "flights_scraped": 0,
+                    "total_searches": 0,
+                    "successful_searches": 0,
                 }
 
             # Get metrics
@@ -146,6 +258,14 @@ class CrawlerMonitor:
 
             # Update metrics
             metrics["flights_scraped"] += count
+            metrics["total_searches"] += 1
+            if count > 0:
+                metrics["successful_searches"] += 1
+            
+            # Update search success rate gauge
+            if metrics["total_searches"] > 0:
+                search_success_rate = metrics["successful_searches"] / metrics["total_searches"]
+                self.crawler_search_success_rate.labels(site=domain).set(search_success_rate)
 
         except Exception as e:
             logger.error(f"Error recording flights: {e}")
@@ -609,3 +729,7 @@ class CrawlerMonitor:
         if not dt:
             return None
         return dt.isoformat()
+
+    def get_prometheus_metrics(self) -> bytes:
+        """Generate Prometheus metrics"""
+        return generate_latest()

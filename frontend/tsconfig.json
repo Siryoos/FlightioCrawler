@@ -13,7 +13,7 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,

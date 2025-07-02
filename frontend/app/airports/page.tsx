@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useEffect, memo } from 'react';
+import { useAirportStore } from '../stores/airportStore';
+import { SkeletonCard } from '../components/Loading';
 import {
   POPULAR_AIRPORTS,
-  loadAirports,
   getAirportByCode,
   searchAirports,
   getAirportsByCountry,
@@ -12,12 +13,23 @@ import {
 } from '../components/AirportData';
 
 export default function AirportsPage() {
-  const [airports, setAirports] = useState<Airport[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCountry, setFilterCountry] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
+  const {
+    airports,
+    searchTerm,
+    filterCountry,
+    sortBy,
+    loading,
+    fetchAirports,
+    setSearchTerm,
+    setFilterCountry,
+    setSortBy,
+  } = useAirportStore();
 
-  useEffect(() => { loadAirports().then(setAirports); }, []);
+  useEffect(() => {
+    if (airports.length === 0) {
+      fetchAirports();
+    }
+  }, [fetchAirports, airports.length]);
 
   const popularAirports = POPULAR_AIRPORTS.map(code => getAirportByCode(airports, code)).filter(Boolean) as Airport[];
 
@@ -68,7 +80,7 @@ export default function AirportsPage() {
     return passengers.toLocaleString();
   };
 
-  const AirportCard = ({ airport }: { airport: Airport }) => (
+  const AirportCard = memo(({ airport }: { airport: Airport }) => (
     <div className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow">
       <div className="flex justify-between items-start mb-2">
         <h3 className="font-semibold text-lg text-gray-900 leading-tight">
@@ -97,7 +109,8 @@ export default function AirportsPage() {
         )}
       </div>
     </div>
-  );
+  ));
+  AirportCard.displayName = 'AirportCard';
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -219,13 +232,17 @@ export default function AirportsPage() {
 
       {/* Airports Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sortedAirports.map((airport) => (
-          <AirportCard key={`${airport.icao}-${airport.iata}-${airport.city}`} airport={airport} />
-        ))}
+        {loading && airports.length === 0 ? (
+          Array.from({ length: 9 }).map((_, i) => <SkeletonCard key={i} />)
+        ) : (
+          sortedAirports.map((airport) => (
+            <AirportCard key={`${airport.icao}-${airport.iata}-${airport.city}`} airport={airport} />
+          ))
+        )}
       </div>
 
-      {sortedAirports.length === 0 && (
-        <div className="text-center py-12">
+      {!loading && sortedAirports.length === 0 && (
+        <div className="text-center py-12 col-span-full">
           <div className="text-gray-400 text-lg mb-2">🔍</div>
           <p className="text-gray-600">هیچ فرودگاهی با این معیارها یافت نشد.</p>
           <button

@@ -1,25 +1,27 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
-
-interface SiteInfo {
-  enabled: boolean;
-}
+import { useSiteStore } from '../../stores/siteStore';
+import LoadingSpinner from '../components/Loading';
 
 export default function SitesIndex() {
-  const [sites, setSites] = useState<Record<string, SiteInfo>>({});
-  useEffect(() => {
-    fetch('/api/v1/sites/status')
-      .then((r) => r.json())
-      .then((d) => setSites(d.sites || {}));
-  }, []);
+  const { sites, loading, fetchSites, toggleSiteStatus } = useSiteStore();
 
-  const toggle = async (name: string, enable: boolean) => {
-    await fetch(`/api/v1/sites/${name}/${enable ? 'enable' : 'disable'}`, {
-      method: 'POST'
-    });
-    setSites((s) => ({ ...s, [name]: { ...s[name], enabled: enable } }));
-  };
+  useEffect(() => {
+    // Fetch sites only if the store is empty
+    if (Object.keys(sites).length === 0) {
+      fetchSites();
+    }
+  }, [fetchSites, sites]);
+
+  if (loading && Object.keys(sites).length === 0) {
+    return (
+      <main className="max-w-xl mx-auto p-4 space-y-4">
+        <h1 className="text-2xl font-bold text-center">Business Intelligence</h1>
+        <LoadingSpinner />
+      </main>
+    );
+  }
 
   return (
     <main className="max-w-xl mx-auto p-4 space-y-4">
@@ -31,10 +33,10 @@ export default function SitesIndex() {
               {name}
             </Link>
             <button
-              className="px-2 py-1 text-sm text-white bg-blue-600"
-              onClick={() => toggle(name, !info.enabled)}
+              className={`px-2 py-1 text-sm text-white ${info.status === 'active' ? 'bg-red-600' : 'bg-green-600'}`}
+              onClick={() => toggleSiteStatus(name)}
             >
-              {info.enabled ? 'توقف' : 'شروع'}
+              {info.status === 'active' ? 'توقف' : 'شروع'}
             </button>
           </li>
         ))}

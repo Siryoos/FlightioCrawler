@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Airport, loadAirports, searchAirports } from './AirportData';
+import { Airport, searchAirports } from './AirportData';
+import { useAirportStore } from '../stores/airportStore';
 
 interface AirportSelectorProps {
   value: string;
@@ -11,13 +12,20 @@ interface AirportSelectorProps {
 
 export default function AirportSelector({ value, onChange, placeholder = 'انتخاب فرودگاه', className = '' }: AirportSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [airports, setAirports] = useState<Airport[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const {
+    airports,
+    searchTerm,
+    setSearchTerm,
+    fetchAirports
+  } = useAirportStore();
 
   useEffect(() => {
-    loadAirports().then(setAirports);
-  }, []);
+    if (airports.length === 0) {
+      fetchAirports();
+    }
+  }, [airports.length, fetchAirports]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

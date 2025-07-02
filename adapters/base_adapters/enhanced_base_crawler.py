@@ -45,6 +45,7 @@ except ImportError:
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
+from utils.request_batcher import RequestBatcher, RequestSpec
 
 
 @dataclass
@@ -142,6 +143,10 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         self.http_session = http_session
         self._own_http_session = False
         
+        # Request batching
+        self.request_batcher: Optional[RequestBatcher] = None
+        self._own_request_batcher = False
+        
         # Resource tracking
         self._cleanup_tasks: List[asyncio.Task] = []
         self._is_closed = False
@@ -172,6 +177,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         """Async context manager entry."""
         await self._setup_browser()
         await self._setup_http_session()
+        await self._setup_request_batcher()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -219,6 +225,33 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             )
             self._own_http_session = True
             _resource_tracker.http_session_count += 1
+
+    async def _setup_request_batcher(self) -> None:
+        """Setup request batcher for batching HTTP requests"""
+        if not self.request_batcher:
+            # Use existing HTTP session if available
+            session = self.http_session if self.http_session else None
+            
+            # Configure batching parameters
+            batch_config = self.config.get("request_batching", {})
+            batch_size = batch_config.get("batch_size", 8)  # Smaller batches for crawlers
+            batch_timeout = batch_config.get("batch_timeout", 0.3)  # Faster timeout for crawlers
+            max_concurrent_batches = batch_config.get("max_concurrent_batches", 3)
+            
+            self.request_batcher = RequestBatcher(
+                http_session=session,
+                batch_size=batch_size,
+                batch_timeout=batch_timeout,
+                max_concurrent_batches=max_concurrent_batches,
+                enable_compression=True,
+                enable_memory_optimization=self.enable_memory_monitoring
+            )
+            self._own_request_batcher = True
+            
+            # Initialize the batcher
+            await self.request_batcher._setup_session()
+            
+            self.logger.info(f"Request batcher initialized with batch_size={batch_size}, timeout={batch_timeout}s")
 
     async def _setup_browser(self) -> None:
         """Setup browser and page for crawling with enhanced memory optimization."""
@@ -398,6 +431,18 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
                 self.http_session = None
                 self._own_http_session = False
 
+    async def _cleanup_request_batcher(self) -> None:
+        """Cleanup request batcher"""
+        if self.request_batcher and self._own_request_batcher:
+            try:
+                await self.request_batcher.close()
+                self.logger.info("Request batcher closed successfully")
+            except Exception as e:
+                self.logger.warning(f"Error closing request batcher: {e}")
+            finally:
+                self.request_batcher = None
+                self._own_request_batcher = False
+
     async def _cleanup_all_resources(self) -> None:
         """Cleanup all resources in proper order"""
         if self._is_closed:
@@ -412,6 +457,9 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
                         await task
                     except asyncio.CancelledError:
                         pass
+            
+            # Cleanup request batcher first (depends on HTTP session)
+            await self._cleanup_request_batcher()
             
             # Cleanup browser resources
             await self._cleanup_browser()
@@ -1049,6 +1097,72 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             self.logger.debug(f"Error extracting duration from '{duration_text}': {e}")
             return 0
 
+    async def batch_http_requests(self, requests: List[RequestSpec]) -> List[Any]:
+        """Make batched HTTP requests using the request batcher"""
+        if not self.request_batcher:
+            await self._setup_request_batcher()
+        
+        if not self.request_batcher:
+            # Fallback to individual requests if batcher is not available
+            self.logger.warning("Request batcher not available, falling back to individual requests")
+            results = []
+            for spec in requests:
+                try:
+                    # Make individual request using HTTP session
+                    if not self.http_session:
+                        await self._setup_http_session()
+                    
+                    method = spec.method.upper()
+                    kwargs = {
+                        'timeout': aiohttp.ClientTimeout(total=spec.timeout),
+                        'headers': spec.headers or {}
+                    }
+                    
+                    if spec.params:
+                        kwargs['params'] = spec.params
+                    if spec.json_data:
+                        kwargs['json'] = spec.json_data
+                    
+                    async with getattr(self.http_session, method.lower())(spec.url, **kwargs) as response:
+                        content_type = response.headers.get('Content-Type', '')
+                        if 'application/json' in content_type:
+                            data = await response.json()
+                        else:
+                            data = await response.text()
+                        
+                        results.append({
+                            'status': response.status,
+                            'headers': dict(response.headers),
+                            'data': data,
+                            'url': str(response.url)
+                        })
+                except Exception as e:
+                    self.logger.error(f"Individual request failed for {spec.url}: {e}")
+                    results.append(e)
+            return results
+        
+        # Use batched requests
+        tasks = [self.request_batcher.add_request(spec) for spec in requests]
+        return await asyncio.gather(*tasks, return_exceptions=True)
+    
+    async def batch_get_urls(self, urls: List[str], **kwargs) -> List[Any]:
+        """Convenience method for batching GET requests"""
+        if not self.request_batcher:
+            await self._setup_request_batcher()
+        
+        if self.request_batcher:
+            return await self.request_batcher.batch_get_requests(urls, **kwargs)
+        else:
+            # Fallback
+            specs = [RequestSpec(url=url, method="GET", **kwargs) for url in urls]
+            return await self.batch_http_requests(specs)
+    
+    def get_batching_stats(self) -> Dict[str, Any]:
+        """Get request batching statistics"""
+        if self.request_batcher:
+            return self.request_batcher.get_stats()
+        return {"error": "Request batcher not initialized"}
+
     def get_adapter_info(self) -> Dict[str, Any]:
         """
         Get information about this adapter.
@@ -1056,6 +1170,9 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         Returns:
             Dictionary containing adapter metadata
         """
+        resource_usage = self.get_resource_usage()
+        batching_stats = self.get_batching_stats()
+        
         return {
             "adapter_name": self.__class__.__name__,
             "base_url": self.base_url,
@@ -1065,4 +1182,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             "has_rate_limiter": self.rate_limiter is not None,
             "has_error_handler": self.error_handler is not None,
             "has_monitoring": self.monitoring is not None,
+            "has_request_batcher": self.request_batcher is not None,
+            "resource_usage": resource_usage,
+            "batching_stats": batching_stats,
         }

@@ -11,6 +11,8 @@ from hazm import Normalizer
 from persian_tools import digits
 import jdatetime
 from monitoring import CrawlerMonitor, ErrorHandler
+from monitoring.production_memory_monitor import ProductionMemoryMonitor
+from monitoring.memory_health_endpoint import MemoryHealthServer
 from data_manager import DataManager
 
 # Use AdapterFactory instead of manual imports
@@ -32,6 +34,7 @@ from intelligent_search import IntelligentSearchEngine, SearchOptimization
 from price_monitor import PriceMonitor, WebSocketManager
 from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
+from utils.request_batcher import RequestBatcher, RequestSpec
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +63,7 @@ class FlightData:
 class IranianFlightCrawler:
     """Main crawler orchestrator using AdapterFactory for all flight booking sites"""
 
-    def __init__(self, http_session: Optional[Any] = None, max_concurrent_crawls: int = 5) -> None:
+    def __init__(self, http_session: Optional[Any] = None, max_concurrent_crawls: int = 5, enable_memory_monitoring: bool = True) -> None:
         # Initialize core components
         self.monitor: CrawlerMonitor = CrawlerMonitor()
         self.error_handler: ErrorHandler = ErrorHandler()
@@ -94,6 +97,17 @@ class IranianFlightCrawler:
 
         # Track which sites are currently enabled for crawling
         self.enabled_sites: Set[str] = set(self.adapters.keys())
+
+        # Request batching for optimization
+        self.request_batcher: Optional[RequestBatcher] = None
+
+        # Memory monitoring for production
+        self.memory_monitor: Optional[ProductionMemoryMonitor] = None
+        self.memory_health_server: Optional[MemoryHealthServer] = None
+        self.enable_memory_monitoring = enable_memory_monitoring
+        
+        if self.enable_memory_monitoring:
+            self._setup_memory_monitoring()
 
         logger.info(f"Flight Crawler initialized with {len(self.adapters)} adapters")
 
@@ -185,6 +199,62 @@ class IranianFlightCrawler:
                 "seat_class": ".seat-class",
             },
         }
+
+    def _setup_memory_monitoring(self) -> None:
+        """راه‌اندازی سیستم نظارت حافظه"""
+        try:
+            # Initialize memory monitor with production config
+            config_path = "monitoring/monitoring_config.json"
+            self.memory_monitor = ProductionMemoryMonitor(config_path)
+            
+            # Initialize health server
+            health_port = getattr(config, 'MEMORY_HEALTH_PORT', 8080)
+            self.memory_health_server = MemoryHealthServer(
+                self.memory_monitor, 
+                port=health_port
+            )
+            
+            logger.info("✅ Memory monitoring system initialized")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize memory monitoring: {e}")
+            self.memory_monitor = None
+            self.memory_health_server = None
+
+    async def start_memory_monitoring(self) -> None:
+        """شروع نظارت حافظه"""
+        if self.memory_monitor and self.enable_memory_monitoring:
+            try:
+                await self.memory_monitor.start_monitoring()
+                logger.info("🚀 Memory monitoring started")
+                
+                # Start health server in background
+                if self.memory_health_server:
+                    asyncio.create_task(self.memory_health_server.start_server())
+                    logger.info("🌐 Memory health server started")
+                    
+            except Exception as e:
+                logger.error(f"❌ Failed to start memory monitoring: {e}")
+
+    async def stop_memory_monitoring(self) -> None:
+        """توقف نظارت حافظه"""
+        if self.memory_monitor:
+            try:
+                await self.memory_monitor.stop_monitoring()
+                logger.info("❌ Memory monitoring stopped")
+                
+                if self.memory_health_server:
+                    await self.memory_health_server.stop_server()
+                    logger.info("❌ Memory health server stopped")
+                    
+            except Exception as e:
+                logger.error(f"Error stopping memory monitoring: {e}")
+
+    def get_memory_status(self) -> Dict[str, Any]:
+        """دریافت وضعیت نظارت حافظه"""
+        if self.memory_monitor:
+            return self.memory_monitor.get_status()
+        return {"monitoring_enabled": False, "status": "disabled"}
 
     async def crawl_all_sites(
         self, search_params: Dict[str, Any]
@@ -438,6 +508,108 @@ class IranianFlightCrawler:
 
     def init_database_schema(self) -> None:
         """Initialize database schema"""
+        self.data_manager.create_tables()
+
+    async def get_request_batcher(self) -> RequestBatcher:
+        """Get or create request batcher for optimized HTTP requests"""
+        if not self.request_batcher:
+            self.request_batcher = RequestBatcher(
+                http_session=self.http_session,
+                batch_size=8,  # Optimized for crawler workloads
+                batch_timeout=0.3,  # Quick batching for responsive crawling
+                max_concurrent_batches=3,
+                enable_compression=True,
+                enable_memory_optimization=True
+            )
+            await self.request_batcher._setup_session()
+            logger.info("Request batcher initialized for optimized HTTP requests")
+        
+        return self.request_batcher
+
+    async def batch_site_health_checks(self, site_names: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Perform batched health checks on multiple sites"""
+        try:
+            batcher = await self.get_request_batcher()
+            
+            # Create health check requests for each site
+            health_requests = []
+            for site_name in site_names:
+                if site_name in self.adapters:
+                    adapter = self.adapters[site_name]
+                    base_url = getattr(adapter, 'base_url', f'https://{site_name}.com')
+                    
+                    # Create health check request
+                    health_requests.append(RequestSpec(
+                        url=base_url,
+                        method="GET",
+                        timeout=10,
+                        headers={'User-Agent': 'FlightCrawler-HealthCheck/1.0'}
+                    ))
+            
+            if not health_requests:
+                return {}
+            
+            # Execute batched requests
+            results = await asyncio.gather(*[
+                batcher.add_request(spec) for spec in health_requests
+            ], return_exceptions=True)
+            
+            # Process results
+            health_status = {}
+            for i, (site_name, result) in enumerate(zip(site_names, results)):
+                if isinstance(result, Exception):
+                    health_status[site_name] = {
+                        'status': 'error',
+                        'error': str(result),
+                        'response_time': None,
+                        'accessible': False
+                    }
+                else:
+                    health_status[site_name] = {
+                        'status': 'success' if result.get('status', 0) < 400 else 'warning',
+                        'status_code': result.get('status', 0),
+                        'accessible': True,
+                        'response_time': 'batched'  # Actual timing would be part of batch
+                    }
+            
+            # Log batching statistics
+            if self.request_batcher:
+                stats = self.request_batcher.get_stats()
+                logger.info(f"Health check batching stats: {stats}")
+            
+            return health_status
+            
+        except Exception as e:
+            logger.error(f"Batch health check failed: {e}")
+            return {site_name: {'status': 'error', 'error': str(e)} for site_name in site_names}
+
+    async def close(self):
+        """Close the crawler and cleanup resources"""
+        try:
+            # Stop memory monitoring first
+            if self.memory_monitor:
+                await self.stop_memory_monitoring()
+            
+            # Close request batcher
+            if self.request_batcher:
+                await self.request_batcher.close()
+                logger.info("Request batcher closed")
+            
+            # Close adapters
+            for adapter_name, adapter in self.adapters.items():
+                if hasattr(adapter, 'close'):
+                    await adapter.close()
+                    logger.info(f"Closed {adapter_name} adapter")
+            
+            # Close HTTP session if we own it
+            if self.http_session and hasattr(self.http_session, 'close'):
+                await self.http_session.close()
+                logger.info("HTTP session closed")
+            
+            logger.info("Flight crawler closed successfully")
+            
+        except Exception as e:
+            logger.error(f"Error closing crawler: {e}")
         try:
             # Schema initialization is handled by DataManager
             logger.info("Database schema initialized successfully")

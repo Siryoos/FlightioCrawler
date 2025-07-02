@@ -194,4 +194,40 @@ groups:
       component: crawler
     annotations:
       summary: High price change rate
-      description: "Price change rate is {{ $value | humanizePercentage }} per hour" 
+      description: "Price change rate is {{ $value | humanizePercentage }} per hour"
+
+  - alert: HighErrorRate
+    expr: sum(rate(crawler_requests_total{status="error"}[5m])) by (site) / sum(rate(crawler_requests_total[5m])) by (site) > 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High error rate for site {{ $labels.site }}"
+      description: "The error rate for site {{ $labels.site }} is over 10% for the last 5 minutes."
+
+  - alert: SlowResponseTime
+    expr: (sum(rate(crawler_duration_seconds_sum[5m])) by (site) / sum(rate(crawler_duration_seconds_count[5m])) by (site)) > 30
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Slow response time for site {{ $labels.site }}"
+      description: "The average response time for site {{ $labels.site }} is over 30s for the last 5 minutes."
+
+  - alert: LowSearchSuccessRate
+    expr: avg(crawler_search_success_rate) by (site) < 0.5
+    for: 10m
+    labels:
+      severity: page
+    annotations:
+      summary: "Low search success rate for site {{ $labels.site }}"
+      description: "The search success rate for site {{ $labels.site }} is below 50% for the last 10 minutes."
+
+  - alert: CircuitBreakerOpen
+    expr: circuit_breaker_state > 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Circuit breaker is open for site {{ $labels.site }}"
+      description: "The circuit breaker for site {{ $labels.site }} is open. No requests are being sent." 
