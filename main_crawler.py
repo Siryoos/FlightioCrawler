@@ -12,19 +12,9 @@ from persian_tools import digits
 import jdatetime
 from monitoring import CrawlerMonitor, ErrorHandler
 from data_manager import DataManager
-from site_crawlers import (
-    FlytodayCrawler,
-    FlightioCrawler,
-    AlibabaCrawler,
-    SafarmarketCrawler,
-    Mz724Crawler,
-    PartoCRSCrawler,
-    PartoTicketCrawler,
-    BookCharter724Crawler,
-    BookCharterCrawler,
-    MrbilitCrawler,
-    SnapptripCrawler,
-)
+
+# Use AdapterFactory instead of manual imports
+from adapters.factories.adapter_factory import AdapterFactory
 
 try:
     from crawl4ai.cache_mode import CacheMode
@@ -68,7 +58,7 @@ class FlightData:
 
 
 class IranianFlightCrawler:
-    """Main crawler orchestrator for Iranian flight booking sites"""
+    """Main crawler orchestrator using AdapterFactory for all flight booking sites"""
 
     def __init__(self):
         # Initialize core components
@@ -77,6 +67,9 @@ class IranianFlightCrawler:
         self.data_manager = DataManager()
         self.rate_limiter = RateLimiter()
         self.text_processor = PersianTextProcessor()
+
+        # Initialize adapter factory
+        self.adapter_factory = AdapterFactory()
 
         # Initialize advanced features
         self.intelligent_search = IntelligentSearchEngine(self, self.data_manager)
@@ -87,46 +80,103 @@ class IranianFlightCrawler:
         )
         self.multilingual = MultilingualProcessor()
 
-        # Initialize site crawlers
-        self.crawlers = {
-            "flightio.com": FlightioCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "flytoday.ir": FlytodayCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "alibaba.ir": AlibabaCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "safarmarket.com": SafarmarketCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "mz724.ir": Mz724Crawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "partocrs.com": PartoCRSCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "parto-ticket.ir": PartoTicketCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "bookcharter724.ir": BookCharter724Crawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "bookcharter.ir": BookCharterCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "mrbilit.com": MrbilitCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-            "snapptrip.com": SnapptripCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler
-            ),
-        }
-        # Track which sites are currently enabled for crawling
-        self.enabled_sites = set(self.crawlers.keys())
+        # Initialize adapters using factory
+        self.adapters = self._initialize_adapters()
 
-        logger.info("Iranian Flight Crawler initialized successfully")
+        # Track which sites are currently enabled for crawling
+        self.enabled_sites = set(self.adapters.keys())
+
+        logger.info(f"Flight Crawler initialized with {len(self.adapters)} adapters")
+
+    def _initialize_adapters(self) -> Dict:
+        """Initialize all adapters using AdapterFactory with their configurations."""
+        adapters = {}
+        
+        # Get default configurations for each adapter
+        adapter_configs = {
+            "alibaba": self._get_adapter_config("alibaba"),
+            "flightio": self._get_adapter_config("flightio"), 
+            "flytoday": self._get_adapter_config("flytoday"),
+            "iran_air": self._get_adapter_config("iran_air"),
+            "mahan_air": self._get_adapter_config("mahan_air"),
+            "lufthansa": self._get_adapter_config("lufthansa"),
+            "air_france": self._get_adapter_config("air_france"),
+            "british_airways": self._get_adapter_config("british_airways"),
+            "emirates": self._get_adapter_config("emirates"),
+            "turkish_airlines": self._get_adapter_config("turkish_airlines"),
+            "qatar_airways": self._get_adapter_config("qatar_airways"),
+        }
+        
+        # Create adapters using factory
+        for adapter_name, config in adapter_configs.items():
+            try:
+                adapter = self.adapter_factory.create_adapter(adapter_name, config)
+                adapters[adapter_name] = adapter
+                logger.info(f"✅ Initialized {adapter_name} adapter")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize {adapter_name} adapter: {e}")
+        
+        return adapters
+
+    def _get_adapter_config(self, adapter_name: str) -> Dict:
+        """Get configuration for a specific adapter."""
+        base_config = {
+            "rate_limiting": {
+                "requests_per_second": 2,
+                "burst_limit": 5,
+                "cooldown_period": 60
+            },
+            "error_handling": {
+                "max_retries": 3,
+                "retry_delay": 5,
+                "circuit_breaker": {
+                    "failure_threshold": 5,
+                    "timeout": 300
+                }
+            },
+            "monitoring": {
+                "enabled": True,
+                "log_level": "INFO"
+            },
+            "extraction_config": self._get_extraction_config(adapter_name),
+            "data_validation": {
+                "required_fields": ["airline", "flight_number", "price", "departure_time"],
+                "price_range": {"min": 0, "max": 50000000}  # IRR
+            }
+        }
+        
+        # Load adapter-specific configs if available
+        try:
+            if adapter_name in config.get("site_configs", {}):
+                adapter_config = config["site_configs"][adapter_name]
+                base_config.update(adapter_config)
+        except Exception as e:
+            logger.warning(f"Could not load config for {adapter_name}: {e}")
+        
+        return base_config
+
+    def _get_extraction_config(self, adapter_name: str) -> Dict:
+        """Get extraction configuration for adapter."""
+        # Default extraction config - این باید از config files واقعی لود شود
+        return {
+            "search_form": {
+                "origin_field": "[name='origin']",
+                "destination_field": "[name='destination']", 
+                "departure_date_field": "[name='departure_date']",
+                "passengers_field": "[name='passengers']",
+                "class_field": "[name='seat_class']"
+            },
+            "results_parsing": {
+                "container": ".flight-result",
+                "airline": ".airline-name",
+                "flight_number": ".flight-number",
+                "departure_time": ".departure-time",
+                "arrival_time": ".arrival-time",
+                "duration": ".duration",
+                "price": ".price",
+                "seat_class": ".seat-class"
+            }
+        }
 
     async def crawl_all_sites(self, search_params: Dict) -> List[Dict]:
         """Orchestrate crawling across all three sites"""
@@ -143,11 +193,11 @@ class IranianFlightCrawler:
 
             # Start crawling all enabled sites concurrently
             tasks = []
-            for site_name, crawler in self.crawlers.items():
+            for site_name, adapter in self.adapters.items():
                 if site_name not in self.enabled_sites:
                     continue
                 task = asyncio.create_task(
-                    self._crawl_site_safely(site_name, crawler, search_params),
+                    self._crawl_site_safely(site_name, adapter, search_params),
                     name=f"crawl_{site_name}",
                 )
                 tasks.append(task)
@@ -156,7 +206,7 @@ class IranianFlightCrawler:
 
             # Process results
             all_flights = []
-            enabled_sites = [s for s in self.crawlers.keys() if s in self.enabled_sites]
+            enabled_sites = [s for s in self.adapters.keys() if s in self.enabled_sites]
             for site_name, result in zip(enabled_sites, results):
                 if isinstance(result, Exception):
                     logger.error(f"Error crawling {site_name}: {result}")
@@ -177,7 +227,7 @@ class IranianFlightCrawler:
             return []
 
     async def _crawl_site_safely(
-        self, site_name: str, crawler, search_params: Dict
+        self, site_name: str, adapter, search_params: Dict
     ) -> List[Dict]:
         """Safely crawl a single site with error handling"""
         try:
@@ -186,7 +236,7 @@ class IranianFlightCrawler:
                 return []
 
             start_time = datetime.now()
-            flights = await crawler.search_flights(search_params)
+            flights = await adapter.crawl(search_params)
 
             # Record metrics
             duration = (datetime.now() - start_time).total_seconds()
@@ -223,7 +273,7 @@ class IranianFlightCrawler:
 
     async def crawl_site(self, site_name: str, search_params: Dict) -> List[Dict]:
         """Crawl a single website and return flight results."""
-        if site_name not in self.crawlers:
+        if site_name not in self.adapters:
             raise ValueError(f"Unknown site: {site_name}")
 
         if site_name not in self.enabled_sites:
@@ -233,12 +283,12 @@ class IranianFlightCrawler:
         search_params.setdefault("seat_class", "economy")
 
         return await self._crawl_site_safely(
-            site_name, self.crawlers[site_name], search_params
+            site_name, self.adapters[site_name], search_params
         )
 
     def enable_site(self, site_name: str) -> bool:
         """Enable crawling for a site."""
-        if site_name in self.crawlers:
+        if site_name in self.adapters:
             self.enabled_sites.add(site_name)
             return True
         return False
@@ -249,6 +299,14 @@ class IranianFlightCrawler:
             self.enabled_sites.remove(site_name)
             return True
         return False
+
+    def get_available_adapters(self) -> List[str]:
+        """Get list of all available adapter names."""
+        return self.adapter_factory.list_available_adapters()
+
+    def get_adapter_info(self, adapter_name: str) -> Dict:
+        """Get information about a specific adapter."""
+        return self.adapter_factory.get_adapter_info(adapter_name)
 
     def reset_stats(self) -> None:
         """Reset monitoring metrics, error states and rate limits."""

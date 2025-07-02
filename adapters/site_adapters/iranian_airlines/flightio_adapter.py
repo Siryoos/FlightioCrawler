@@ -1,4 +1,8 @@
-from typing import Dict, List, Optional
+"""
+Refactored Flightio adapter using EnhancedPersianAdapter.
+"""
+
+from typing import Dict, List, Optional, Any
 import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
@@ -7,11 +11,17 @@ from adapters.base_adapters.airline_crawler import AirlineCrawler
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
+from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 
 
-class FlightioAdapter(AirlineCrawler):
-    """Crawler adapter for Flightio."""
-
+class FlightioAdapter(EnhancedPersianAdapter):
+    """
+    Flightio.com adapter with minimal code duplication.
+    
+    Uses EnhancedPersianAdapter for all common functionality.
+    Only implements aggregator-specific logic.
+    """
+    
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://flightio.com"
@@ -101,49 +111,31 @@ class FlightioAdapter(AirlineCrawler):
             raise
 
     def _parse_flight_element(self, element) -> Optional[Dict]:
-        try:
-            flight = {
-                "airline": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["airline"]
-                ).text.strip(),
-                "flight_number": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["flight_number"]
-                ).text.strip(),
-                "departure_time": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["departure_time"]
-                ).text.strip(),
-                "arrival_time": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["arrival_time"]
-                ).text.strip(),
-                "duration": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["duration"]
-                ).text.strip(),
-                "price": self._extract_price(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["price"]
-                    ).text.strip()
-                ),
-                "cabin_class": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["cabin_class"]
-                ).text.strip(),
-            }
-            return flight
-        except Exception as e:
-            self.logger.error(f"Error parsing flight element: {e}")
-            return None
+        """
+        Parse Flightio specific flight element structure.
+        
+        Uses parent class for common parsing with Iranian text processing.
+        """
+        flight_data = super()._parse_flight_element(element)
+        
+        if flight_data:
+            # Add Flightio specific fields
+            config = self.config["extraction_config"]["results_parsing"]
+            
+            # Flightio specific: provider information
+            provider_info = self._extract_text(element, config.get("provider_info"))
+            if provider_info:
+                flight_data["provider_info"] = self.persian_processor.process_text(provider_info)
+            
+            # Mark as aggregator result
+            flight_data["is_aggregator"] = True
+            flight_data["aggregator_name"] = "flightio"
+        
+        return flight_data
 
-    def _extract_price(self, price_text: str) -> float:
-        try:
-            cleaned = (
-                price_text.replace("IRR", "")
-                .replace("تومان", "")
-                .replace(",", "")
-                .strip()
-            )
-            return float(cleaned)
-        except Exception as e:
-            self.logger.error(f"Error extracting price: {e}")
-            return 0.0
+    def _get_required_search_fields(self) -> List[str]:
+        """Required fields for Flightio search."""
+        return ["origin", "destination", "departure_date", "passengers"]
 
     def _validate_search_params(self, search_params: Dict) -> None:
         required = ["origin", "destination", "departure_date", "cabin_class"]

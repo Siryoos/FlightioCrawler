@@ -1,16 +1,27 @@
-from typing import Dict, List, Optional
+"""
+Refactored Mahan Air adapter using EnhancedPersianAdapter.
+"""
+
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.persian_airline_crawler import PersianAirlineCrawler
+from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from utils.persian_text_processor import PersianTextProcessor
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 
-class MahanAirAdapter(PersianAirlineCrawler):
+class MahanAirAdapter(EnhancedPersianAdapter):
+    """
+    Mahan Air adapter with minimal code duplication.
+    
+    Uses EnhancedPersianAdapter for all common functionality.
+    Only implements airline-specific logic.
+    """
+    
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.mahan.aero"
@@ -104,62 +115,29 @@ class MahanAirAdapter(PersianAirlineCrawler):
             self.logger.error(f"Error extracting flight results: {str(e)}")
             raise
 
-    def _parse_flight_element(self, element) -> Optional[Dict]:
-        try:
-            flight_data = {
-                "airline": self.persian_processor.process_text(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["airline"]
-                    ).text
-                ),
-                "flight_number": self.persian_processor.process_text(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["flight_number"]
-                    ).text
-                ),
-                "departure_time": self.persian_processor.process_text(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["departure_time"]
-                    ).text
-                ),
-                "arrival_time": self.persian_processor.process_text(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["arrival_time"]
-                    ).text
-                ),
-                "duration": self.persian_processor.process_text(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["duration"]
-                    ).text
-                ),
-                "price": self.persian_processor.process_price(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["price"]
-                    ).text
-                ),
-                "seat_class": self.persian_processor.process_text(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["seat_class"]
-                    ).text
-                )
-            }
-            for field in [
-                "fare_conditions", "available_seats", "aircraft_type",
-                "baggage_allowance", "meal_service", "special_services",
-                "refund_policy", "change_policy", "fare_rules",
-                "booking_class", "fare_basis", "ticket_validity",
-                "miles_earned", "miles_required", "promotion_code",
-                "special_offers"
-            ]:
-                selector = self.config["extraction_config"]["results_parsing"][field]
-                if element.select_one(selector):
-                    flight_data[field] = self.persian_processor.process_text(
-                        element.select_one(selector).text
-                    )
-            return flight_data
-        except Exception as e:
-            self.logger.error(f"Error parsing flight element: {str(e)}")
-            return None
+    def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
+        """
+        Parse Mahan Air specific flight element structure.
+        
+        Uses parent class for common parsing with Iranian text processing.
+        """
+        flight_data = super()._parse_flight_element(element)
+        
+        if flight_data:
+            # Add Mahan Air specific fields
+            config = self.config["extraction_config"]["results_parsing"]
+            
+            # Mahan Air specific: loyalty program points
+            loyalty_points = self._extract_text(element, config.get("loyalty_points"))
+            if loyalty_points:
+                flight_data["loyalty_points"] = self.persian_processor.process_text(loyalty_points)
+            
+            # Mahan Air specific: charter availability
+            charter_info = self._extract_text(element, config.get("charter_info"))
+            if charter_info:
+                flight_data["charter_info"] = self.persian_processor.process_text(charter_info)
+        
+        return flight_data
 
     def _validate_search_params(self, search_params: Dict):
         required_fields = ["origin", "destination", "departure_date", "passengers", "seat_class"]
@@ -176,4 +154,16 @@ class MahanAirAdapter(PersianAirlineCrawler):
                     if (self.config["data_validation"]["duration_range"]["min"] <= result["duration_minutes"] <= 
                         self.config["data_validation"]["duration_range"]["max"]):
                         validated_results.append(result)
-        return validated_results 
+        return validated_results
+
+    def _get_base_url(self) -> str:
+        """Get Mahan Air base URL."""
+        return "https://www.mahan.aero"
+    
+    def _extract_currency(self, element, config: Dict[str, Any]) -> str:
+        """Extract currency - always IRR for Mahan Air."""
+        return "IRR"
+    
+    def _get_required_search_fields(self) -> List[str]:
+        """Required fields for Mahan Air search."""
+        return ["origin", "destination", "departure_date", "passengers", "seat_class"] 

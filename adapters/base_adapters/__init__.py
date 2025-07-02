@@ -1,20 +1,14 @@
 """
-Base adapters package for flight crawlers.
-Provides abstract base classes and common functionality for all crawler adapters.
+Enhanced base adapters for flight crawling.
 """
 
-from .base_crawler import BaseCrawler
-from .airline_crawler import AirlineCrawler
-from .persian_airline_crawler import PersianAirlineCrawler
-from .config_manager import ConfigManager
-from .error_handler import BaseErrorHandler
-from .monitoring import BaseMonitoring
+# Only import the new enhanced classes
+from .enhanced_base_crawler import EnhancedBaseCrawler
+from .enhanced_international_adapter import EnhancedInternationalAdapter
+from .enhanced_persian_adapter import EnhancedPersianAdapter
 
 __all__ = [
-    'BaseCrawler',
-    'AirlineCrawler', 
-    'PersianAirlineCrawler',
-    'ConfigManager',
-    'BaseErrorHandler',
-    'BaseMonitoring'
+    'EnhancedBaseCrawler',
+    'EnhancedInternationalAdapter', 
+    'EnhancedPersianAdapter'
 ] 

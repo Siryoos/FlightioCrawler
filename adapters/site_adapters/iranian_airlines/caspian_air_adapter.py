@@ -1,16 +1,22 @@
-from typing import Dict, List, Optional
+"""
+Refactored Caspian Air adapter using EnhancedPersianAdapter.
+"""
+
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.persian_airline_crawler import PersianAirlineCrawler
+from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from utils.persian_text_processor import PersianTextProcessor
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 
-class CaspianAirAdapter(PersianAirlineCrawler):
+class CaspianAirAdapter(EnhancedPersianAdapter):
+    """Caspian Air adapter with minimal code duplication."""
+    
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.caspian.aero"
@@ -176,4 +182,13 @@ class CaspianAirAdapter(PersianAirlineCrawler):
                     if (self.config["data_validation"]["duration_range"]["min"] <= result["duration_minutes"] <= 
                         self.config["data_validation"]["duration_range"]["max"]):
                         validated_results.append(result)
-        return validated_results 
+        return validated_results
+
+    def _get_base_url(self) -> str:
+        return "https://www.caspian.aero"
+    
+    def _extract_currency(self, element, config: Dict[str, Any]) -> str:
+        return "IRR"
+    
+    def _get_required_search_fields(self) -> List[str]:
+        return ["origin", "destination", "departure_date", "passengers", "seat_class"] 

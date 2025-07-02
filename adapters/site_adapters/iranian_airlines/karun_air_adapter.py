@@ -1,20 +1,24 @@
-from typing import Dict, List, Optional
+"""
+Refactored Karun Air adapter using EnhancedPersianAdapter.
+"""
+
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.persian_airline_crawler import PersianAirlineCrawler
+from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from utils.persian_text_processor import PersianTextProcessor
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 
-class KarunAirAdapter(PersianAirlineCrawler):
+class KarunAirAdapter(EnhancedPersianAdapter):
+    """Karun Air adapter with minimal code duplication."""
+    
     def __init__(self, config: Dict):
         super().__init__(config)
-        self.base_url = "https://www.karun.aero"
-        self.search_url = config["search_url"]
         self.persian_processor = PersianTextProcessor()
         self.rate_limiter = RateLimiter(
             requests_per_second=config["rate_limiting"]["requests_per_second"],
@@ -45,7 +49,7 @@ class KarunAirAdapter(PersianAirlineCrawler):
 
     async def _navigate_to_search_page(self):
         try:
-            await self.page.navigate(self.search_url)
+            await self.page.navigate(self._get_base_url())
             await self.page.wait_for_load_state("networkidle")
         except TimeoutError:
             self.logger.error("Timeout while loading search page")
@@ -162,7 +166,7 @@ class KarunAirAdapter(PersianAirlineCrawler):
             return None
 
     def _validate_search_params(self, search_params: Dict):
-        required_fields = ["origin", "destination", "departure_date", "passengers", "seat_class"]
+        required_fields = self._get_required_search_fields()
         for field in required_fields:
             if field not in search_params:
                 raise ValueError(f"Missing required search parameter: {field}")
@@ -176,4 +180,13 @@ class KarunAirAdapter(PersianAirlineCrawler):
                     if (self.config["data_validation"]["duration_range"]["min"] <= result["duration_minutes"] <= 
                         self.config["data_validation"]["duration_range"]["max"]):
                         validated_results.append(result)
-        return validated_results 
+        return validated_results
+
+    def _get_base_url(self) -> str:
+        return "https://www.karun.aero"
+    
+    def _extract_currency(self, element, config: Dict[str, Any]) -> str:
+        return "IRR"
+    
+    def _get_required_search_fields(self) -> List[str]:
+        return ["origin", "destination", "departure_date", "passengers", "seat_class"] 

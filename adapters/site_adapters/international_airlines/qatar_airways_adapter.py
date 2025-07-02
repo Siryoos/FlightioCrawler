@@ -1,17 +1,21 @@
-from typing import Dict, List, Optional
+"""
+Refactored Qatar Airways adapter using EnhancedInternationalAdapter.
+"""
+
+from typing import Dict, List, Optional, Any
 import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.airline_crawler import AirlineCrawler
+from adapters.base_adapters.enhanced_international_adapter import EnhancedInternationalAdapter
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 
 
-class QatarAirwaysAdapter(AirlineCrawler):
-    """Crawler adapter for Qatar Airways."""
-
+class QatarAirwaysAdapter(EnhancedInternationalAdapter):
+    """Qatar Airways adapter with minimal code duplication."""
+    
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.qatarairways.com"
@@ -100,51 +104,22 @@ class QatarAirwaysAdapter(AirlineCrawler):
             self.logger.error(f"Error extracting flight results: {e}")
             raise
 
-    def _parse_flight_element(self, element) -> Optional[Dict]:
-        try:
-            flight = {
-                "airline": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["airline"]
-                ).text.strip(),
-                "flight_number": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["flight_number"]
-                ).text.strip(),
-                "departure_time": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["departure_time"]
-                ).text.strip(),
-                "arrival_time": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["arrival_time"]
-                ).text.strip(),
-                "duration": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["duration"]
-                ).text.strip(),
-                "price": self._extract_price(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["price"]
-                    ).text.strip()
-                ),
-                "cabin_class": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["cabin_class"]
-                ).text.strip(),
-            }
-            return flight
-        except Exception as e:
-            self.logger.error(f"Error parsing flight element: {e}")
-            return None
+    def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
+        """Parse Qatar Airways specific flight element structure."""
+        flight_data = super()._parse_flight_element(element)
+        
+        if flight_data:
+            config = self.config["extraction_config"]["results_parsing"]
+            
+            # Qatar Airways specific: Privilege Club miles
+            privilege_club_miles = self._extract_text(element, config.get("privilege_club_miles"))
+            if privilege_club_miles:
+                flight_data["privilege_club_miles"] = privilege_club_miles
+        
+        return flight_data
 
-    def _extract_price(self, price_text: str) -> float:
-        try:
-            cleaned = (
-                price_text.replace("QAR", "")
-                .replace("﷼", "")
-                .replace("$", "")
-                .replace(",", "")
-                .strip()
-            )
-            return float(cleaned)
-        except Exception as e:
-            self.logger.error(f"Error extracting price: {e}")
-            return 0.0
+    def _get_required_search_fields(self) -> List[str]:
+        return ["origin", "destination", "departure_date", "cabin_class"]
 
     def _validate_search_params(self, search_params: Dict) -> None:
         required = ["origin", "destination", "departure_date", "cabin_class"]

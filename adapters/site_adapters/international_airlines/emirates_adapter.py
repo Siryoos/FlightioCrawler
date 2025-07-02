@@ -1,15 +1,21 @@
-from typing import Dict, List, Optional
+"""
+Refactored Emirates adapter using EnhancedInternationalAdapter.
+"""
+
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.airline_crawler import AirlineCrawler
+from adapters.base_adapters.enhanced_international_adapter import EnhancedInternationalAdapter
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 
-class EmiratesAdapter(AirlineCrawler):
+class EmiratesAdapter(EnhancedInternationalAdapter):
+    """Emirates adapter with minimal code duplication."""
+    
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.emirates.com"
@@ -162,60 +168,27 @@ class EmiratesAdapter(AirlineCrawler):
             self.logger.error(f"Error extracting flight results: {str(e)}")
             raise
 
-    def _parse_flight_element(self, element) -> Optional[Dict]:
-        try:
-            flight_data = {
-                "airline": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["airline"]
-                ).text.strip(),
-                "flight_number": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["flight_number"]
-                ).text.strip(),
-                "departure_time": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["departure_time"]
-                ).text.strip(),
-                "arrival_time": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["arrival_time"]
-                ).text.strip(),
-                "duration": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["duration"]
-                ).text.strip(),
-                "price": self._extract_price(
-                    element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["price"]
-                    ).text.strip()
-                ),
-                "cabin_class": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["cabin_class"]
-                ).text.strip()
-            }
+    def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
+        """Parse Emirates specific flight element structure."""
+        flight_data = super()._parse_flight_element(element)
+        
+        if flight_data:
+            config = self.config["extraction_config"]["results_parsing"]
+            
+            # Emirates specific: Skywards miles
+            skywards_miles = self._extract_text(element, config.get("skywards_miles"))
+            if skywards_miles:
+                flight_data["skywards_miles"] = skywards_miles
+            
+            # Emirates specific: cabin features
+            cabin_features = self._extract_text(element, config.get("cabin_features"))
+            if cabin_features:
+                flight_data["cabin_features"] = cabin_features
+        
+        return flight_data
 
-            # Extract additional flight details
-            for field in [
-                "fare_conditions", "available_seats", "aircraft_type",
-                "baggage_allowance", "meal_service", "special_services",
-                "refund_policy", "change_policy", "fare_rules",
-                "booking_class", "fare_basis", "ticket_validity",
-                "miles_earned", "miles_required", "promotion_code",
-                "special_offers"
-            ]:
-                selector = self.config["extraction_config"]["results_parsing"][field]
-                if element.select_one(selector):
-                    flight_data[field] = element.select_one(selector).text.strip()
-
-            return flight_data
-        except Exception as e:
-            self.logger.error(f"Error parsing flight element: {str(e)}")
-            return None
-
-    def _extract_price(self, price_text: str) -> float:
-        try:
-            # Remove currency symbols and convert to float
-            price = float(price_text.replace("AED", "").replace(",", "").strip())
-            return price
-        except Exception as e:
-            self.logger.error(f"Error extracting price: {str(e)}")
-            return 0.0
+    def _get_required_search_fields(self) -> List[str]:
+        return ["origin", "destination", "departure_date", "cabin_class"]
 
     def _validate_search_params(self, search_params: Dict):
         required_fields = ["origin", "destination", "departure_date", "adults", "cabin_class"]
