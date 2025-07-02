@@ -27,6 +27,19 @@ services:
     volumes:
       - ./logs:/app/logs
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: flightio-frontend
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000
+      - NODE_ENV=production
+    ports:
+      - "3001:3000"
+    depends_on:
+      - crawler-api
+
   redis:
     image: redis:7.0-alpine
     ports:
