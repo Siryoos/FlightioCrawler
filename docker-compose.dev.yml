@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  crawler-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn main_v2:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=flight_data
+      - DB_USER=crawler
+      - DB_PASSWORD=secure_password
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - DATABASE_URL=postgresql://crawler:secure_password@postgres:5432/flight_data
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+      - DEBUG_MODE=true
+      - CRAWLER_TIMEOUT=60
+      - CRAWLER_CONCURRENCY=1
+      - CRAWLER_RETRY_ATTEMPTS=1
+    depends_on:
+      - redis
+      - postgres
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    command: npm run dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000
+      - NODE_ENV=development
+    depends_on:
+      - crawler-api
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=crawler
+      - POSTGRES_PASSWORD=secure_password
+      - POSTGRES_DB=flight_data
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  redis_data:
+  postgres_data: 
