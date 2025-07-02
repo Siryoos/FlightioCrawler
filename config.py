@@ -242,8 +242,13 @@ class Config:
     DEFAULT_SORT_BY: str = 'price'
     DEFAULT_SORT_ORDER: str = 'asc'
 
+    # Environment Configuration
+    ENVIRONMENT: str = os.getenv('ENVIRONMENT', 'development')
+    USE_MOCK: bool = os.getenv('USE_MOCK', 'true').lower() == 'true'
+    DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'
+
     # Misc settings
-    CRAWLER_TIMEOUT: int = 30
+    CRAWLER_TIMEOUT: int = int(os.getenv('CRAWLER_TIMEOUT', '30'))
 
     # Populated after initialization
     REDIS_URL: str = field(init=False, default="")
