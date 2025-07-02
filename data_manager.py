@@ -94,6 +94,21 @@ class CrawlRoute(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+# New Airport model for dropdowns and airport management
+class Airport(Base):
+    """Airport model"""
+
+    __tablename__ = "airports"
+
+    id = Column(Integer, primary_key=True)
+    iata = Column(String, index=True)
+    icao = Column(String, index=True)
+    name = Column(String)
+    city = Column(String)
+    country = Column(String)
+    type = Column(String)
+
+
 class DataManager:
     """Manage data storage and retrieval"""
     
@@ -553,6 +568,51 @@ class DataManager:
             ]
         except Exception as e:
             logger.error(f"Error getting crawl routes: {e}")
+            return []
+        finally:
+            session.close()
+
+    async def get_airports(self, search: str = "", country: str | None = None, limit: int = 1000) -> List[Dict]:
+        """Retrieve airports from the database with optional filtering."""
+        session = self.Session()
+        try:
+            query = session.query(Airport)
+            if search:
+                like = f"%{search}%"
+                query = query.filter(
+                    (Airport.city.ilike(like))
+                    | (Airport.name.ilike(like))
+                    | (Airport.iata.ilike(like))
+                    | (Airport.icao.ilike(like))
+                )
+            if country:
+                query = query.filter(Airport.country == country)
+            airports = query.order_by(Airport.name).limit(limit).all()
+            return [
+                {
+                    "iata": a.iata,
+                    "icao": a.icao,
+                    "name": a.name,
+                    "city": a.city,
+                    "country": a.country,
+                    "type": a.type,
+                }
+                for a in airports
+            ]
+        except Exception as e:
+            logger.error(f"Error getting airports: {e}")
+            return []
+        finally:
+            session.close()
+
+    async def get_countries(self) -> List[str]:
+        """Return list of distinct countries from airports table."""
+        session = self.Session()
+        try:
+            rows = session.query(Airport.country).distinct().all()
+            return [r[0] for r in rows if r[0]]
+        except Exception as e:
+            logger.error(f"Error getting countries: {e}")
             return []
         finally:
             session.close()

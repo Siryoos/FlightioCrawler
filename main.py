@@ -256,6 +256,18 @@ async def list_routes():
     return {"routes": routes}
 
 
+@app.get("/airports")
+async def list_airports(q: str = "", country: str = "", limit: int = 1000):
+    airports = await crawler.data_manager.get_airports(q, country or None, limit)
+    return {"airports": airports}
+
+
+@app.get("/airports/countries")
+async def list_countries():
+    countries = await crawler.data_manager.get_countries()
+    return {"countries": countries}
+
+
 @app.delete("/routes/{route_id}")
 async def delete_route(route_id: int):
     removed = await crawler.data_manager.delete_crawl_route(route_id)
