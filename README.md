@@ -33,6 +33,20 @@ This project is a comprehensive flight crawler system designed to aggregate flig
 - Health monitoring
 - Multilingual support
 
+## 🔒 Security | امنیت
+
+FlightioCrawler implements comprehensive security measures to protect against common vulnerabilities:
+
+- **SQL Injection Prevention**: 100% SQLAlchemy ORM usage, no raw SQL queries
+- **Input Validation**: Comprehensive validation for all user inputs
+- **XSS Protection**: HTML escaping and string sanitization
+- **Security Testing**: Automated tests for injection attacks
+- **Dependency Security**: Regular updates of security-critical libraries
+
+For detailed security information, see [Security Guide](docs/SECURITY_GUIDE.md).
+
+برای اطلاعات دقیق امنیتی، [راهنمای امنیت](docs/SECURITY_GUIDE.md) را مطالعه کنید.
+
 ## Prerequisites | پیش‌نیازها
 
 - Python 3.8+

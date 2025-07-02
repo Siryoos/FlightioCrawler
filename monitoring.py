@@ -4,7 +4,6 @@ import time
 from typing import Dict, List, Optional, Any
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
-import psycopg2
 import redis
 import asyncio
 from dataclasses import dataclass

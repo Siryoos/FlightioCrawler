@@ -21,9 +21,88 @@ from redis import Redis
 from config import config
 import copy
 import datetime as dt
+import re
+from html import escape
+from urllib.parse import quote
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Security utilities for input validation and sanitization
+class InputValidator:
+    """Utility class for input validation and sanitization"""
+    
+    @staticmethod
+    def validate_airport_code(code: str) -> str:
+        """Validate and sanitize airport code (IATA/ICAO)"""
+        if not code or not isinstance(code, str):
+            raise ValueError("Airport code must be a non-empty string")
+        
+        # Remove any special characters and convert to uppercase
+        sanitized = re.sub(r'[^A-Z0-9]', '', code.upper())
+        
+        # IATA codes are 3 characters, ICAO are 4
+        if len(sanitized) not in [3, 4]:
+            raise ValueError("Airport code must be 3 or 4 characters")
+        
+        return sanitized
+    
+    @staticmethod
+    def validate_route_string(route: str) -> tuple[str, str]:
+        """Validate and parse route string (e.g., 'THR-IST')"""
+        if not route or not isinstance(route, str):
+            raise ValueError("Route must be a non-empty string")
+        
+        # Sanitize and split
+        sanitized = re.sub(r'[^A-Z0-9-]', '', route.upper())
+        parts = sanitized.split('-')
+        
+        if len(parts) != 2:
+            raise ValueError("Route must be in format 'ORIGIN-DESTINATION'")
+        
+        origin = InputValidator.validate_airport_code(parts[0])
+        destination = InputValidator.validate_airport_code(parts[1])
+        
+        return origin, destination
+    
+    @staticmethod
+    def sanitize_string(text: str, max_length: int = 255) -> str:
+        """Sanitize string input to prevent injection"""
+        if not text:
+            return ""
+        
+        # Convert to string and escape HTML
+        sanitized = escape(str(text))
+        
+        # Remove any potentially dangerous characters
+        sanitized = re.sub(r'[<>"\';\\]', '', sanitized)
+        
+        # Truncate to max length
+        return sanitized[:max_length]
+    
+    @staticmethod
+    def validate_positive_integer(value: any, min_value: int = 1, max_value: int = 1000) -> int:
+        """Validate positive integer within bounds"""
+        try:
+            int_value = int(value)
+            if int_value < min_value or int_value > max_value:
+                raise ValueError(f"Value must be between {min_value} and {max_value}")
+            return int_value
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid integer value: {value}")
+    
+    @staticmethod
+    def validate_flight_id(airline: str, flight_number: str, origin: str, destination: str, departure_time: datetime) -> str:
+        """Generate secure flight ID with validated inputs"""
+        # Sanitize all inputs
+        airline = InputValidator.sanitize_string(airline, 50)
+        flight_number = InputValidator.sanitize_string(flight_number, 20)
+        origin = InputValidator.validate_airport_code(origin)
+        destination = InputValidator.validate_airport_code(destination)
+        
+        # Generate secure ID
+        time_str = departure_time.strftime('%Y%m%d%H%M')
+        return f"{airline}_{flight_number}_{origin}_{destination}_{time_str}"
 
 # Create SQLAlchemy base
 Base = declarative_base()
@@ -145,18 +224,29 @@ class DataManager:
     
     
     def store_search_query(self, params: Dict, result_count: int, search_duration: float, cached: bool) -> None:
-        """Store search query in database"""
+        """Store search query in database with input validation"""
         try:
+            # Validate and sanitize inputs
+            origin = InputValidator.validate_airport_code(params.get('origin', ''))
+            destination = InputValidator.validate_airport_code(params.get('destination', ''))
+            departure_date = InputValidator.sanitize_string(params.get('departure_date', ''), 20)
+            passengers = InputValidator.validate_positive_integer(params.get('passengers', 1), 1, 10)
+            seat_class = InputValidator.sanitize_string(params.get('seat_class', 'economy'), 50)
+            result_count = InputValidator.validate_positive_integer(result_count, 0, 10000)
+            
+            if search_duration < 0:
+                raise ValueError("Search duration cannot be negative")
+            
             # Create session
             session = self.Session()
             
             # Create search query
             query = SearchQuery(
-                origin=params.get('origin', ''),
-                destination=params.get('destination', ''),
-                departure_date=params.get('departure_date', ''),
-                passengers=params.get('passengers', 1),
-                seat_class=params.get('seat_class', 'economy'),
+                origin=origin,
+                destination=destination,
+                departure_date=departure_date,
+                passengers=passengers,
+                seat_class=seat_class,
                 query_time=datetime.now(),
                 result_count=result_count,
                 search_duration=search_duration,
@@ -167,6 +257,9 @@ class DataManager:
             session.add(query)
             session.commit()
             
+        except ValueError as e:
+            logger.error(f"Input validation error in store_search_query: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error storing search query: {e}")
             session.rollback()
@@ -358,12 +451,12 @@ class DataManager:
             session.close()
 
     async def get_current_price(self, route: str) -> float:
-        """Get current average price for route"""
+        """Get current average price for route with input validation"""
         try:
             session = self.Session()
             
-            # Parse route
-            origin, destination = route.split('-')
+            # Validate and parse route
+            origin, destination = InputValidator.validate_route_string(route)
             
             # Get recent prices (last 24 hours)
             cutoff = datetime.now() - timedelta(hours=24)
@@ -376,6 +469,9 @@ class DataManager:
             
             return float(result) if result else 0.0
             
+        except ValueError as e:
+            logger.error(f"Input validation error in get_current_price: {e}")
+            return 0.0
         except Exception as e:
             logger.error(f"Error getting current price: {e}")
             return 0.0
@@ -383,12 +479,12 @@ class DataManager:
             session.close()
 
     async def get_search_count(self, route: str) -> int:
-        """Get search count for route popularity"""
+        """Get search count for route popularity with input validation"""
         try:
             session = self.Session()
             
-            # Parse route
-            origin, destination = route.split('-')
+            # Validate and parse route
+            origin, destination = InputValidator.validate_route_string(route)
             
             count = session.query(SearchQuery).filter(
                 SearchQuery.origin == origin,
@@ -397,6 +493,9 @@ class DataManager:
             
             return count
             
+        except ValueError as e:
+            logger.error(f"Input validation error in get_search_count: {e}")
+            return 0
         except Exception as e:
             logger.error(f"Error getting search count: {e}")
             return 0
@@ -450,10 +549,14 @@ class DataManager:
                         return obj
 
                     raw_data_serializable = convert_dt(copy.deepcopy(flight_data))
-                    flight_id = (
-                        f"{flight_data.get('airline', '')}_{flight_data.get('flight_number', '')}"
-                        f"_{flight_data.get('origin', '')}_{flight_data.get('destination', '')}"
-                        f"_{flight_data.get('departure_time', now).isoformat()}"
+                    
+                    # Generate secure flight ID with validation
+                    flight_id = InputValidator.validate_flight_id(
+                        flight_data.get('airline', ''),
+                        flight_data.get('flight_number', ''),
+                        flight_data.get('origin', ''),
+                        flight_data.get('destination', ''),
+                        flight_data.get('departure_time', now)
                     )
 
                     existing = session.query(Flight).filter_by(flight_id=flight_id).first()
@@ -526,13 +629,21 @@ class DataManager:
         return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}"
 
     async def add_crawl_route(self, origin: str, destination: str) -> int:
-        """Add a new crawl route and return its ID"""
+        """Add a new crawl route and return its ID with input validation"""
         session = self.Session()
         try:
+            # Validate and sanitize inputs
+            origin = InputValidator.validate_airport_code(origin)
+            destination = InputValidator.validate_airport_code(destination)
+            
             route = CrawlRoute(origin=origin, destination=destination)
             session.add(route)
             session.commit()
             return route.id
+        except ValueError as e:
+            session.rollback()
+            logger.error(f"Input validation error in add_crawl_route: {e}")
+            raise
         except Exception as e:
             session.rollback()
             logger.error(f"Error adding crawl route: {e}")

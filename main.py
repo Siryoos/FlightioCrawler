@@ -3,7 +3,7 @@ import asyncio
 import os
 from typing import Dict, List, Optional
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, WebSocket, Header, Query
+from fastapi import FastAPI, HTTPException, WebSocket, Header, Query, Depends
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +17,7 @@ from price_monitor import PriceMonitor, WebSocketManager, PriceAlert
 from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 from provider_insights import get_provider_insights
+from rate_limiter import RateLimitMiddleware, RateLimitManager, get_rate_limit_manager
 
 # Configure logging
 debug_mode = os.getenv("DEBUG_MODE", "0").lower() in ("1", "true", "yes")
@@ -35,6 +36,14 @@ app = FastAPI(
     description="API for crawling Iranian flight websites",
     version="1.0.0"
 )
+
+# Add rate limiting middleware
+rate_limit_middleware = RateLimitMiddleware(
+    app=app,
+    enable_ip_whitelist=True,
+    enable_user_type_limits=True
+)
+app.add_middleware(RateLimitMiddleware)
 
 # Add CORS middleware
 app.add_middleware(
@@ -98,6 +107,20 @@ class CrawlRequest(BaseModel):
     dates: List[str]
     passengers: int = 1
     seat_class: str = "economy"
+
+class RateLimitConfigRequest(BaseModel):
+    endpoint_type: str
+    requests_per_minute: int
+    requests_per_hour: int
+    burst_limit: int
+
+class WhitelistRequest(BaseModel):
+    ip: str
+    duration_seconds: int = 3600
+
+class RateLimitResetRequest(BaseModel):
+    client_ip: str
+    endpoint_type: Optional[str] = None
 
 # API endpoints
 @app.get("/")
@@ -546,6 +569,167 @@ async def dashboard_updates(websocket: WebSocket):
     finally:
         if websocket.client_state != WebSocketState.DISCONNECTED:
             await websocket.close()
+
+# Rate Limiting Management Endpoints
+@app.get("/api/v1/rate-limits/stats")
+async def get_rate_limit_stats(
+    endpoint_type: Optional[str] = Query(None, description="Specific endpoint type to get stats for"),
+    rate_limit_manager: RateLimitManager = Depends(get_rate_limit_manager)
+):
+    """دریافت آمار rate limiting"""
+    try:
+        stats = await rate_limit_manager.get_rate_limit_stats(endpoint_type)
+        return {
+            "rate_limit_stats": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting rate limit stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/rate-limits/config")
+async def get_rate_limit_config():
+    """دریافت تنظیمات rate limiting فعلی"""
+    from rate_limiter import RATE_LIMIT_CONFIGS, USER_TYPE_LIMITS
+    
+    return {
+        "endpoint_configs": RATE_LIMIT_CONFIGS,
+        "user_type_multipliers": USER_TYPE_LIMITS,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.put("/api/v1/rate-limits/config")
+async def update_rate_limit_config(
+    config_request: RateLimitConfigRequest,
+    rate_limit_manager: RateLimitManager = Depends(get_rate_limit_manager)
+):
+    """بروزرسانی تنظیمات rate limiting"""
+    try:
+        result = await rate_limit_manager.update_rate_limit_config(
+            config_request.endpoint_type,
+            {
+                "requests_per_minute": config_request.requests_per_minute,
+                "requests_per_hour": config_request.requests_per_hour,
+                "burst_limit": config_request.burst_limit
+            }
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating rate limit config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/rate-limits/client/{client_ip}")
+async def get_client_rate_limit_status(
+    client_ip: str,
+    endpoint_type: str = Query(..., description="Endpoint type to check"),
+    rate_limit_manager: RateLimitManager = Depends(get_rate_limit_manager)
+):
+    """دریافت وضعیت rate limiting برای کلاینت خاص"""
+    try:
+        status = await rate_limit_manager.get_client_rate_limit_status(client_ip, endpoint_type)
+        
+        if "error" in status:
+            raise HTTPException(status_code=500, detail=status["error"])
+        
+        return status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting client rate limit status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/rate-limits/reset")
+async def reset_client_rate_limits(
+    reset_request: RateLimitResetRequest,
+    rate_limit_manager: RateLimitManager = Depends(get_rate_limit_manager)
+):
+    """ریست کردن rate limits برای کلاینت خاص"""
+    try:
+        result = await rate_limit_manager.reset_client_rate_limits(
+            reset_request.client_ip,
+            reset_request.endpoint_type
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting client rate limits: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/rate-limits/blocked")
+async def get_blocked_clients(
+    limit: int = Query(100, description="Maximum number of blocked clients to return"),
+    rate_limit_manager: RateLimitManager = Depends(get_rate_limit_manager)
+):
+    """دریافت لیست کلاینت‌های مسدود شده"""
+    try:
+        blocked = await rate_limit_manager.get_blocked_clients(limit)
+        
+        if "error" in blocked:
+            raise HTTPException(status_code=500, detail=blocked["error"])
+        
+        return blocked
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting blocked clients: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/rate-limits/whitelist")
+async def whitelist_ip(
+    whitelist_request: WhitelistRequest,
+    rate_limit_manager: RateLimitManager = Depends(get_rate_limit_manager)
+):
+    """اضافه کردن IP به whitelist موقت"""
+    try:
+        result = await rate_limit_manager.whitelist_ip(
+            whitelist_request.ip,
+            whitelist_request.duration_seconds
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error whitelisting IP: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/rate-limits/whitelist/{ip}")
+async def check_ip_whitelist_status(
+    ip: str,
+    rate_limit_manager: RateLimitManager = Depends(get_rate_limit_manager)
+):
+    """بررسی وضعیت whitelist برای IP خاص"""
+    try:
+        is_whitelisted = await rate_limit_manager.is_ip_whitelisted(ip)
+        
+        return {
+            "ip": ip,
+            "is_whitelisted": is_whitelisted,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking IP whitelist status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Run app
 if __name__ == "__main__":

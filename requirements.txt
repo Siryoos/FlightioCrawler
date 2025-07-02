@@ -6,6 +6,12 @@ psycopg2-binary>=2.9.3
 redis>=4.3.4
 python-dotenv>=0.19.0
 
+# Security Libraries
+bleach>=6.0.0  # HTML sanitization
+validators>=0.20.0  # Input validation
+cryptography>=41.0.0  # Additional security functions
+python-slugify>=8.0.0  # Safe string generation
+
 # Persian Text Processing
 hazm>=0.7.0
 persian-tools>=0.0.8
