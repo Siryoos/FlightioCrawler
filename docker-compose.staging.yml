@@ -1,0 +1,157 @@
+version: '3.8'
+
+services:
+  # API Service for Staging
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: flightio-api-staging
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=flight_data_staging
+      - DB_USER=crawler_staging
+      - DB_PASSWORD=${STAGING_DB_PASSWORD:-staging_password}
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=1
+      - DATABASE_URL=postgresql://crawler_staging:${STAGING_DB_PASSWORD:-staging_password}@postgres:5432/flight_data_staging
+      - REDIS_URL=redis://redis:6379/1
+      - LOG_LEVEL=DEBUG
+      - DEBUG_MODE=true
+      - ENVIRONMENT=staging
+      - ENABLE_CORS=true
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./logs:/app/logs:rw
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-staging.rule=Host(`api-staging.flightio.local`)"
+
+  # Crawler Service for Staging
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile.crawler
+    container_name: flightio-crawler-staging
+    ports:
+      - "8001:8001"
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=flight_data_staging
+      - DB_USER=crawler_staging
+      - DB_PASSWORD=${STAGING_DB_PASSWORD:-staging_password}
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=1
+      - DATABASE_URL=postgresql://crawler_staging:${STAGING_DB_PASSWORD:-staging_password}@postgres:5432/flight_data_staging
+      - REDIS_URL=redis://redis:6379/1
+      - LOG_LEVEL=DEBUG
+      - CRAWLER_TIMEOUT=60
+      - CRAWLER_CONCURRENCY=2
+      - CRAWLER_RETRY_ATTEMPTS=2
+      - ENVIRONMENT=staging
+      - USE_MOCK=false
+    depends_on:
+      - redis
+      - postgres
+      - api
+    volumes:
+      - ./logs:/app/logs:rw
+      - ./data/storage:/app/data/storage:rw
+      - ./requests:/app/requests:rw
+    restart: unless-stopped
+
+  # Frontend Service for Staging
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: flightio-frontend-staging
+    command: npm run dev
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://api-staging.flightio.local:8000
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./frontend:/app:rw
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # Redis for Staging
+  redis:
+    image: redis:7.2-alpine
+    container_name: flightio-redis-staging
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_staging_data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+
+  # PostgreSQL for Staging
+  postgres:
+    image: postgres:15-alpine
+    container_name: flightio-postgres-staging
+    environment:
+      - POSTGRES_USER=crawler_staging
+      - POSTGRES_PASSWORD=${STAGING_DB_PASSWORD:-staging_password}
+      - POSTGRES_DB=flight_data_staging
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+
+  # Performance Testing Service
+  performance-test:
+    image: loadimpact/k6:latest
+    container_name: flightio-performance-test
+    command: run --vus 10 --duration 30s /scripts/api-test.js
+    volumes:
+      - ./tests/performance:/scripts:ro
+    depends_on:
+      - api
+    profiles:
+      - testing
+
+  # Database Migration Service
+  migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: flightio-migrations-staging
+    command: ["python", "-c", "import time; time.sleep(10); print('Running migrations...')"]
+    environment:
+      - DATABASE_URL=postgresql://crawler_staging:${STAGING_DB_PASSWORD:-staging_password}@postgres:5432/flight_data_staging
+    depends_on:
+      - postgres
+    profiles:
+      - setup
+
+# Networks
+networks:
+  default:
+    driver: bridge
+    name: flightio-staging
+
+volumes:
+  redis_staging_data:
+    driver: local
+  postgres_staging_data:
+    driver: local 

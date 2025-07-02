@@ -1,0 +1,68 @@
+# Lightweight Dockerfile for API Service
+FROM python:3.11-slim as base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# ---
+
+# Build stage
+FROM base as builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install API-only dependencies (excluding browser dependencies)
+COPY requirements.txt .
+RUN grep -v "playwright\|crawl4ai" requirements.txt > requirements-api.txt \
+    && pip install --user -r requirements-api.txt
+
+# ---
+
+# Runtime stage
+FROM python:3.11-slim as runtime
+
+# Install minimal runtime dependencies for API
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create API user
+RUN groupadd -r apiuser && useradd -r -g apiuser apiuser
+
+ENV PYTHONPATH=/app \
+    PATH="/home/apiuser/.local/bin:$PATH"
+
+WORKDIR /app
+
+# Copy packages from builder
+COPY --from=builder /root/.local /home/apiuser/.local
+
+# Copy API-specific code only
+COPY --chown=apiuser:apiuser api/ ./api/
+COPY --chown=apiuser:apiuser utils/ ./utils/
+COPY --chown=apiuser:apiuser config/ ./config/
+COPY --chown=apiuser:apiuser data/statics/ ./data/statics/
+COPY --chown=apiuser:apiuser main_v2.py ./
+COPY --chown=apiuser:apiuser data_manager.py ./
+COPY --chown=apiuser:apiuser monitoring.py ./
+
+# Create directories
+RUN mkdir -p logs data/storage \
+    && chown -R apiuser:apiuser /app
+
+USER apiuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/system/health || exit 1
+
+CMD ["python", "-m", "uvicorn", "main_v2:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"] 

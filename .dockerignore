@@ -1,13 +1,14 @@
-# Git
-.git
+# Version Control
+.git/
 .gitignore
+.gitattributes
 
-# Docker
+# Docker files (avoid recursion)
 .dockerignore
-Dockerfile
-docker-compose.yml
+Dockerfile*
+docker-compose*.yml
 
-# Python
+# Python cache and virtual environments
 __pycache__/
 *.pyc
 *.pyo
@@ -15,46 +16,73 @@ __pycache__/
 .Python
 env/
 venv/
+.env/
+.venv/
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Development tools
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
-# Project files
+# OS files
 .DS_Store
+Thumbs.db
 *.log
+
+# Project-specific exclusions
 logs/
 *.pot
 *.py[cod]
 .env
 local_crawler.py
 README.md
-requests/
+requests/pages/
 notebooks/
 ARCHIVE/
 tests/
+ui/
 frontend/
 node_modules/
 package.json
 package-lock.json
-k8s/
-monitoring/
+
+# Documentation and configs
 docs/
-scripts/
-config/site_configs/
-config/logging_config.json
-config/rate_limit_config.json
+*.md
+LICENSE
+mypy.ini
 pyproject.toml
 poetry.lock
 Makefile
-*.md
-mypy.ini
+
+# Infrastructure
+k8s/
+monitoring/grafana_dashboards/
+monitoring/templates/
+scripts/
 nginx/
-LICENSE
 production.env
 server_setup.sh
+
+# CI/CD
 .github/
 .gitlab-ci.yml
+
+# HTML and static files that aren't needed in container
 *.html
 *.json
-!requests/pages/*.json
-!monitoring/grafana_dashboards/*.json 
+!config/**/*.json
+!monitoring/monitoring_config.json
+!data/statics/*.json
+
+# Temporary and cache files
+tmp/
+.tmp/
+*.tmp
+.cache/ 

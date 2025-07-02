@@ -34,6 +34,7 @@ from api.v1 import (
     flights_router, monitoring_router, sites_router, 
     rate_limits_router, system_router
 )
+from api.v1.health import router as health_router
 
 # Configure logging
 if os.path.exists("config/logging_config.json"):
@@ -174,6 +175,7 @@ app.include_router(monitoring_router)
 app.include_router(sites_router)
 app.include_router(rate_limits_router)
 app.include_router(system_router)
+app.include_router(health_router)
 
 # Legacy request models (for backward compatibility)
 class SearchRequest(BaseModel):

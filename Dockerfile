@@ -1,28 +1,41 @@
-# Stage 1: Build stage
-FROM python:3.11-slim as builder
+# Multi-stage build optimized for production
+FROM python:3.11-slim as base
 
-# Install system dependencies required for building
-RUN apt-get update && apt-get install -y \
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# ---
+
+# Stage 1: Build dependencies and install packages
+FROM base as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     git \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 WORKDIR /app
 
-# Install Python dependencies
+# Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN playwright install chromium
+RUN python -m pip install --upgrade pip \
+    && pip install --no-cache-dir --user -r requirements.txt \
+    && playwright install chromium --with-deps
 
 # ---
 
-# Stage 2: Final stage
-FROM python:3.11-slim
+# Stage 2: Runtime stage with distroless approach
+FROM python:3.11-slim as runtime
 
-# Install only necessary runtime system dependencies
-RUN apt-get update && apt-get install -y \
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     fonts-noto \
@@ -30,37 +43,51 @@ RUN apt-get update && apt-get install -y \
     fonts-noto-color-emoji \
     curl \
     postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/*
+
+# Create non-root user
+RUN groupadd -r flightio && useradd -r -g flightio flightio
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV CRAWL4AI_BROWSER_PATH=/usr/bin/chromium
-ENV PYTHONPATH=/app
-
-# Create app user for security
-RUN groupadd -r flightio && useradd -r -g flightio flightio
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    CRAWL4AI_BROWSER_PATH=/usr/bin/chromium \
+    PYTHONPATH=/app \
+    PATH="/home/flightio/.local/bin:$PATH"
 
 WORKDIR /app
 
-# Copy installed Python packages from the builder stage
-COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
-COPY --from=builder /usr/local/bin/ /usr/local/bin/
+# Copy installed packages from builder
+COPY --from=builder /root/.local /home/flightio/.local
 
-# Copy application code
-COPY . .
+# Copy application code (optimized order for better caching)
+COPY --chown=flightio:flightio requirements.txt ./
+COPY --chown=flightio:flightio config/ ./config/
+COPY --chown=flightio:flightio data/statics/ ./data/statics/
+COPY --chown=flightio:flightio *.py ./
+COPY --chown=flightio:flightio adapters/ ./adapters/
+COPY --chown=flightio:flightio api/ ./api/
+COPY --chown=flightio:flightio crawlers/ ./crawlers/
+COPY --chown=flightio:flightio utils/ ./utils/
+COPY --chown=flightio:flightio monitoring/ ./monitoring/
 
-# Create required directories and set permissions
+# Create required directories with proper permissions
 RUN mkdir -p logs data/storage requests/pages models \
-    && chown -R flightio:flightio /app
+    && chown -R flightio:flightio /app \
+    && chmod -R 755 /app
 
 # Switch to non-root user
 USER flightio
 
+# Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+# Enhanced health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/system/health || exit 1
 
-# Default command (can be overridden in docker-compose)
-CMD ["uvicorn", "main_v2:app", "--host", "0.0.0.0", "--port", "8000"] 
+# Default command
+CMD ["python", "-m", "uvicorn", "main_v2:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"] 

@@ -1,0 +1,73 @@
+# Optimized Dockerfile for Crawler Service
+FROM python:3.11-slim as base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# ---
+
+# Build stage
+FROM base as builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install crawler-specific dependencies
+COPY requirements.txt .
+RUN pip install --user -r requirements.txt \
+    && playwright install chromium --with-deps
+
+# ---
+
+# Runtime stage
+FROM python:3.11-slim as runtime
+
+# Install minimal runtime dependencies for crawler
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    chromium-driver \
+    fonts-noto \
+    fonts-noto-cjk \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create crawler user
+RUN groupadd -r crawler && useradd -r -g crawler crawler
+
+ENV CRAWL4AI_BROWSER_PATH=/usr/bin/chromium \
+    PYTHONPATH=/app \
+    PATH="/home/crawler/.local/bin:$PATH"
+
+WORKDIR /app
+
+# Copy packages from builder
+COPY --from=builder /root/.local /home/crawler/.local
+
+# Copy crawler-specific code
+COPY --chown=crawler:crawler adapters/ ./adapters/
+COPY --chown=crawler:crawler crawlers/ ./crawlers/
+COPY --chown=crawler:crawler utils/ ./utils/
+COPY --chown=crawler:crawler config/ ./config/
+COPY --chown=crawler:crawler data/statics/ ./data/statics/
+COPY --chown=crawler:crawler *.py ./
+
+# Create directories
+RUN mkdir -p logs data/storage requests/pages \
+    && chown -R crawler:crawler /app
+
+USER crawler
+
+EXPOSE 8001
+
+HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=2 \
+    CMD python -c "import requests; requests.get('http://localhost:8001/health')" || exit 1
+
+CMD ["python", "main_crawler.py"] 
