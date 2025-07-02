@@ -11,6 +11,7 @@ from production_url_validator import ProductionURLValidator
 
 logger = logging.getLogger(__name__)
 
+
 class ProductionSafetyCrawler:
     """Enhanced safety measures for production crawling."""
 
@@ -52,4 +53,3 @@ class ProductionSafetyCrawler:
             logger.error("Crawl failed for %s: %s", site_name, exc)
             await self.circuit_breakers[site_name].handle_error(site_name, str(exc))
             return []
-

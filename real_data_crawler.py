@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from site_crawlers import BaseSiteCrawler
 
+
 class RealDataCrawler(BaseSiteCrawler):
     """Production crawler for real website data"""
 
@@ -25,7 +26,12 @@ class RealDataCrawler(BaseSiteCrawler):
                     continue
                 dep = flight.get("departure_time")
                 arr = flight.get("arrival_time")
-                if dep and arr and isinstance(dep, datetime) and isinstance(arr, datetime):
+                if (
+                    dep
+                    and arr
+                    and isinstance(dep, datetime)
+                    and isinstance(arr, datetime)
+                ):
                     if arr <= dep:
                         continue
                 validated.append(flight)

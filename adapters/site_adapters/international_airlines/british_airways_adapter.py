@@ -7,7 +7,9 @@ import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.enhanced_international_adapter import EnhancedInternationalAdapter
+from adapters.base_adapters.enhanced_international_adapter import (
+    EnhancedInternationalAdapter,
+)
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
@@ -15,7 +17,7 @@ from monitoring import Monitoring
 
 class BritishAirwaysAdapter(EnhancedInternationalAdapter):
     """British Airways adapter with minimal code duplication."""
-    
+
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.britishairways.com"
@@ -71,7 +73,9 @@ class BritishAirwaysAdapter(EnhancedInternationalAdapter):
             )
             if "return_date" in search_params:
                 await self.page.fill(
-                    self.config["extraction_config"]["search_form"]["return_date_field"],
+                    self.config["extraction_config"]["search_form"][
+                        "return_date_field"
+                    ],
                     search_params["return_date"],
                 )
             await self.page.select_option(
@@ -107,15 +111,15 @@ class BritishAirwaysAdapter(EnhancedInternationalAdapter):
     def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
         """Parse British Airways specific flight element structure."""
         flight_data = super()._parse_flight_element(element)
-        
+
         if flight_data:
             config = self.config["extraction_config"]["results_parsing"]
-            
+
             # British Airways specific: Avios points
             avios_points = self._extract_text(element, config.get("avios_points"))
             if avios_points:
                 flight_data["avios_points"] = avios_points
-        
+
         return flight_data
 
     def _get_required_search_fields(self) -> List[str]:

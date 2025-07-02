@@ -1,5 +1,6 @@
 import importlib.util
 import pytest
+
 if importlib.util.find_spec("crawl4ai") is None:
     pytest.skip("crawl4ai not installed", allow_module_level=True)
 import inspect

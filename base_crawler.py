@@ -1,6 +1,7 @@
 """
 Base Crawler Class with Environment Management
 """
+
 import asyncio
 import logging
 from abc import ABC, abstractmethod
@@ -17,33 +18,41 @@ logger = logging.getLogger(__name__)
 
 class BaseSiteCrawler(ABC):
     """Abstract base class for all site crawlers with environment management"""
-    
-    def __init__(self, site_name: str, base_url: str, 
-                 rate_limiter=None, text_processor=None, 
-                 monitor=None, error_handler=None):
+
+    def __init__(
+        self,
+        site_name: str,
+        base_url: str,
+        rate_limiter=None,
+        text_processor=None,
+        monitor=None,
+        error_handler=None,
+    ):
         self.site_name = site_name
         self.base_url = base_url
         self.rate_limiter = rate_limiter
         self.text_processor = text_processor
         self.monitor = monitor
         self.error_handler = error_handler
-        
+
         # Environment-based configuration
         self.crawler_config = env_manager.get_crawler_config(site_name)
         self.use_mock = env_manager.should_use_mock_data()
-        
+
         # Initialize crawler based on environment
         if env_manager.should_use_real_crawler():
             self.web_crawler = AdvancedCrawler(use_selenium=True)
         else:
             self.web_crawler = None
-        
+
         logger.info(f"Initialized {site_name} crawler - Mock: {self.use_mock}")
-    
+
     async def search_flights(self, search_params: Dict[str, Any]) -> List[Dict]:
         """Main entry point for flight search"""
-        env_manager.log_execution_mode(self.site_name, f"search_flights({search_params})")
-        
+        env_manager.log_execution_mode(
+            self.site_name, f"search_flights({search_params})"
+        )
+
         try:
             if self.use_mock:
                 return await self._search_flights_mock(search_params)
@@ -54,122 +63,126 @@ class BaseSiteCrawler(ABC):
             if self.error_handler:
                 await self.error_handler.handle_error(self.site_name, str(e))
             return []
-    
+
     async def _search_flights_mock(self, search_params: Dict[str, Any]) -> List[Dict]:
         """Search using mock/cached HTML files"""
         mock_file = env_manager.get_mock_file_path(self.site_name, search_params)
-        
+
         if not mock_file or not mock_file.exists():
             logger.warning(f"No mock data available for {self.site_name}")
             return []
-        
+
         try:
-            html_content = mock_file.read_text(encoding='utf-8')
-            soup = BeautifulSoup(html_content, 'html.parser')
-            
+            html_content = mock_file.read_text(encoding="utf-8")
+            soup = BeautifulSoup(html_content, "html.parser")
+
             # Parse flights from HTML
             flights = await self.parse_flights(soup, search_params)
-            
+
             logger.info(f"[MOCK] {self.site_name}: Found {len(flights)} flights")
             return flights
-            
+
         except Exception as e:
             logger.error(f"Error parsing mock data for {self.site_name}: {e}")
             return []
-    
+
     async def _search_flights_real(self, search_params: Dict[str, Any]) -> List[Dict]:
         """Search using real web requests"""
         if not self.web_crawler:
             logger.error(f"Web crawler not initialized for {self.site_name}")
             return []
-        
+
         try:
             # Build search URL
             search_url = await self.build_search_url(search_params)
-            
+
             # Rate limiting
             if self.rate_limiter:
                 await self.rate_limiter.wait_for_rate_limit(self.site_name)
-            
+
             # Perform web crawl
             html_content, metadata = self.web_crawler.extract_with_selenium(search_url)
-            soup = BeautifulSoup(html_content, 'html.parser')
-            
+            soup = BeautifulSoup(html_content, "html.parser")
+
             # Parse flights from HTML
             flights = await self.parse_flights(soup, search_params)
-            
+
             # Record metrics
             if self.monitor:
-                self.monitor.record_request(self.site_name, metadata.get('duration', 0))
+                self.monitor.record_request(self.site_name, metadata.get("duration", 0))
                 self.monitor.record_flights(self.site_name, len(flights))
-            
+
             logger.info(f"[REAL] {self.site_name}: Found {len(flights)} flights")
             return flights
-            
+
         except Exception as e:
             logger.error(f"Error in real crawl for {self.site_name}: {e}")
             if self.error_handler:
                 await self.error_handler.handle_error(self.site_name, str(e))
             return []
-    
+
     @abstractmethod
     async def build_search_url(self, search_params: Dict[str, Any]) -> str:
         """Build search URL from parameters - must be implemented by subclasses"""
         pass
-    
+
     @abstractmethod
-    async def parse_flights(self, soup: BeautifulSoup, search_params: Dict[str, Any]) -> List[Dict]:
+    async def parse_flights(
+        self, soup: BeautifulSoup, search_params: Dict[str, Any]
+    ) -> List[Dict]:
         """Parse flight data from HTML - must be implemented by subclasses"""
         pass
-    
+
     def get_headers(self) -> Dict[str, str]:
         """Get HTTP headers for requests"""
         return {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'fa-IR,fa;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "fa-IR,fa;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
         }
-    
+
     def normalize_flight_data(self, raw_flight: Dict, search_params: Dict) -> Dict:
         """Normalize flight data to standard format"""
         return {
-            'flight_id': raw_flight.get('flight_id', ''),
-            'airline': raw_flight.get('airline', ''),
-            'flight_number': raw_flight.get('flight_number', ''),
-            'origin': search_params.get('origin', ''),
-            'destination': search_params.get('destination', ''),
-            'departure_time': raw_flight.get('departure_time'),
-            'arrival_time': raw_flight.get('arrival_time'),
-            'price': raw_flight.get('price', 0),
-            'currency': raw_flight.get('currency', 'IRR'),
-            'seat_class': search_params.get('seat_class', 'economy'),
-            'aircraft_type': raw_flight.get('aircraft_type'),
-            'duration_minutes': raw_flight.get('duration_minutes', 0),
-            'flight_type': raw_flight.get('flight_type', 'domestic'),
-            'source_site': self.site_name,
-            'scraped_at': raw_flight.get('scraped_at'),
+            "flight_id": raw_flight.get("flight_id", ""),
+            "airline": raw_flight.get("airline", ""),
+            "flight_number": raw_flight.get("flight_number", ""),
+            "origin": search_params.get("origin", ""),
+            "destination": search_params.get("destination", ""),
+            "departure_time": raw_flight.get("departure_time"),
+            "arrival_time": raw_flight.get("arrival_time"),
+            "price": raw_flight.get("price", 0),
+            "currency": raw_flight.get("currency", "IRR"),
+            "seat_class": search_params.get("seat_class", "economy"),
+            "aircraft_type": raw_flight.get("aircraft_type"),
+            "duration_minutes": raw_flight.get("duration_minutes", 0),
+            "flight_type": raw_flight.get("flight_type", "domestic"),
+            "source_site": self.site_name,
+            "scraped_at": raw_flight.get("scraped_at"),
         }
 
 
 class MockableCrawler(BaseSiteCrawler):
     """Example implementation showing how to extend BaseSiteCrawler"""
-    
+
     async def build_search_url(self, search_params: Dict[str, Any]) -> str:
         """Build search URL - example implementation"""
-        origin = search_params.get('origin', '')
-        destination = search_params.get('destination', '')
-        date = search_params.get('departure_date', '')
-        
+        origin = search_params.get("origin", "")
+        destination = search_params.get("destination", "")
+        date = search_params.get("departure_date", "")
+
         return f"{self.base_url}/search?from={origin}&to={destination}&date={date}"
-    
-    async def parse_flights(self, soup: BeautifulSoup, search_params: Dict[str, Any]) -> List[Dict]:
+
+    async def parse_flights(
+        self, soup: BeautifulSoup, search_params: Dict[str, Any]
+    ) -> List[Dict]:
         """Parse flights - example implementation"""
         flights = []
-        
+
         # This would be implemented by each specific site crawler
         # For now, return empty list as example
-        
-        return flights 
+
+        return flights

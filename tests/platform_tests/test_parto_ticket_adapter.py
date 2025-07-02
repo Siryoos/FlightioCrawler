@@ -1,7 +1,10 @@
 import pytest
 from datetime import datetime
-from adapters.site_adapters.iranian_airlines.parto_ticket_adapter import PartoTicketAdapter
+from adapters.site_adapters.iranian_airlines.parto_ticket_adapter import (
+    PartoTicketAdapter,
+)
 from utils.persian_text_processor import PersianTextProcessor
+
 
 @pytest.fixture
 def sample_config():
@@ -12,25 +15,22 @@ def sample_config():
         "enable_crs_integration": True,
         "crs_config": {
             "site_id": "parto_crs",
-            "b2b_credentials": {
-                "username": "test_user",
-                "password": "test_pass"
-            }
+            "b2b_credentials": {"username": "test_user", "password": "test_pass"},
         },
         "crs_agency_code": "TEST123",
         "crs_commission_rate": 5,
         "persian_processing": {
             "rtl_support": True,
             "jalali_calendar": True,
-            "persian_numerals": True
+            "persian_numerals": True,
         },
         "extraction_config": {
             "search_form": {
-                "origin_field": "input[name=\"origin\"]",
-                "destination_field": "input[name=\"destination\"]",
-                "date_field": "input[name=\"departure_date\"]",
-                "passengers_field": "select[name=\"passengers\"]",
-                "class_field": "select[name=\"cabin_class\"]"
+                "origin_field": 'input[name="origin"]',
+                "destination_field": 'input[name="destination"]',
+                "date_field": 'input[name="departure_date"]',
+                "passengers_field": 'select[name="passengers"]',
+                "class_field": 'select[name="cabin_class"]',
             },
             "results_parsing": {
                 "container": ".flight-result",
@@ -44,8 +44,8 @@ def sample_config():
                 "fare_conditions": ".fare-conditions",
                 "available_seats": ".available-seats",
                 "aircraft_type": ".aircraft-type",
-                "ticket_type": ".ticket-type"
-            }
+                "ticket_type": ".ticket-type",
+            },
         },
         "data_validation": {
             "required_fields": [
@@ -56,18 +56,13 @@ def sample_config():
                 "price",
                 "currency",
                 "seat_class",
-                "duration_minutes"
+                "duration_minutes",
             ],
-            "price_range": {
-                "min": 1000000,
-                "max": 100000000
-            },
-            "duration_range": {
-                "min": 30,
-                "max": 1440
-            }
-        }
+            "price_range": {"min": 1000000, "max": 100000000},
+            "duration_range": {"min": 30, "max": 1440},
+        },
     }
+
 
 @pytest.fixture
 def sample_search_params():
@@ -78,8 +73,9 @@ def sample_search_params():
         "passengers": 1,
         "seat_class": "اقتصادی",
         "agency_code": "TEST123",
-        "commission_rate": 5
+        "commission_rate": 5,
     }
+
 
 @pytest.fixture
 def sample_flight_html():
@@ -103,12 +99,13 @@ def sample_flight_html():
     </div>
     """
 
+
 class TestPartoTicketAdapter:
     @pytest.mark.asyncio
     async def test_crawl_flow(self, sample_config, sample_search_params):
         adapter = PartoTicketAdapter(sample_config)
         results = await adapter.crawl(sample_search_params)
-        
+
         assert isinstance(results, list)
         assert len(results) > 0
         assert all(isinstance(flight, dict) for flight in results)
@@ -121,7 +118,7 @@ class TestPartoTicketAdapter:
     async def test_persian_text_processing(self, sample_config, sample_flight_html):
         adapter = PartoTicketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert flight_data["airline"] == "ایران ایر"
         assert flight_data["flight_number"] == "IR-123"
         assert flight_data["price"] == 2500000
@@ -133,7 +130,7 @@ class TestPartoTicketAdapter:
     async def test_crs_integration(self, sample_config, sample_search_params):
         adapter = PartoTicketAdapter(sample_config)
         results = await adapter.crawl(sample_search_params)
-        
+
         assert all("commission" in flight for flight in results)
         assert all("fare_rules" in flight for flight in results)
         assert all("booking_class" in flight for flight in results)
@@ -144,7 +141,7 @@ class TestPartoTicketAdapter:
     async def test_fare_conditions_extraction(self, sample_config, sample_flight_html):
         adapter = PartoTicketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "fare_conditions" in flight_data
         assert flight_data["fare_conditions"]["cancellation"] == "قابل کنسلی با جریمه"
         assert flight_data["fare_conditions"]["change"] == "قابل تغییر با جریمه"
@@ -154,7 +151,7 @@ class TestPartoTicketAdapter:
     async def test_available_seats_extraction(self, sample_config, sample_flight_html):
         adapter = PartoTicketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "available_seats" in flight_data
         assert flight_data["available_seats"] == 5
 
@@ -162,7 +159,7 @@ class TestPartoTicketAdapter:
     async def test_aircraft_type_extraction(self, sample_config, sample_flight_html):
         adapter = PartoTicketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "aircraft_type" in flight_data
         assert flight_data["aircraft_type"] == "بوئینگ 737"
 
@@ -170,7 +167,7 @@ class TestPartoTicketAdapter:
     async def test_ticket_type_extraction(self, sample_config, sample_flight_html):
         adapter = PartoTicketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "ticket_type" in flight_data
         assert flight_data["ticket_type"] == "بلیط سیستمی"
 
@@ -178,26 +175,37 @@ class TestPartoTicketAdapter:
     async def test_data_validation(self, sample_config, sample_search_params):
         adapter = PartoTicketAdapter(sample_config)
         results = await adapter.crawl(sample_search_params)
-        
+
         for flight in results:
-            assert all(field in flight for field in sample_config["data_validation"]["required_fields"])
-            assert sample_config["data_validation"]["price_range"]["min"] <= flight["price"] <= sample_config["data_validation"]["price_range"]["max"]
-            assert sample_config["data_validation"]["duration_range"]["min"] <= flight["duration_minutes"] <= sample_config["data_validation"]["duration_range"]["max"]
+            assert all(
+                field in flight
+                for field in sample_config["data_validation"]["required_fields"]
+            )
+            assert (
+                sample_config["data_validation"]["price_range"]["min"]
+                <= flight["price"]
+                <= sample_config["data_validation"]["price_range"]["max"]
+            )
+            assert (
+                sample_config["data_validation"]["duration_range"]["min"]
+                <= flight["duration_minutes"]
+                <= sample_config["data_validation"]["duration_range"]["max"]
+            )
             assert 0 <= flight["commission"] <= 100
 
     @pytest.mark.asyncio
     async def test_error_handling(self, sample_config, sample_search_params):
         adapter = PartoTicketAdapter(sample_config)
-        
+
         # Test with invalid search parameters
         invalid_params = sample_search_params.copy()
         invalid_params["origin"] = "invalid_city"
         results = await adapter.crawl(invalid_params)
         assert isinstance(results, list)
         assert len(results) == 0
-        
+
         # Test with missing required fields
         invalid_params = sample_search_params.copy()
         del invalid_params["origin"]
         with pytest.raises(ValueError):
-            await adapter.crawl(invalid_params) 
+            await adapter.crawl(invalid_params)

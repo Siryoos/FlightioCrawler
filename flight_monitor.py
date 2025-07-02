@@ -23,20 +23,40 @@ class FlightMonitoringSystem:
         self.error_handler = ErrorHandler()
 
         self.crawlers = {
-            'safarmarket.com': SafarmarketCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=900
+            "safarmarket.com": SafarmarketCrawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler,
+                interval=900,
             ),
-            'mz724.ir': Mz724Crawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=1800
+            "mz724.ir": Mz724Crawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler,
+                interval=1800,
             ),
-            'flightio.com': FlightioCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=2700
+            "flightio.com": FlightioCrawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler,
+                interval=2700,
             ),
-            'flytoday.ir': FlytodayCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=2700
+            "flytoday.ir": FlytodayCrawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler,
+                interval=2700,
             ),
-            'alibaba.ir': AlibabaCrawler(
-                self.rate_limiter, self.text_processor, self.monitor, self.error_handler, interval=900
+            "alibaba.ir": AlibabaCrawler(
+                self.rate_limiter,
+                self.text_processor,
+                self.monitor,
+                self.error_handler,
+                interval=900,
             ),
         }
         self.monitor_tasks: Dict[str, asyncio.Task] = {}

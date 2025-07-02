@@ -2,6 +2,7 @@ import asyncio
 import pytest
 from intelligent_search import IntelligentSearchEngine
 
+
 class DummyCrawler:
     async def crawl_all_sites(self, params):
         return [
@@ -11,11 +12,14 @@ class DummyCrawler:
             }
         ]
 
+
 class DummyDB:
     async def get_historical_prices(self, route, months=12):
         return {"2024-01": 200}
+
     async def get_search_count(self, route):
         return 5
+
 
 @pytest.mark.asyncio
 async def test_detect_class_upgrades():

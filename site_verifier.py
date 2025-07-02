@@ -2,6 +2,7 @@ from typing import Dict
 import time
 import aiohttp
 
+
 async def verify_website_individually(site_name: str, site_config: dict) -> dict:
     """Step-by-step verification for each website"""
     verification_report = {
@@ -31,7 +32,9 @@ async def verify_website_individually(site_name: str, site_config: dict) -> dict
             async with session.get(base_url, timeout=10) as resp:
                 verification_report["tests"]["connectivity"] = resp.status < 400
                 verification_report["tests"]["response_time"] = time.monotonic() - start
-                verification_report["tests"]["content_accessible"] = resp.content_type in {"text/html", "application/json"}
+                verification_report["tests"]["content_accessible"] = (
+                    resp.content_type in {"text/html", "application/json"}
+                )
                 if resp.status == 429:
                     verification_report["tests"]["rate_limit_compliant"] = False
                 else:
@@ -41,6 +44,7 @@ async def verify_website_individually(site_name: str, site_config: dict) -> dict
         verification_report["status"] = "failed"
         return verification_report
 
-    verification_report["status"] = "passed" if verification_report["tests"]["connectivity"] else "failed"
+    verification_report["status"] = (
+        "passed" if verification_report["tests"]["connectivity"] else "failed"
+    )
     return verification_report
-

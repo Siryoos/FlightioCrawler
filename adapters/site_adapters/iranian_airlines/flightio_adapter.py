@@ -17,11 +17,11 @@ from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapt
 class FlightioAdapter(EnhancedPersianAdapter):
     """
     Flightio.com adapter with minimal code duplication.
-    
+
     Uses EnhancedPersianAdapter for all common functionality.
     Only implements aggregator-specific logic.
     """
-    
+
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://flightio.com"
@@ -77,7 +77,9 @@ class FlightioAdapter(EnhancedPersianAdapter):
             )
             if "return_date" in search_params:
                 await self.page.fill(
-                    self.config["extraction_config"]["search_form"]["return_date_field"],
+                    self.config["extraction_config"]["search_form"][
+                        "return_date_field"
+                    ],
                     search_params["return_date"],
                 )
             await self.page.select_option(
@@ -113,24 +115,26 @@ class FlightioAdapter(EnhancedPersianAdapter):
     def _parse_flight_element(self, element) -> Optional[Dict]:
         """
         Parse Flightio specific flight element structure.
-        
+
         Uses parent class for common parsing with Iranian text processing.
         """
         flight_data = super()._parse_flight_element(element)
-        
+
         if flight_data:
             # Add Flightio specific fields
             config = self.config["extraction_config"]["results_parsing"]
-            
+
             # Flightio specific: provider information
             provider_info = self._extract_text(element, config.get("provider_info"))
             if provider_info:
-                flight_data["provider_info"] = self.persian_processor.process_text(provider_info)
-            
+                flight_data["provider_info"] = self.persian_processor.process_text(
+                    provider_info
+                )
+
             # Mark as aggregator result
             flight_data["is_aggregator"] = True
             flight_data["aggregator_name"] = "flightio"
-        
+
         return flight_data
 
     def _get_required_search_fields(self) -> List[str]:

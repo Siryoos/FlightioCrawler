@@ -1,5 +1,6 @@
 import importlib.util
 import pytest
+
 if importlib.util.find_spec("crawl4ai") is None:
     pytest.skip("crawl4ai not installed", allow_module_level=True)
 from fastapi.testclient import TestClient
@@ -20,4 +21,3 @@ def test_route_crud():
 
     r = client.delete(f"/routes/{route_id}")
     assert r.status_code == 200
-

@@ -16,7 +16,7 @@ from monitoring import Monitoring
 class AlibabaAdapter(EnhancedPersianAdapter):
     """
     Alibaba.ir adapter with minimal code duplication.
-    
+
     Uses EnhancedPersianAdapter for all common functionality.
     Only implements aggregator-specific logic.
     """
@@ -76,7 +76,9 @@ class AlibabaAdapter(EnhancedPersianAdapter):
             )
             if "return_date" in search_params:
                 await self.page.fill(
-                    self.config["extraction_config"]["search_form"]["return_date_field"],
+                    self.config["extraction_config"]["search_form"][
+                        "return_date_field"
+                    ],
                     search_params["return_date"],
                 )
             await self.page.select_option(
@@ -112,34 +114,40 @@ class AlibabaAdapter(EnhancedPersianAdapter):
     def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
         """
         Parse Alibaba specific flight element structure.
-        
+
         Uses parent class for common parsing with Iranian text processing.
         """
         flight_data = super()._parse_flight_element(element)
-        
+
         if flight_data:
             # Add Alibaba specific fields
             config = self.config["extraction_config"]["results_parsing"]
-            
+
             # Alibaba specific: source airline
             source_airline = self._extract_text(element, config.get("source_airline"))
             if source_airline:
-                flight_data["source_airline"] = self.persian_processor.process_text(source_airline)
-            
+                flight_data["source_airline"] = self.persian_processor.process_text(
+                    source_airline
+                )
+
             # Alibaba specific: discount information
             discount_info = self._extract_text(element, config.get("discount_info"))
             if discount_info:
-                flight_data["discount_info"] = self.persian_processor.process_text(discount_info)
-            
+                flight_data["discount_info"] = self.persian_processor.process_text(
+                    discount_info
+                )
+
             # Alibaba specific: booking reference
             booking_ref = self._extract_text(element, config.get("booking_reference"))
             if booking_ref:
-                flight_data["booking_reference"] = self.persian_processor.process_text(booking_ref)
-            
+                flight_data["booking_reference"] = self.persian_processor.process_text(
+                    booking_ref
+                )
+
             # Mark as aggregator result
             flight_data["is_aggregator"] = True
             flight_data["aggregator_name"] = "alibaba"
-        
+
         return flight_data
 
     def _get_required_search_fields(self) -> List[str]:

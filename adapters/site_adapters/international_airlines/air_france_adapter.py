@@ -7,7 +7,9 @@ import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.enhanced_international_adapter import EnhancedInternationalAdapter
+from adapters.base_adapters.enhanced_international_adapter import (
+    EnhancedInternationalAdapter,
+)
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
@@ -15,7 +17,7 @@ from monitoring import Monitoring
 
 class AirFranceAdapter(EnhancedInternationalAdapter):
     """Air France adapter with minimal code duplication."""
-    
+
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.airfrance.com"
@@ -71,7 +73,9 @@ class AirFranceAdapter(EnhancedInternationalAdapter):
             )
             if "return_date" in search_params:
                 await self.page.fill(
-                    self.config["extraction_config"]["search_form"]["return_date_field"],
+                    self.config["extraction_config"]["search_form"][
+                        "return_date_field"
+                    ],
                     search_params["return_date"],
                 )
             await self.page.select_option(
@@ -107,15 +111,17 @@ class AirFranceAdapter(EnhancedInternationalAdapter):
     def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
         """Parse Air France specific flight element structure."""
         flight_data = super()._parse_flight_element(element)
-        
+
         if flight_data:
             config = self.config["extraction_config"]["results_parsing"]
-            
+
             # Air France specific: Flying Blue miles
-            flying_blue_miles = self._extract_text(element, config.get("flying_blue_miles"))
+            flying_blue_miles = self._extract_text(
+                element, config.get("flying_blue_miles")
+            )
             if flying_blue_miles:
                 flight_data["flying_blue_miles"] = flying_blue_miles
-        
+
         return flight_data
 
     def _get_required_search_fields(self) -> List[str]:

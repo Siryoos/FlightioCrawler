@@ -1,6 +1,7 @@
 try:
     from googletrans import Translator
 except Exception:  # pragma: no cover - optional dependency
+
     class Translator:
         def translate(self, text, dest="en", src="auto"):
             class Result:
@@ -11,14 +12,18 @@ except Exception:  # pragma: no cover - optional dependency
                     self.confidence = 1.0
 
             return Result(text, dest, src)
+
+
 import langdetect
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 
+
 @dataclass
 class LanguageConfig:
     """Language configuration"""
+
     code: str  # ISO 639-1 code
     name: str
     rtl: bool  # Right-to-left text
@@ -26,14 +31,17 @@ class LanguageConfig:
     currency_format: str
     number_format: str
 
+
 @dataclass
 class TranslationResult:
     """Translation result"""
+
     original_text: str
     translated_text: str
     source_language: str
     target_language: str
     confidence: float
+
 
 class MultilingualProcessor:
     def __init__(self, supported_languages: Optional[List[str]] = None):
@@ -45,7 +53,9 @@ class MultilingualProcessor:
         """Detect the language of the given text."""
         return langdetect.detect(text)
 
-    async def translate_text(self, text: str, target_lang: str, source_lang: str = 'auto') -> TranslationResult:
+    async def translate_text(
+        self, text: str, target_lang: str, source_lang: str = "auto"
+    ) -> TranslationResult:
         """Translate text to the target language."""
         result = self.translator.translate(text, dest=target_lang, src=source_lang)
         return TranslationResult(
@@ -53,7 +63,7 @@ class MultilingualProcessor:
             translated_text=result.text,
             source_language=result.src,
             target_language=result.dest,
-            confidence=result.confidence
+            confidence=result.confidence,
         )
 
     async def translate_flight_data(self, flight_data: Dict, target_lang: str) -> Dict:
@@ -61,7 +71,9 @@ class MultilingualProcessor:
         translated_data = {}
         for key, value in flight_data.items():
             if isinstance(value, str):
-                translated_data[key] = (await self.translate_text(value, target_lang)).translated_text
+                translated_data[key] = (
+                    await self.translate_text(value, target_lang)
+                ).translated_text
             else:
                 translated_data[key] = value
         return translated_data
@@ -76,7 +88,9 @@ class MultilingualProcessor:
         # Placeholder for cultural formatting logic
         return data
 
-    async def get_localized_airport_names(self, airport_codes: List[str], locale: str) -> Dict[str, str]:
+    async def get_localized_airport_names(
+        self, airport_codes: List[str], locale: str
+    ) -> Dict[str, str]:
         """Get localized airport names for the given codes and locale."""
         # Placeholder for localized airport names
         return {code: code for code in airport_codes}
@@ -93,7 +107,17 @@ class MultilingualProcessor:
 
     async def get_supported_languages(self) -> List[LanguageConfig]:
         """Get the list of supported languages."""
-        return [LanguageConfig(code=code, name=code, rtl=False, date_format="%Y-%m-%d", currency_format="{amount} {currency}", number_format="{number}") for code in self.supported_languages]
+        return [
+            LanguageConfig(
+                code=code,
+                name=code,
+                rtl=False,
+                date_format="%Y-%m-%d",
+                currency_format="{amount} {currency}",
+                number_format="{number}",
+            )
+            for code in self.supported_languages
+        ]
 
     def process_persian_text(self, text: str) -> str:
         """Process and normalize Persian text."""
@@ -114,6 +138,7 @@ class MultilingualProcessor:
         """Normalize unicode text for consistency."""
         # Placeholder for unicode normalization
         return text
+
 
 class LocalizationManager:
     def __init__(self, translations_path: str, base_language: str = "en"):
@@ -150,7 +175,9 @@ class LocalizationManager:
         except Exception:
             return template
 
-    async def update_translation_files(self, new_translations: Dict[str, Dict[str, str]]):
+    async def update_translation_files(
+        self, new_translations: Dict[str, Dict[str, str]]
+    ):
         """Update translation files with new translations."""
         import os
         import json

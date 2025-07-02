@@ -1,7 +1,10 @@
 import pytest
 from datetime import datetime
-from adapters.site_adapters.iranian_airlines.safarmarket_adapter import SafarmarketAdapter
+from adapters.site_adapters.iranian_airlines.safarmarket_adapter import (
+    SafarmarketAdapter,
+)
 from utils.persian_text_processor import PersianTextProcessor
+
 
 @pytest.fixture
 def sample_config():
@@ -12,16 +15,16 @@ def sample_config():
         "persian_processing": {
             "rtl_support": True,
             "jalali_calendar": True,
-            "persian_numerals": True
+            "persian_numerals": True,
         },
         "extraction_config": {
             "search_form": {
-                "origin_field": "input[name=\"origin\"]",
-                "destination_field": "input[name=\"destination\"]",
-                "date_field": "input[name=\"departure_date\"]",
-                "passengers_field": "select[name=\"passengers\"]",
-                "class_field": "select[name=\"cabin_class\"]",
-                "trip_type_field": "select[name=\"trip_type\"]"
+                "origin_field": 'input[name="origin"]',
+                "destination_field": 'input[name="destination"]',
+                "date_field": 'input[name="departure_date"]',
+                "passengers_field": 'select[name="passengers"]',
+                "class_field": 'select[name="cabin_class"]',
+                "trip_type_field": 'select[name="trip_type"]',
             },
             "results_parsing": {
                 "container": ".flight-result",
@@ -43,8 +46,8 @@ def sample_config():
                 "fare_rules": ".fare-rules",
                 "booking_class": ".booking-class",
                 "fare_basis": ".fare-basis",
-                "ticket_validity": ".ticket-validity"
-            }
+                "ticket_validity": ".ticket-validity",
+            },
         },
         "data_validation": {
             "required_fields": [
@@ -61,18 +64,13 @@ def sample_config():
                 "change_policy",
                 "booking_class",
                 "fare_basis",
-                "ticket_validity"
+                "ticket_validity",
             ],
-            "price_range": {
-                "min": 1000000,
-                "max": 100000000
-            },
-            "duration_range": {
-                "min": 30,
-                "max": 1440
-            }
-        }
+            "price_range": {"min": 1000000, "max": 100000000},
+            "duration_range": {"min": 30, "max": 1440},
+        },
     }
+
 
 @pytest.fixture
 def sample_search_params():
@@ -82,8 +80,9 @@ def sample_search_params():
         "departure_date": "1403-01-01",
         "passengers": 1,
         "seat_class": "اقتصادی",
-        "trip_type": "یک طرفه"
+        "trip_type": "یک طرفه",
     }
+
 
 @pytest.fixture
 def sample_flight_html():
@@ -123,12 +122,13 @@ def sample_flight_html():
     </div>
     """
 
+
 class TestSafarmarketAdapter:
     @pytest.mark.asyncio
     async def test_crawl_flow(self, sample_config, sample_search_params):
         adapter = SafarmarketAdapter(sample_config)
         results = await adapter.crawl(sample_search_params)
-        
+
         assert isinstance(results, list)
         assert len(results) > 0
         assert all(isinstance(flight, dict) for flight in results)
@@ -140,7 +140,7 @@ class TestSafarmarketAdapter:
     async def test_persian_text_processing(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert flight_data["airline"] == "ایران ایر"
         assert flight_data["flight_number"] == "IR-123"
         assert flight_data["price"] == 2500000
@@ -154,7 +154,7 @@ class TestSafarmarketAdapter:
     async def test_fare_conditions_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "fare_conditions" in flight_data
         assert flight_data["fare_conditions"] == "قابل کنسلی با جریمه 20%"
 
@@ -162,7 +162,7 @@ class TestSafarmarketAdapter:
     async def test_special_services_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "special_services" in flight_data
         assert isinstance(flight_data["special_services"], list)
         assert len(flight_data["special_services"]) == 3
@@ -174,7 +174,7 @@ class TestSafarmarketAdapter:
     async def test_available_seats_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "available_seats" in flight_data
         assert flight_data["available_seats"] == 5
 
@@ -182,7 +182,7 @@ class TestSafarmarketAdapter:
     async def test_aircraft_type_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "aircraft_type" in flight_data
         assert flight_data["aircraft_type"] == "بوئینگ 737"
 
@@ -190,23 +190,29 @@ class TestSafarmarketAdapter:
     async def test_refund_policy_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "refund_policy" in flight_data
-        assert flight_data["refund_policy"] == "قابل استرداد با کسر 20% تا 24 ساعت قبل از پرواز"
+        assert (
+            flight_data["refund_policy"]
+            == "قابل استرداد با کسر 20% تا 24 ساعت قبل از پرواز"
+        )
 
     @pytest.mark.asyncio
     async def test_change_policy_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "change_policy" in flight_data
-        assert flight_data["change_policy"] == "قابل تغییر با کسر 10% تا 48 ساعت قبل از پرواز"
+        assert (
+            flight_data["change_policy"]
+            == "قابل تغییر با کسر 10% تا 48 ساعت قبل از پرواز"
+        )
 
     @pytest.mark.asyncio
     async def test_fare_rules_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "fare_rules" in flight_data
         assert isinstance(flight_data["fare_rules"], list)
         assert len(flight_data["fare_rules"]) == 3
@@ -218,7 +224,7 @@ class TestSafarmarketAdapter:
     async def test_booking_class_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "booking_class" in flight_data
         assert flight_data["booking_class"] == "Y"
 
@@ -226,7 +232,7 @@ class TestSafarmarketAdapter:
     async def test_fare_basis_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "fare_basis" in flight_data
         assert flight_data["fare_basis"] == "YEE3M"
 
@@ -234,7 +240,7 @@ class TestSafarmarketAdapter:
     async def test_ticket_validity_extraction(self, sample_config, sample_flight_html):
         adapter = SafarmarketAdapter(sample_config)
         flight_data = await adapter._parse_flight_element(sample_flight_html)
-        
+
         assert "ticket_validity" in flight_data
         assert flight_data["ticket_validity"] == "3 ماه"
 
@@ -242,25 +248,36 @@ class TestSafarmarketAdapter:
     async def test_data_validation(self, sample_config, sample_search_params):
         adapter = SafarmarketAdapter(sample_config)
         results = await adapter.crawl(sample_search_params)
-        
+
         for flight in results:
-            assert all(field in flight for field in sample_config["data_validation"]["required_fields"])
-            assert sample_config["data_validation"]["price_range"]["min"] <= flight["price"] <= sample_config["data_validation"]["price_range"]["max"]
-            assert sample_config["data_validation"]["duration_range"]["min"] <= flight["duration_minutes"] <= sample_config["data_validation"]["duration_range"]["max"]
+            assert all(
+                field in flight
+                for field in sample_config["data_validation"]["required_fields"]
+            )
+            assert (
+                sample_config["data_validation"]["price_range"]["min"]
+                <= flight["price"]
+                <= sample_config["data_validation"]["price_range"]["max"]
+            )
+            assert (
+                sample_config["data_validation"]["duration_range"]["min"]
+                <= flight["duration_minutes"]
+                <= sample_config["data_validation"]["duration_range"]["max"]
+            )
 
     @pytest.mark.asyncio
     async def test_error_handling(self, sample_config, sample_search_params):
         adapter = SafarmarketAdapter(sample_config)
-        
+
         # Test with invalid search parameters
         invalid_params = sample_search_params.copy()
         invalid_params["origin"] = "invalid_city"
         results = await adapter.crawl(invalid_params)
         assert isinstance(results, list)
         assert len(results) == 0
-        
+
         # Test with missing required fields
         invalid_params = sample_search_params.copy()
         del invalid_params["origin"]
         with pytest.raises(ValueError):
-            await adapter.crawl(invalid_params) 
+            await adapter.crawl(invalid_params)

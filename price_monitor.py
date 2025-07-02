@@ -6,24 +6,29 @@ from datetime import datetime
 import asyncio
 import json
 
+
 @dataclass
 class PriceAlert:
     """Price alert configuration"""
+
     user_id: str
     route: str
     target_price: float
     alert_type: str  # 'below', 'above', 'change'
     notification_methods: List[str]  # ['email', 'websocket', 'sms']
 
+
 @dataclass
 class PriceAnomaly:
     """Detected price anomaly"""
+
     route: str
     current_price: float
     expected_price: float
     deviation_percent: float
     confidence_score: float
     detected_at: datetime
+
 
 class PriceMonitor:
     def __init__(self, db_manager, redis_client):
@@ -38,7 +43,9 @@ class PriceMonitor:
         """Start monitoring prices for the given routes."""
         for route in routes:
             if route not in self.monitoring_tasks:
-                self.monitoring_tasks[route] = asyncio.create_task(self._monitor_route(route, interval_minutes))
+                self.monitoring_tasks[route] = asyncio.create_task(
+                    self._monitor_route(route, interval_minutes)
+                )
 
     async def stop_monitoring(self, routes: Optional[List[str]] = None):
         """Stop monitoring prices for the given routes or all if None."""
@@ -83,12 +90,18 @@ class PriceMonitor:
             "target_price": alert["target_price"],
             "current_price": current_price,
         }
-        if self.websocket_manager and "websocket" in alert.get("notification_methods", []):
-            await self.websocket_manager.send_personal_alert(alert["user_id"], alert_data)
+        if self.websocket_manager and "websocket" in alert.get(
+            "notification_methods", []
+        ):
+            await self.websocket_manager.send_personal_alert(
+                alert["user_id"], alert_data
+            )
         if "email" in alert.get("notification_methods", []):
             await self.send_email_alert(alert["user_id"], alert_data)
 
-    async def detect_price_anomalies(self, route_prices: Dict[str, List[float]]) -> List[PriceAnomaly]:
+    async def detect_price_anomalies(
+        self, route_prices: Dict[str, List[float]]
+    ) -> List[PriceAnomaly]:
         """Detect price anomalies for the given route prices."""
         anomalies = []
         for route, prices in route_prices.items():
@@ -96,14 +109,16 @@ class PriceMonitor:
             expected_price = np.mean(prices[:-1])  # Simple mean as expected price
             deviation = abs(current_price - expected_price) / expected_price * 100
             if deviation > 10:  # Threshold for anomaly
-                anomalies.append(PriceAnomaly(
-                    route=route,
-                    current_price=current_price,
-                    expected_price=expected_price,
-                    deviation_percent=deviation,
-                    confidence_score=0.8,  # Placeholder
-                    detected_at=datetime.now()
-                ))
+                anomalies.append(
+                    PriceAnomaly(
+                        route=route,
+                        current_price=current_price,
+                        expected_price=expected_price,
+                        deviation_percent=deviation,
+                        confidence_score=0.8,  # Placeholder
+                        detected_at=datetime.now(),
+                    )
+                )
         return anomalies
 
     async def send_websocket_update(self, websocket: WebSocket, price_data: Dict):
@@ -127,7 +142,7 @@ class PriceMonitor:
             "mean": np.mean(historical_data),
             "std": np.std(historical_data),
             "min": np.min(historical_data),
-            "max": np.max(historical_data)
+            "max": np.max(historical_data),
         }
 
     async def _monitor_route(self, route: str, interval_minutes: int):
@@ -139,6 +154,7 @@ class PriceMonitor:
                 await asyncio.sleep(interval_minutes * 60)
             except asyncio.CancelledError:
                 break
+
 
 class WebSocketManager:
     def __init__(self):
@@ -169,4 +185,4 @@ class WebSocketManager:
         """Send a personal alert to a specific user."""
         if user_id in self.active_connections:
             for websocket in self.active_connections[user_id]:
-                await websocket.send_json(alert_data) 
+                await websocket.send_json(alert_data)

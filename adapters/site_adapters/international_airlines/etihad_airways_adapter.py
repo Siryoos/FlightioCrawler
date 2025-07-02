@@ -8,14 +8,17 @@ import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters.enhanced_international_adapter import EnhancedInternationalAdapter
+from adapters.base_adapters.enhanced_international_adapter import (
+    EnhancedInternationalAdapter,
+)
 from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 
+
 class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
     """Etihad Airways adapter with minimal code duplication."""
-    
+
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.etihad.com"
@@ -23,12 +26,12 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
         self.rate_limiter = RateLimiter(
             requests_per_second=config["rate_limiting"]["requests_per_second"],
             burst_limit=config["rate_limiting"]["burst_limit"],
-            cooldown_period=config["rate_limiting"]["cooldown_period"]
+            cooldown_period=config["rate_limiting"]["cooldown_period"],
         )
         self.error_handler = ErrorHandler(
             max_retries=config["error_handling"]["max_retries"],
             retry_delay=config["error_handling"]["retry_delay"],
-            circuit_breaker_config=config["error_handling"]["circuit_breaker"]
+            circuit_breaker_config=config["error_handling"]["circuit_breaker"],
         )
         self.monitoring = Monitoring(config["monitoring"])
         self.logger = logging.getLogger(__name__)
@@ -53,15 +56,18 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
             await self.page.wait_for_load_state("networkidle")
             # Handle cookie consent if present
             try:
-                await self.page.click(self.config["extraction_config"]["cookie_consent_button"])
+                await self.page.click(
+                    self.config["extraction_config"]["cookie_consent_button"]
+                )
             except:
                 self.logger.info("No cookie consent dialog found")
             # Handle language selection if needed
             try:
-                await self.page.click(self.config["extraction_config"]["language_selector"])
+                await self.page.click(
+                    self.config["extraction_config"]["language_selector"]
+                )
                 await self.page.select_option(
-                    self.config["extraction_config"]["language_selector"],
-                    "en"
+                    self.config["extraction_config"]["language_selector"], "en"
                 )
             except:
                 self.logger.info("No language selector found or already in English")
@@ -78,13 +84,13 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
                 )
                 await self.page.select_option(
                     self.config["extraction_config"]["search_form"]["trip_type_field"],
-                    search_params["trip_type"]
+                    search_params["trip_type"],
                 )
 
             # Handle origin
             await self.page.fill(
                 self.config["extraction_config"]["search_form"]["origin_field"],
-                search_params["origin"]
+                search_params["origin"],
             )
             await self.page.wait_for_selector(
                 self.config["extraction_config"]["search_form"]["origin_suggestion"]
@@ -96,24 +102,30 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
             # Handle destination
             await self.page.fill(
                 self.config["extraction_config"]["search_form"]["destination_field"],
-                search_params["destination"]
+                search_params["destination"],
             )
             await self.page.wait_for_selector(
-                self.config["extraction_config"]["search_form"]["destination_suggestion"]
+                self.config["extraction_config"]["search_form"][
+                    "destination_suggestion"
+                ]
             )
             await self.page.click(
-                self.config["extraction_config"]["search_form"]["destination_suggestion"]
+                self.config["extraction_config"]["search_form"][
+                    "destination_suggestion"
+                ]
             )
 
             # Handle dates
             await self.page.fill(
                 self.config["extraction_config"]["search_form"]["departure_date_field"],
-                search_params["departure_date"]
+                search_params["departure_date"],
             )
             if "return_date" in search_params:
                 await self.page.fill(
-                    self.config["extraction_config"]["search_form"]["return_date_field"],
-                    search_params["return_date"]
+                    self.config["extraction_config"]["search_form"][
+                        "return_date_field"
+                    ],
+                    search_params["return_date"],
                 )
 
             # Handle passengers
@@ -122,23 +134,23 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
             )
             await self.page.select_option(
                 self.config["extraction_config"]["search_form"]["adults_field"],
-                str(search_params["adults"])
+                str(search_params["adults"]),
             )
             if "children" in search_params:
                 await self.page.select_option(
                     self.config["extraction_config"]["search_form"]["children_field"],
-                    str(search_params["children"])
+                    str(search_params["children"]),
                 )
             if "infants" in search_params:
                 await self.page.select_option(
                     self.config["extraction_config"]["search_form"]["infants_field"],
-                    str(search_params["infants"])
+                    str(search_params["infants"]),
                 )
 
             # Handle cabin class
             await self.page.select_option(
                 self.config["extraction_config"]["search_form"]["cabin_class_field"],
-                search_params["cabin_class"]
+                search_params["cabin_class"],
             )
 
             # Submit form
@@ -178,7 +190,9 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
                     self.config["extraction_config"]["results_parsing"]["flight_number"]
                 ).text.strip(),
                 "departure_time": element.select_one(
-                    self.config["extraction_config"]["results_parsing"]["departure_time"]
+                    self.config["extraction_config"]["results_parsing"][
+                        "departure_time"
+                    ]
                 ).text.strip(),
                 "arrival_time": element.select_one(
                     self.config["extraction_config"]["results_parsing"]["arrival_time"]
@@ -193,17 +207,27 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
                 ),
                 "cabin_class": element.select_one(
                     self.config["extraction_config"]["results_parsing"]["cabin_class"]
-                ).text.strip()
+                ).text.strip(),
             }
 
             # Extract additional flight details
             for field in [
-                "fare_conditions", "available_seats", "aircraft_type",
-                "baggage_allowance", "meal_service", "special_services",
-                "refund_policy", "change_policy", "fare_rules",
-                "booking_class", "fare_basis", "ticket_validity",
-                "miles_earned", "miles_required", "promotion_code",
-                "special_offers"
+                "fare_conditions",
+                "available_seats",
+                "aircraft_type",
+                "baggage_allowance",
+                "meal_service",
+                "special_services",
+                "refund_policy",
+                "change_policy",
+                "fare_rules",
+                "booking_class",
+                "fare_basis",
+                "ticket_validity",
+                "miles_earned",
+                "miles_required",
+                "promotion_code",
+                "special_offers",
             ]:
                 selector = self.config["extraction_config"]["results_parsing"][field]
                 if element.select_one(selector):
@@ -224,7 +248,13 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
             return 0.0
 
     def _validate_search_params(self, search_params: Dict):
-        required_fields = ["origin", "destination", "departure_date", "adults", "cabin_class"]
+        required_fields = [
+            "origin",
+            "destination",
+            "departure_date",
+            "adults",
+            "cabin_class",
+        ]
         for field in required_fields:
             if field not in search_params:
                 raise ValueError(f"Missing required search parameter: {field}")
@@ -232,19 +262,28 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
     def _validate_flight_data(self, results: List[Dict]) -> List[Dict]:
         validated_results = []
         for result in results:
-            if all(field in result for field in self.config["data_validation"]["required_fields"]):
-                if (self.config["data_validation"]["price_range"]["min"] <= result["price"] <= 
-                    self.config["data_validation"]["price_range"]["max"]):
-                    if (self.config["data_validation"]["duration_range"]["min"] <= result["duration_minutes"] <= 
-                        self.config["data_validation"]["duration_range"]["max"]):
+            if all(
+                field in result
+                for field in self.config["data_validation"]["required_fields"]
+            ):
+                if (
+                    self.config["data_validation"]["price_range"]["min"]
+                    <= result["price"]
+                    <= self.config["data_validation"]["price_range"]["max"]
+                ):
+                    if (
+                        self.config["data_validation"]["duration_range"]["min"]
+                        <= result["duration_minutes"]
+                        <= self.config["data_validation"]["duration_range"]["max"]
+                    ):
                         validated_results.append(result)
         return validated_results
 
     def _get_base_url(self) -> str:
         return "https://www.etihad.com"
-    
+
     def _extract_currency(self, element, config: Dict[str, Any]) -> str:
         return "AED"
-    
+
     def _get_required_search_fields(self) -> List[str]:
-        return ["origin", "destination", "departure_date", "cabin_class"] 
+        return ["origin", "destination", "departure_date", "cabin_class"]

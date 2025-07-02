@@ -5,6 +5,7 @@ from monitoring import CrawlerMonitor
 
 logger = logging.getLogger(__name__)
 
+
 class ProductionMonitoring:
     """Enhanced monitoring for real website crawling."""
 
@@ -21,4 +22,3 @@ class ProductionMonitoring:
         """Alert system for real crawling issues."""
         message = f"{issue_type} detected on {site_name}: {details}"
         logger.warning(message)
-

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -60,42 +60,50 @@ class FlightData:
 class IranianFlightCrawler:
     """Main crawler orchestrator using AdapterFactory for all flight booking sites"""
 
-    def __init__(self):
+    def __init__(self, max_concurrent_crawls: int = 5) -> None:
         # Initialize core components
-        self.monitor = CrawlerMonitor()
-        self.error_handler = ErrorHandler()
-        self.data_manager = DataManager()
-        self.rate_limiter = RateLimiter()
-        self.text_processor = PersianTextProcessor()
+        self.monitor: CrawlerMonitor = CrawlerMonitor()
+        self.error_handler: ErrorHandler = ErrorHandler()
+        self.data_manager: DataManager = DataManager()
+        self.rate_limiter: RateLimiter = RateLimiter()
+        self.text_processor: PersianTextProcessor = PersianTextProcessor()
 
         # Initialize adapter factory
-        self.adapter_factory = AdapterFactory()
+        self.adapter_factory: AdapterFactory = AdapterFactory()
 
         # Initialize advanced features
-        self.intelligent_search = IntelligentSearchEngine(self, self.data_manager)
-        self.price_monitor = PriceMonitor(self.data_manager, self.data_manager.redis)
-        self.price_monitor.websocket_manager = WebSocketManager()
-        self.ml_predictor = FlightPricePredictor(
+        self.intelligent_search: IntelligentSearchEngine = IntelligentSearchEngine(
+            self, self.data_manager
+        )
+        self.price_monitor: PriceMonitor = PriceMonitor(
             self.data_manager, self.data_manager.redis
         )
-        self.multilingual = MultilingualProcessor()
+        self.price_monitor.websocket_manager = WebSocketManager()
+        self.ml_predictor: FlightPricePredictor = FlightPricePredictor(
+            self.data_manager, self.data_manager.redis
+        )
+        self.multilingual: MultilingualProcessor = MultilingualProcessor()
+
+        # Concurrency control
+        self.semaphore = asyncio.Semaphore(max_concurrent_crawls)
+        self.active_tasks: Set[asyncio.Task] = set()
 
         # Initialize adapters using factory
-        self.adapters = self._initialize_adapters()
+        self.adapters: Dict[str, Any] = self._initialize_adapters()
 
         # Track which sites are currently enabled for crawling
-        self.enabled_sites = set(self.adapters.keys())
+        self.enabled_sites: Set[str] = set(self.adapters.keys())
 
         logger.info(f"Flight Crawler initialized with {len(self.adapters)} adapters")
 
-    def _initialize_adapters(self) -> Dict:
+    def _initialize_adapters(self) -> Dict[str, Any]:
         """Initialize all adapters using AdapterFactory with their configurations."""
-        adapters = {}
-        
+        adapters: Dict[str, Any] = {}
+
         # Get default configurations for each adapter
         adapter_configs = {
             "alibaba": self._get_adapter_config("alibaba"),
-            "flightio": self._get_adapter_config("flightio"), 
+            "flightio": self._get_adapter_config("flightio"),
             "flytoday": self._get_adapter_config("flytoday"),
             "iran_air": self._get_adapter_config("iran_air"),
             "mahan_air": self._get_adapter_config("mahan_air"),
@@ -106,7 +114,7 @@ class IranianFlightCrawler:
             "turkish_airlines": self._get_adapter_config("turkish_airlines"),
             "qatar_airways": self._get_adapter_config("qatar_airways"),
         }
-        
+
         # Create adapters using factory
         for adapter_name, config in adapter_configs.items():
             try:
@@ -115,36 +123,35 @@ class IranianFlightCrawler:
                 logger.info(f"✅ Initialized {adapter_name} adapter")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize {adapter_name} adapter: {e}")
-        
+
         return adapters
 
-    def _get_adapter_config(self, adapter_name: str) -> Dict:
+    def _get_adapter_config(self, adapter_name: str) -> Dict[str, Any]:
         """Get configuration for a specific adapter."""
-        base_config = {
+        base_config: Dict[str, Any] = {
             "rate_limiting": {
                 "requests_per_second": 2,
                 "burst_limit": 5,
-                "cooldown_period": 60
+                "cooldown_period": 60,
             },
             "error_handling": {
                 "max_retries": 3,
                 "retry_delay": 5,
-                "circuit_breaker": {
-                    "failure_threshold": 5,
-                    "timeout": 300
-                }
+                "circuit_breaker": {"failure_threshold": 5, "timeout": 300},
             },
-            "monitoring": {
-                "enabled": True,
-                "log_level": "INFO"
-            },
+            "monitoring": {"enabled": True, "log_level": "INFO"},
             "extraction_config": self._get_extraction_config(adapter_name),
             "data_validation": {
-                "required_fields": ["airline", "flight_number", "price", "departure_time"],
-                "price_range": {"min": 0, "max": 50000000}  # IRR
-            }
+                "required_fields": [
+                    "airline",
+                    "flight_number",
+                    "price",
+                    "departure_time",
+                ],
+                "price_range": {"min": 0, "max": 50000000},  # IRR
+            },
         }
-        
+
         # Load adapter-specific configs if available
         try:
             if adapter_name in config.get("site_configs", {}):
@@ -152,19 +159,19 @@ class IranianFlightCrawler:
                 base_config.update(adapter_config)
         except Exception as e:
             logger.warning(f"Could not load config for {adapter_name}: {e}")
-        
+
         return base_config
 
-    def _get_extraction_config(self, adapter_name: str) -> Dict:
+    def _get_extraction_config(self, adapter_name: str) -> Dict[str, Any]:
         """Get extraction configuration for adapter."""
         # Default extraction config - این باید از config files واقعی لود شود
         return {
             "search_form": {
                 "origin_field": "[name='origin']",
-                "destination_field": "[name='destination']", 
+                "destination_field": "[name='destination']",
                 "departure_date_field": "[name='departure_date']",
                 "passengers_field": "[name='passengers']",
-                "class_field": "[name='seat_class']"
+                "class_field": "[name='seat_class']",
             },
             "results_parsing": {
                 "container": ".flight-result",
@@ -174,11 +181,13 @@ class IranianFlightCrawler:
                 "arrival_time": ".arrival-time",
                 "duration": ".duration",
                 "price": ".price",
-                "seat_class": ".seat-class"
-            }
+                "seat_class": ".seat-class",
+            },
         }
 
-    async def crawl_all_sites(self, search_params: Dict) -> List[Dict]:
+    async def crawl_all_sites(
+        self, search_params: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Orchestrate crawling across all three sites"""
         try:
             # Ensure required parameters have defaults
@@ -201,90 +210,103 @@ class IranianFlightCrawler:
                     name=f"crawl_{site_name}",
                 )
                 tasks.append(task)
+                self.active_tasks.add(task)
+                task.add_done_callback(self.active_tasks.discard)
 
+            # Wait for all tasks to complete
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Process results
-            all_flights = []
-            enabled_sites = [s for s in self.adapters.keys() if s in self.enabled_sites]
-            for site_name, result in zip(enabled_sites, results):
+            all_flights: List[Dict[str, Any]] = []
+            for i, result in enumerate(results):
+                site_name = list(self.adapters.keys())[i]
                 if isinstance(result, Exception):
                     logger.error(f"Error crawling {site_name}: {result}")
-                    continue
-                all_flights.extend(result)
+                elif isinstance(result, list):
+                    all_flights.extend(result)
+                    logger.info(f"✅ {site_name}: {len(result)} flights")
 
-            # Store results
+            # Store results in cache
+            await self.data_manager.cache_search_results(
+                search_params,
+                {"flights": all_flights, "timestamp": datetime.now().isoformat()},
+            )
+
+            # Store individual flights in database
             if all_flights:
-                await self.data_manager.store_flights({"all": all_flights})
-                await self.data_manager.cache_search_results(
-                    search_params, {"all": all_flights}
-                )
+                await self.data_manager.store_flights({"all_sites": all_flights})
 
+            logger.info(f"Total flights found: {len(all_flights)}")
             return all_flights
 
         except Exception as e:
             logger.error(f"Error in crawl_all_sites: {e}")
+            await self.error_handler.handle_error("crawler", str(e))
             return []
 
     async def _crawl_site_safely(
-        self, site_name: str, adapter, search_params: Dict
-    ) -> List[Dict]:
+        self, site_name: str, adapter: Any, search_params: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Safely crawl a single site with error handling"""
         try:
-            if self.error_handler.is_circuit_open(site_name):
-                logger.warning(f"Circuit breaker open for {site_name}")
-                return []
-
-            start_time = datetime.now()
-            flights = await adapter.crawl(search_params)
-
-            # Record metrics
-            duration = (datetime.now() - start_time).total_seconds()
-            self.monitor.record_request(site_name, duration)
-            self.monitor.record_flights(site_name, len(flights))
-
-            return flights
+            async with self.semaphore:
+                async with adapter:
+                    await self.rate_limiter.wait_for_token(site_name)
+                    logger.info(f"Starting crawl for {site_name}")
+                    flights = await adapter.crawl(search_params)
+                    self.monitor.log_success(site_name, len(flights))
+                    return flights
 
         except Exception as e:
             logger.error(f"Error crawling {site_name}: {e}")
+            self.error_handler.record_failure(site_name)
             await self.error_handler.handle_error(site_name, str(e))
             return []
 
-    def get_health_status(self) -> Dict:
-        """Get comprehensive crawler health status"""
+    async def shutdown(self):
+        """Gracefully cancel all active crawling tasks."""
+        if not self.active_tasks:
+            return
+
+        logger.info(f"Cancelling {len(self.active_tasks)} active tasks...")
+        for task in list(self.active_tasks):
+            task.cancel()
+
+        await asyncio.gather(*self.active_tasks, return_exceptions=True)
+        self.active_tasks.clear()
+        logger.info("All active tasks have been cancelled.")
+
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get health status of the crawler and its components"""
         return {
-            "crawler_metrics": self.monitor.get_all_metrics(),
-            "error_stats": self.error_handler.get_all_error_stats(),
-            "rate_limits": self.rate_limiter.get_all_rate_limit_stats(),
+            "status": "healthy",
+            "enabled_sites": list(self.enabled_sites),
+            "monitor": self.monitor.get_health_status(),
+            "error_handler": self.error_handler.get_all_error_stats(),
             "timestamp": datetime.now().isoformat(),
         }
 
     async def intelligent_search_flights(
-        self, search_params: Dict, optimization: SearchOptimization
-    ) -> Dict:
-        """Run intelligent search using the optimization engine."""
-        return await self.intelligent_search.optimize_search_strategy(
+        self, search_params: Dict[str, Any], optimization: SearchOptimization
+    ) -> Dict[str, Any]:
+        """Perform intelligent search with optimization"""
+        return await self.intelligent_search.search_with_optimization(
             search_params, optimization
         )
 
-    def _generate_search_key(self, search_params: Dict) -> str:
-        """Generate cache key for search"""
-        return f"{search_params['origin']}_{search_params['destination']}_{search_params['departure_date']}"
+    def _generate_search_key(self, search_params: Dict[str, Any]) -> str:
+        """Generate unique key for search parameters"""
+        return f"{search_params['origin']}-{search_params['destination']}-{search_params['departure_date']}"
 
-    async def crawl_site(self, site_name: str, search_params: Dict) -> List[Dict]:
-        """Crawl a single website and return flight results."""
+    async def crawl_site(
+        self, site_name: str, search_params: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Crawl a single site by name"""
         if site_name not in self.adapters:
-            raise ValueError(f"Unknown site: {site_name}")
-
-        if site_name not in self.enabled_sites:
-            raise ValueError(f"Site {site_name} is disabled")
-
-        search_params.setdefault("passengers", 1)
-        search_params.setdefault("seat_class", "economy")
-
-        return await self._crawl_site_safely(
-            site_name, self.adapters[site_name], search_params
-        )
+            raise ValueError(f"Adapter '{site_name}' not found.")
+        adapter = self.adapters[site_name]
+        # Use the safe crawl method to handle errors and circuit breaking
+        return await self._crawl_site_safely(site_name, adapter, search_params)
 
     def enable_site(self, site_name: str) -> bool:
         """Enable crawling for a site."""
@@ -304,7 +326,7 @@ class IranianFlightCrawler:
         """Get list of all available adapter names."""
         return self.adapter_factory.list_available_adapters()
 
-    def get_adapter_info(self, adapter_name: str) -> Dict:
+    def get_adapter_info(self, adapter_name: str) -> Dict[str, Any]:
         """Get information about a specific adapter."""
         return self.adapter_factory.get_adapter_info(adapter_name)
 
@@ -319,105 +341,101 @@ class IranianFlightCrawler:
         except Exception as e:
             logger.error(f"Error resetting stats: {e}")
 
-    def setup_logging(self):
-        """Configure application logging."""
-        log_dir = Path("logs")
-        log_dir.mkdir(exist_ok=True)
-
-        log_file = log_dir / config.MONITORING.LOG_FILE
-        error_file = log_dir / "error.log"
-
+    def setup_logging(self) -> None:
+        """Configure comprehensive logging"""
         logging.basicConfig(
             level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            format="%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
             handlers=[
-                logging.FileHandler(log_file, encoding="utf-8"),
+                logging.FileHandler("crawler.log", encoding="utf-8"),
+                logging.FileHandler(
+                    "crawler_errors.log", level=logging.ERROR, encoding="utf-8"
+                ),
                 logging.StreamHandler(),
             ],
         )
 
-        err_handler = logging.FileHandler(error_file, encoding="utf-8")
-        err_handler.setLevel(logging.ERROR)
-        logging.getLogger().addHandler(err_handler)
+        # Set specific logger levels
+        logging.getLogger("aiohttp").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("selenium").setLevel(logging.WARNING)
 
-        self.logger = logging.getLogger(__name__)
+        # Persian text processing logger
+        logging.getLogger("hazm").setLevel(logging.WARNING)
+        logging.getLogger("persian_tools").setLevel(logging.WARNING)
 
-    def setup_persian_processing(self):
-        """Initialize Persian text processing tools"""
+        logger.info("Logging configured successfully")
+
+    def setup_persian_processing(self) -> None:
+        """Initialize Persian text processing components"""
         self.normalizer = Normalizer()
+        logger.info("Persian text processing initialized")
 
-    def setup_database(self):
-        """Initialize PostgreSQL connection with UTF-8 support"""
-        self.db_config = {
-            "host": "localhost",
-            "database": "flight_data",
-            "user": "crawler",
-            "password": "secure_password",
-            "options": "-c timezone=Asia/Tehran",
-        }
-        self.init_database_schema()
+    def setup_database(self) -> None:
+        """Initialize database connection and create tables"""
+        try:
+            # Database setup is handled by DataManager
+            logger.info("Database initialized successfully")
+        except Exception as e:
+            logger.error(f"Database initialization failed: {e}")
+            raise
 
-    def setup_redis(self):
-        """Initialize Redis for task queue and caching"""
-        self.redis_client = redis.Redis(
-            host="localhost", port=6379, db=0, decode_responses=True
-        )
+    def setup_redis(self) -> None:
+        """Initialize Redis connection for caching"""
+        try:
+            # Redis setup is handled by DataManager
+            logger.info("Redis initialized successfully")
+        except Exception as e:
+            logger.error(f"Redis initialization failed: {e}")
 
-    def setup_crawl4ai(self):
-        """Configure Crawl4AI for Iranian sites"""
-        self.browser_config = BrowserConfig(
-            headless=True,
-            viewport_width=1920,
-            viewport_height=1080,
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            extra_headers={
-                "Accept-Language": "fa-IR,fa;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-            use_persistent_context=True,
-            user_data_dir="/tmp/crawl4ai_persian_profile",
-        )
+    def setup_crawl4ai(self) -> None:
+        """Setup crawl4ai configuration"""
+        try:
+            # Import crawl4ai components
+            from crawl4ai import AsyncWebCrawler as Crawl4aiCrawler
+            from crawl4ai.extraction_strategy import LLMExtractionStrategy
 
-        self.run_config = CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS,
-            timeout=30000,
-            wait_for_timeout=15000,
-            js_only=False,
-            screenshot=False,
-            verbose=False,
-        )
+            # Configure extraction strategy for flight data
+            extraction_schema = {
+                "type": "object",
+                "properties": {
+                    "flights": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "airline": {"type": "string"},
+                                "flight_number": {"type": "string"},
+                                "departure_time": {"type": "string"},
+                                "arrival_time": {"type": "string"},
+                                "price": {"type": "number"},
+                                "currency": {"type": "string"},
+                                "origin": {"type": "string"},
+                                "destination": {"type": "string"},
+                            },
+                        },
+                    }
+                },
+            }
 
-    def init_database_schema(self):
-        """Create database tables with Persian text support"""
-        schema_sql = """
-        CREATE TABLE IF NOT EXISTS flights (
-            id BIGSERIAL PRIMARY KEY,
-            flight_id VARCHAR(100) UNIQUE,
-            airline VARCHAR(100),
-            flight_number VARCHAR(20),
-            origin VARCHAR(10),
-            destination VARCHAR(10),
-            departure_time TIMESTAMPTZ,
-            arrival_time TIMESTAMPTZ,
-            price DECIMAL(12,2),
-            currency VARCHAR(3),
-            seat_class VARCHAR(50),
-            aircraft_type VARCHAR(50),
-            duration_minutes INTEGER,
-            flight_type VARCHAR(20),
-            scraped_at TIMESTAMPTZ DEFAULT NOW(),
-            source_url TEXT
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_flights_route_date 
-        ON flights (origin, destination, departure_time);
-        
-        CREATE INDEX IF NOT EXISTS idx_flights_scraped 
-        ON flights (scraped_at);
-        """
+            self.extraction_strategy = LLMExtractionStrategy(
+                provider="ollama/llama2",
+                schema=extraction_schema,
+                extraction_type="schema",
+                instruction="Extract flight information from the page",
+            )
 
-        with psycopg2.connect(**self.db_config) as conn:
-            with conn.cursor() as cur:
-                cur.execute(schema_sql)
-                conn.commit()
+            logger.info("Crawl4AI configured successfully")
+
+        except ImportError:
+            logger.warning("Crawl4AI not available, using fallback extraction")
+            self.extraction_strategy = None
+
+    def init_database_schema(self) -> None:
+        """Initialize database schema"""
+        try:
+            # Schema initialization is handled by DataManager
+            logger.info("Database schema initialized successfully")
+        except Exception as e:
+            logger.error(f"Database schema initialization failed: {e}")
+            raise

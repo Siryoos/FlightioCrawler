@@ -14,6 +14,7 @@ sample_params = {
     "seat_class": "economy",
 }
 
+
 async def main():
     safety = ProductionSafetyCrawler()
     rate_limiter = RateLimiter()
@@ -21,9 +22,12 @@ async def main():
     monitor = CrawlerMonitor()
     error_handler = ErrorHandler()
     crawler = RealDataCrawler(rate_limiter, text_proc, monitor, error_handler)
-    flights = await safety.safe_crawl_with_verification("flytoday", crawler, sample_params)
+    flights = await safety.safe_crawl_with_verification(
+        "flytoday", crawler, sample_params
+    )
     for f in flights:
         print(f)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

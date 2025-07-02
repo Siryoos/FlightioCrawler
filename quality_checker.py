@@ -2,6 +2,7 @@ from typing import List, Dict
 import re
 from datetime import datetime
 
+
 class RealDataQualityChecker:
     """Ensures extracted data is genuine and high-quality."""
 
@@ -38,4 +39,3 @@ class RealDataQualityChecker:
             "details": invalid_reasons,
         }
         return validated, report
-

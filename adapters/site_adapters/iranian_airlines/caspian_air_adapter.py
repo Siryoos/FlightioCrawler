@@ -14,9 +14,10 @@ from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 
+
 class CaspianAirAdapter(EnhancedPersianAdapter):
     """Caspian Air adapter with minimal code duplication."""
-    
+
     def __init__(self, config: Dict):
         super().__init__(config)
         self.base_url = "https://www.caspian.aero"
@@ -25,12 +26,12 @@ class CaspianAirAdapter(EnhancedPersianAdapter):
         self.rate_limiter = RateLimiter(
             requests_per_second=config["rate_limiting"]["requests_per_second"],
             burst_limit=config["rate_limiting"]["burst_limit"],
-            cooldown_period=config["rate_limiting"]["cooldown_period"]
+            cooldown_period=config["rate_limiting"]["cooldown_period"],
         )
         self.error_handler = ErrorHandler(
             max_retries=config["error_handling"]["max_retries"],
             retry_delay=config["error_handling"]["retry_delay"],
-            circuit_breaker_config=config["error_handling"]["circuit_breaker"]
+            circuit_breaker_config=config["error_handling"]["circuit_breaker"],
         )
         self.monitoring = Monitoring(config["monitoring"])
         self.logger = logging.getLogger(__name__)
@@ -61,28 +62,28 @@ class CaspianAirAdapter(EnhancedPersianAdapter):
         try:
             await self.page.fill(
                 self.config["extraction_config"]["search_form"]["origin_field"],
-                self.persian_processor.process_text(search_params["origin"])
+                self.persian_processor.process_text(search_params["origin"]),
             )
             await self.page.fill(
                 self.config["extraction_config"]["search_form"]["destination_field"],
-                self.persian_processor.process_text(search_params["destination"])
+                self.persian_processor.process_text(search_params["destination"]),
             )
             await self.page.fill(
                 self.config["extraction_config"]["search_form"]["date_field"],
-                self.persian_processor.process_date(search_params["departure_date"])
+                self.persian_processor.process_date(search_params["departure_date"]),
             )
             await self.page.select_option(
                 self.config["extraction_config"]["search_form"]["passengers_field"],
-                str(search_params["passengers"])
+                str(search_params["passengers"]),
             )
             await self.page.select_option(
                 self.config["extraction_config"]["search_form"]["class_field"],
-                self.persian_processor.process_text(search_params["seat_class"])
+                self.persian_processor.process_text(search_params["seat_class"]),
             )
             if "trip_type" in search_params:
                 await self.page.select_option(
                     self.config["extraction_config"]["search_form"]["trip_type_field"],
-                    self.persian_processor.process_text(search_params["trip_type"])
+                    self.persian_processor.process_text(search_params["trip_type"]),
                 )
             await self.page.click("button[type='submit']")
             await self.page.wait_for_load_state("networkidle")
@@ -120,17 +121,23 @@ class CaspianAirAdapter(EnhancedPersianAdapter):
                 ),
                 "flight_number": self.persian_processor.process_text(
                     element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["flight_number"]
+                        self.config["extraction_config"]["results_parsing"][
+                            "flight_number"
+                        ]
                     ).text
                 ),
                 "departure_time": self.persian_processor.process_text(
                     element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["departure_time"]
+                        self.config["extraction_config"]["results_parsing"][
+                            "departure_time"
+                        ]
                     ).text
                 ),
                 "arrival_time": self.persian_processor.process_text(
                     element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["arrival_time"]
+                        self.config["extraction_config"]["results_parsing"][
+                            "arrival_time"
+                        ]
                     ).text
                 ),
                 "duration": self.persian_processor.process_text(
@@ -145,17 +152,29 @@ class CaspianAirAdapter(EnhancedPersianAdapter):
                 ),
                 "seat_class": self.persian_processor.process_text(
                     element.select_one(
-                        self.config["extraction_config"]["results_parsing"]["seat_class"]
+                        self.config["extraction_config"]["results_parsing"][
+                            "seat_class"
+                        ]
                     ).text
-                )
+                ),
             }
             for field in [
-                "fare_conditions", "available_seats", "aircraft_type",
-                "baggage_allowance", "meal_service", "special_services",
-                "refund_policy", "change_policy", "fare_rules",
-                "booking_class", "fare_basis", "ticket_validity",
-                "miles_earned", "miles_required", "promotion_code",
-                "special_offers"
+                "fare_conditions",
+                "available_seats",
+                "aircraft_type",
+                "baggage_allowance",
+                "meal_service",
+                "special_services",
+                "refund_policy",
+                "change_policy",
+                "fare_rules",
+                "booking_class",
+                "fare_basis",
+                "ticket_validity",
+                "miles_earned",
+                "miles_required",
+                "promotion_code",
+                "special_offers",
             ]:
                 selector = self.config["extraction_config"]["results_parsing"][field]
                 if element.select_one(selector):
@@ -168,7 +187,13 @@ class CaspianAirAdapter(EnhancedPersianAdapter):
             return None
 
     def _validate_search_params(self, search_params: Dict):
-        required_fields = ["origin", "destination", "departure_date", "passengers", "seat_class"]
+        required_fields = [
+            "origin",
+            "destination",
+            "departure_date",
+            "passengers",
+            "seat_class",
+        ]
         for field in required_fields:
             if field not in search_params:
                 raise ValueError(f"Missing required search parameter: {field}")
@@ -176,19 +201,28 @@ class CaspianAirAdapter(EnhancedPersianAdapter):
     def _validate_flight_data(self, results: List[Dict]) -> List[Dict]:
         validated_results = []
         for result in results:
-            if all(field in result for field in self.config["data_validation"]["required_fields"]):
-                if (self.config["data_validation"]["price_range"]["min"] <= result["price"] <= 
-                    self.config["data_validation"]["price_range"]["max"]):
-                    if (self.config["data_validation"]["duration_range"]["min"] <= result["duration_minutes"] <= 
-                        self.config["data_validation"]["duration_range"]["max"]):
+            if all(
+                field in result
+                for field in self.config["data_validation"]["required_fields"]
+            ):
+                if (
+                    self.config["data_validation"]["price_range"]["min"]
+                    <= result["price"]
+                    <= self.config["data_validation"]["price_range"]["max"]
+                ):
+                    if (
+                        self.config["data_validation"]["duration_range"]["min"]
+                        <= result["duration_minutes"]
+                        <= self.config["data_validation"]["duration_range"]["max"]
+                    ):
                         validated_results.append(result)
         return validated_results
 
     def _get_base_url(self) -> str:
         return "https://www.caspian.aero"
-    
+
     def _extract_currency(self, element, config: Dict[str, Any]) -> str:
         return "IRR"
-    
+
     def _get_required_search_fields(self) -> List[str]:
-        return ["origin", "destination", "departure_date", "passengers", "seat_class"] 
+        return ["origin", "destination", "departure_date", "passengers", "seat_class"]

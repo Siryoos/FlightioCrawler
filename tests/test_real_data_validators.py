@@ -7,7 +7,11 @@ from quality_checker import RealDataQualityChecker
 def test_validate_extracted_data():
     crawler = RealDataCrawler.__new__(RealDataCrawler)
     raw = [
-        {"price": 100000, "departure_time": datetime.now(), "arrival_time": datetime.now() + timedelta(hours=1)},
+        {
+            "price": 100000,
+            "departure_time": datetime.now(),
+            "arrival_time": datetime.now() + timedelta(hours=1),
+        },
         {"price": -5},
         {"price": 500000000},
     ]
