@@ -12,6 +12,85 @@ import asyncio
 from datetime import datetime, timedelta
 import traceback
 from functools import wraps
+from enum import Enum
+
+
+class ErrorCategory(Enum):
+    """Error categories for better error handling"""
+    NETWORK = "network"
+    PARSING = "parsing"
+    VALIDATION = "validation"
+    TIMEOUT = "timeout"
+    AUTHENTICATION = "authentication"
+    RATE_LIMIT = "rate_limit"
+    RESOURCE = "resource"
+    UNKNOWN = "unknown"
+
+
+# Custom exception classes for better error handling
+class AdapterError(Exception):
+    """Base exception for all adapter errors"""
+    pass
+
+
+class NavigationError(AdapterError):
+    """Exception for navigation-related errors"""
+    pass
+
+
+class FormFillingError(AdapterError):
+    """Exception for form filling errors"""
+    pass
+
+
+class ExtractionError(AdapterError):
+    """Exception for data extraction errors"""
+    pass
+
+
+class ValidationError(AdapterError):
+    """Exception for data validation errors"""
+    pass
+
+
+class TimeoutError(AdapterError):
+    """Exception for timeout errors"""
+    pass
+
+
+class AdapterTimeoutError(TimeoutError):
+    """Specific timeout error for adapters"""
+    pass
+
+
+class AdapterNetworkError(AdapterError):
+    """Exception for network-related errors"""
+    pass
+
+
+class AdapterValidationError(ValidationError):
+    """Specific validation error for adapters"""
+    pass
+
+
+class AdapterRateLimitError(AdapterError):
+    """Exception for rate limit errors"""
+    pass
+
+
+class AdapterAuthenticationError(AdapterError):
+    """Exception for authentication errors"""
+    pass
+
+
+class AdapterResourceError(AdapterError):
+    """Exception for resource errors"""
+    pass
+
+
+class AdapterParsingError(AdapterError):
+    """Exception for parsing errors"""
+    pass
 
 
 @dataclass

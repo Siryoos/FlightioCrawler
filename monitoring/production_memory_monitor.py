@@ -37,6 +37,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import signal
 
+# Remove circular import - we're defining ProductionMemoryMonitor here
+
 # Prometheus Metrics
 MEMORY_USAGE_GAUGE = Gauge('memory_usage_bytes', 'Memory usage in bytes', ['component'])
 MEMORY_LEAK_COUNTER = Counter('memory_leaks_detected_total', 'Total memory leaks detected')
@@ -750,4 +752,7 @@ async def main():
         print("Memory monitoring stopped.")
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())
+
+# Re-export all classes for backward compatibility
+__all__ = ['ProductionMemoryMonitor'] 

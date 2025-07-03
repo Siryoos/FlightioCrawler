@@ -280,12 +280,13 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         error_type = type(error).__name__
         error_message = str(error).lower()
         
-        if "timeout" in error_message or "timeout" in error_type.lower():
+        # Check for rate limit first (before timeout) for better categorization
+        if "rate limit" in error_message or "429" in error_message:
+            return ErrorCategory.RATE_LIMIT
+        elif "timeout" in error_message or "timeout" in error_type.lower():
             return ErrorCategory.TIMEOUT
         elif "network" in error_message or "connection" in error_message:
             return ErrorCategory.NETWORK
-        elif "rate limit" in error_message or "429" in error_message:
-            return ErrorCategory.RATE_LIMIT
         elif "auth" in error_message or "401" in error_message or "403" in error_message:
             return ErrorCategory.AUTHENTICATION
         elif "memory" in error_message or "resource" in error_message:
@@ -391,10 +392,11 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             self.error_stats["errors_by_category"][category.value] = 0
         self.error_stats["errors_by_category"][category.value] += 1
         
-        # Update operation stats
-        if operation not in self.error_stats["errors_by_operation"]:
-            self.error_stats["errors_by_operation"][operation] = 0
-        self.error_stats["errors_by_operation"][operation] += 1
+        # Update operation stats - ensure operation is a string
+        operation_key = operation if isinstance(operation, str) else str(operation)
+        if operation_key not in self.error_stats["errors_by_operation"]:
+            self.error_stats["errors_by_operation"][operation_key] = 0
+        self.error_stats["errors_by_operation"][operation_key] += 1
 
     def _log_enhanced_error(self, error: Exception, context: ErrorContext, category: ErrorCategory):
         """Log error with enhanced formatting and context"""
@@ -1273,7 +1275,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         """Extract flight results with enhanced error handling and memory optimization."""
         try:
             # Get container selector from config
-            extraction_config = self.config.get("extraction_config", {})
+            extraction_config = self.config.extraction_config
             results_config = extraction_config.get("results_parsing", {})
             container_selector = results_config.get("container")
 
@@ -1386,7 +1388,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             return []
 
         validated = []
-        validation_config = self.config.get("data_validation", {})
+        validation_config = self.config.data_validation
 
         # Get validation rules
         required_fields = validation_config.get("required_fields", ["airline", "price"])
