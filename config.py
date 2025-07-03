@@ -147,6 +147,7 @@ class DatabaseConfig:
         PASSWORD: Database password
         PORT: Database port
         OPTIONS: Additional database connection options
+        CONNECTION_POOL: Connection pooling settings
     """
     HOST: str = os.getenv("DB_HOST", "localhost")
     NAME: str = os.getenv("DB_NAME", "flight_data")
@@ -154,6 +155,44 @@ class DatabaseConfig:
     PASSWORD: str = os.getenv("DB_PASSWORD", "secure_password")
     PORT: int = int(os.getenv("DB_PORT", "5432"))
     OPTIONS: str = "-c timezone=Asia/Tehran"
+    
+    # Connection Pool Configuration
+    POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "20"))
+    MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "30"))
+    POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+    POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "3600"))
+    POOL_PRE_PING: bool = os.getenv("DB_POOL_PRE_PING", "true").lower() == "true"
+    
+    # Performance Tuning
+    STATEMENT_TIMEOUT: int = int(os.getenv("DB_STATEMENT_TIMEOUT", "300000"))  # 5 minutes
+    IDLE_IN_TRANSACTION_SESSION_TIMEOUT: int = int(os.getenv("DB_IDLE_TIMEOUT", "60000"))  # 1 minute
+    
+    # Slow Query Monitoring
+    SLOW_QUERY_THRESHOLD: int = int(os.getenv("DB_SLOW_QUERY_THRESHOLD", "1000"))  # 1 second
+    LOG_SLOW_QUERIES: bool = os.getenv("DB_LOG_SLOW_QUERIES", "true").lower() == "true"
+    
+    @property
+    def connection_string(self) -> str:
+        """Generate PostgreSQL connection string with optimized settings"""
+        return (
+            f"postgresql://{self.USER}:{self.PASSWORD}@{self.HOST}:{self.PORT}/{self.NAME}"
+            f"?options={self.OPTIONS}"
+            f"&statement_timeout={self.STATEMENT_TIMEOUT}"
+            f"&idle_in_transaction_session_timeout={self.IDLE_IN_TRANSACTION_SESSION_TIMEOUT}"
+        )
+    
+    @property
+    def connection_pool_config(self) -> Dict[str, Any]:
+        """Get connection pool configuration for SQLAlchemy"""
+        return {
+            "pool_size": self.POOL_SIZE,
+            "max_overflow": self.MAX_OVERFLOW,
+            "pool_timeout": self.POOL_TIMEOUT,
+            "pool_recycle": self.POOL_RECYCLE,
+            "pool_pre_ping": self.POOL_PRE_PING,
+            "echo": False,  # Set to True for SQL debugging
+            "future": True,
+        }
 
 
 @dataclass

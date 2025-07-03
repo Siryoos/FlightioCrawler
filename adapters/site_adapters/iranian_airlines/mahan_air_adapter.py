@@ -11,11 +11,7 @@ import logging
 from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
-from adapters.base_adapters import EnhancedPersianAdapter, AdapterUtils
-from utils.persian_text_processor import PersianTextProcessor
-from rate_limiter import RateLimiter
-from error_handler import ErrorHandler
-from monitoring import Monitoring
+from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from adapters.base_adapters.common_error_handler import error_handler, safe_extract
 
 
@@ -34,97 +30,70 @@ class MahanAirAdapter(EnhancedPersianAdapter):
     - Only airline-specific logic implemented here
     """
 
-    def __init__(self, config: Dict):
-        super().__init__(config)
-        self.base_url = "https://www.mahan.aero"
-        self.search_url = config["search_url"]
-        self.persian_processor = PersianTextProcessor()
-        self.rate_limiter = RateLimiter(
-            requests_per_second=config["rate_limiting"]["requests_per_second"],
-            burst_limit=config["rate_limiting"]["burst_limit"],
-            cooldown_period=config["rate_limiting"]["cooldown_period"],
-        )
-        self.error_handler = ErrorHandler(
-            max_retries=config["error_handling"]["max_retries"],
-            retry_delay=config["error_handling"]["retry_delay"],
-            circuit_breaker_config=config["error_handling"]["circuit_breaker"],
-        )
-        self.monitoring = Monitoring(config["monitoring"])
-        self.logger = logging.getLogger(__name__)
+    def _get_base_url(self) -> str:
+        """Get Mahan Air base URL."""
+        return "https://www.mahan.aero"
 
-    async def crawl(self, search_params: Dict) -> List[Dict]:
+    def _initialize_adapter(self) -> None:
+        """Initialize Mahan Air specific components"""
+        # Call parent initialization for Persian processing
+        super()._initialize_adapter()
+        
+        # Mahan Air specific configurations
+        self.airline_code = "W5"  # Mahan Air IATA code
+        self.airline_name = "Mahan Air"
+        
+        self.logger.info("Mahan Air adapter initialized with Persian text processing")
+
+    @error_handler("mahan_air_specific_form_handling")
+    async def _handle_mahan_air_specific_fields(
+        self, search_params: Dict[str, Any]
+    ) -> None:
+        """Handle Mahan Air specific form fields"""
         try:
-            self._validate_search_params(search_params)
-            await self._navigate_to_search_page()
-            await self._fill_search_form(search_params)
-            results = await self._extract_flight_results()
-            validated_results = self._validate_flight_data(results)
-            self.monitoring.record_success()
-            return validated_results
+            # Handle frequent flyer number if provided
+            if "frequent_flyer_number" in search_params:
+                frequent_flyer_selector = ".frequent-flyer-input"
+                try:
+                    await self.page.fill(frequent_flyer_selector, search_params["frequent_flyer_number"])
+                except Exception:
+                    self.logger.debug("Frequent flyer field not available")
+
+            # Handle special requests
+            if "special_requests" in search_params:
+                special_requests_selector = ".special-requests"
+                try:
+                    await self.page.check(special_requests_selector)
+                except Exception:
+                    self.logger.debug("Special requests field not available")
+
+            # Handle meal preferences
+            if "meal_preference" in search_params:
+                meal_selector = ".meal-preference-select"
+                try:
+                    await self.page.select_option(meal_selector, search_params["meal_preference"])
+                except Exception:
+                    self.logger.debug("Meal preference field not available")
+
         except Exception as e:
-            self.logger.error(f"Error crawling Mahan Air: {str(e)}")
-            self.monitoring.record_error()
-            raise
+            self.logger.warning(f"Error handling Mahan Air specific fields: {e}")
 
-    async def _navigate_to_search_page(self):
+    async def _fill_search_form(self, search_params: Dict[str, Any]) -> None:
+        """
+        Fill Mahan Air search form using Persian adapter capabilities.
+        
+        This method leverages the Persian text processing from the parent class
+        and adds Mahan Air specific handling.
+        """
         try:
-            await self.page.navigate(self.search_url)
-            await self.page.wait_for_load_state("networkidle")
-        except TimeoutError:
-            self.logger.error("Timeout while loading search page")
-            raise
-
-    async def _fill_search_form(self, search_params: Dict):
-        try:
-            await self.page.fill(
-                self.config["extraction_config"]["search_form"]["origin_field"],
-                self.persian_processor.process_text(search_params["origin"]),
-            )
-            await self.page.fill(
-                self.config["extraction_config"]["search_form"]["destination_field"],
-                self.persian_processor.process_text(search_params["destination"]),
-            )
-            await self.page.fill(
-                self.config["extraction_config"]["search_form"]["date_field"],
-                self.persian_processor.process_date(search_params["departure_date"]),
-            )
-            await self.page.select_option(
-                self.config["extraction_config"]["search_form"]["passengers_field"],
-                str(search_params["passengers"]),
-            )
-            await self.page.select_option(
-                self.config["extraction_config"]["search_form"]["class_field"],
-                self.persian_processor.process_text(search_params["seat_class"]),
-            )
-            if "trip_type" in search_params:
-                await self.page.select_option(
-                    self.config["extraction_config"]["search_form"]["trip_type_field"],
-                    self.persian_processor.process_text(search_params["trip_type"]),
-                )
-            await self.page.click("button[type='submit']")
-            await self.page.wait_for_load_state("networkidle")
+            # Use parent's Persian form filling capabilities
+            await super()._fill_search_form(search_params)
+            
+            # Handle Mahan Air specific fields
+            await self._handle_mahan_air_specific_fields(search_params)
+            
         except Exception as e:
-            self.logger.error(f"Error filling search form: {str(e)}")
-            raise
-
-    async def _extract_flight_results(self) -> List[Dict]:
-        try:
-            await self.page.wait_for_selector(
-                self.config["extraction_config"]["results_parsing"]["container"]
-            )
-            content = await self.page.content()
-            soup = BeautifulSoup(content, "html.parser")
-            flight_elements = soup.select(
-                self.config["extraction_config"]["results_parsing"]["container"]
-            )
-            results = []
-            for element in flight_elements:
-                flight_data = self._parse_flight_element(element)
-                if flight_data:
-                    results.append(flight_data)
-            return results
-        except Exception as e:
-            self.logger.error(f"Error extracting flight results: {str(e)}")
+            self.logger.error(f"Error filling Mahan Air search form: {e}")
             raise
 
     def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
@@ -134,337 +103,205 @@ class MahanAirAdapter(EnhancedPersianAdapter):
         Uses parent class for standard Persian parsing,
         then adds Mahan Air specific fields.
         """
-        # Get standard flight data from parent class
-        flight_data = super()._parse_flight_element(element)
-
-        if not flight_data:
-            return None
-
-        # Add Mahan Air specific fields
-        config = self.config.get("extraction_config", {}).get("results_parsing", {})
-        mahan_specific = self._extract_mahan_air_specific_fields(element, config)
-
-        # Merge with standard flight data
-        flight_data.update(mahan_specific)
-
-        # Add Mahan Air metadata
-        flight_data["airline_code"] = "W5"  # Mahan Air IATA code
-        flight_data["airline_name"] = "Mahan Air"
-        flight_data["source_adapter"] = "MahanAir"
-
-        # Mahan Air specific validation
-        if not self._validate_mahan_air_flight(flight_data):
-            self.logger.debug("Flight data failed Mahan Air specific validation")
-            return None
-
-        return flight_data
-
-    def _validate_search_params(self, search_params: Dict):
-        required_fields = [
-            "origin",
-            "destination",
-            "departure_date",
-            "passengers",
-            "seat_class",
-        ]
-        for field in required_fields:
-            if field not in search_params:
-                raise ValueError(f"Missing required search parameter: {field}")
-
-    def _validate_flight_data(self, results: List[Dict]) -> List[Dict]:
-        validated_results = []
-        for result in results:
-            if all(
-                field in result
-                for field in self.config["data_validation"]["required_fields"]
-            ):
-                if (
-                    self.config["data_validation"]["price_range"]["min"]
-                    <= result["price"]
-                    <= self.config["data_validation"]["price_range"]["max"]
-                ):
-                    if (
-                        self.config["data_validation"]["duration_range"]["min"]
-                        <= result["duration_minutes"]
-                        <= self.config["data_validation"]["duration_range"]["max"]
-                    ):
-                        validated_results.append(result)
-        return validated_results
-
-    def _get_base_url(self) -> str:
-        """Get Mahan Air base URL."""
-        return "https://www.mahan.aero"
-
-    def _extract_currency(self, element, config: Dict[str, Any]) -> str:
-        """Extract currency - always IRR for Mahan Air."""
-        return "IRR"
-
-    def _get_required_search_fields(self) -> List[str]:
-        """Required fields for Mahan Air search."""
-        return ["origin", "destination", "departure_date", "passengers", "seat_class"]
-
-    @error_handler("mahan_air_specific_form_handling")
-    async def _handle_mahan_air_specific_fields(
-        self, search_params: Dict[str, Any]
-    ) -> None:
-        """
-        Handle Mahan Air specific form fields.
-
-        This method handles any fields that are unique to Mahan Air
-        and not covered by the standard Persian form filling.
-        """
         try:
-            # Mahan Air specific: Loyalty program member
-            if search_params.get("loyalty_member"):
-                loyalty_checkbox = ".loyalty-member-checkbox"
-                if await self.page.query_selector(loyalty_checkbox):
-                    await self.page.check(loyalty_checkbox)
-                    self.logger.debug("Loyalty member option selected")
+            # Get standard flight data from parent class
+            flight_data = super()._parse_flight_element(element)
 
-            # Mahan Air specific: Preferred departure time
-            if search_params.get("preferred_time"):
-                time_selector = "#preferred-time-select"
-                if await self.page.query_selector(time_selector):
-                    await self.page.select_option(
-                        time_selector, search_params["preferred_time"]
-                    )
-                    self.logger.debug(
-                        f"Preferred time set to: {search_params['preferred_time']}"
-                    )
+            if not flight_data:
+                return None
 
-            # Mahan Air specific: Charter flight preference
-            if search_params.get("charter_only"):
-                charter_checkbox = ".charter-only-checkbox"
-                if await self.page.query_selector(charter_checkbox):
-                    await self.page.check(charter_checkbox)
-                    self.logger.debug("Charter only option selected")
+            # Add Mahan Air specific fields
+            config = self.config.extraction_config.get("results_parsing", {})
+            mahan_specific = self._extract_mahan_air_specific_fields(element, config)
 
+            # Merge with standard flight data
+            flight_data.update(mahan_specific)
+
+            # Add Mahan Air metadata
+            flight_data["airline_code"] = self.airline_code
+            flight_data["airline_name"] = self.airline_name
+            flight_data["source_adapter"] = "MahanAir"
+
+            # Mahan Air specific validation
+            if not self._validate_mahan_air_flight(flight_data):
+                self.logger.debug("Flight data failed Mahan Air specific validation")
+                return None
+
+            return flight_data
+            
         except Exception as e:
-            self.logger.warning(f"Could not set Mahan Air specific fields: {e}")
-
-    async def _fill_search_form(self, search_params: Dict[str, Any]) -> None:
-        """
-        Fill search form with Mahan Air specific handling.
-
-        Uses parent class for standard Persian form filling,
-        then adds Mahan Air specific fields.
-        """
-        # Use parent class for standard form filling
-        await super()._fill_search_form(search_params)
-
-        # Add Mahan Air specific form handling
-        await self._handle_mahan_air_specific_fields(search_params)
+            self.logger.error(f"Error parsing Mahan Air flight element: {e}")
+            return None
 
     @safe_extract(default_value={})
     def _extract_mahan_air_specific_fields(
         self, element, config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Extract Mahan Air specific fields from flight element.
+        """Extract Mahan Air specific fields from flight element"""
+        mahan_fields = {}
 
-        Args:
-            element: BeautifulSoup element containing flight data
-            config: Extraction configuration
-
-        Returns:
-            Dictionary with Mahan Air specific fields
-        """
-        mahan_specific = {}
-
-        # Mahan Miles (loyalty program points)
-        loyalty_points_selector = config.get("mahan_miles")
-        if loyalty_points_selector:
-            loyalty_points = self._extract_text(element, loyalty_points_selector)
-            if loyalty_points:
-                # Extract numeric value from Persian text
-                points_value = AdapterUtils.extract_numeric_value(
-                    self.persian_processor.process_text(loyalty_points)
-                )
-                mahan_specific["mahan_miles"] = (
-                    int(points_value) if points_value > 0 else 0
-                )
-
-        # Charter flight information
-        charter_selector = config.get("charter_indicator")
-        if charter_selector:
-            charter_info = self._extract_text(element, charter_selector)
-            if charter_info:
-                charter_text = self.persian_processor.process_text(charter_info)
-                mahan_specific["is_charter"] = (
-                    "چارتر" in charter_text or "charter" in charter_text.lower()
-                )
-                mahan_specific["charter_info"] = charter_text
-
-        # Aircraft type (Mahan Air specific)
-        aircraft_selector = config.get("aircraft_type")
-        if aircraft_selector:
-            aircraft_info = self._extract_text(element, aircraft_selector)
-            if aircraft_info:
-                aircraft_text = self.persian_processor.process_text(aircraft_info)
-                mahan_specific["aircraft_type"] = aircraft_text
-
-        # Meal service information
-        meal_selector = config.get("meal_service")
-        if meal_selector:
-            meal_info = self._extract_text(element, meal_selector)
-            if meal_info:
-                meal_text = self.persian_processor.process_text(meal_info)
-                mahan_specific["meal_service"] = meal_text
-                mahan_specific["has_meal"] = "وعده" in meal_text or "غذا" in meal_text
-
-        # Baggage allowance
-        baggage_selector = config.get("baggage_allowance")
-        if baggage_selector:
-            baggage_info = self._extract_text(element, baggage_selector)
-            if baggage_info:
-                baggage_text = self.persian_processor.process_text(baggage_info)
-                mahan_specific["baggage_allowance"] = baggage_text
-
-                # Extract baggage weight if present
-                baggage_weight = AdapterUtils.extract_numeric_value(baggage_text)
-                if baggage_weight > 0:
-                    mahan_specific["baggage_weight_kg"] = int(baggage_weight)
-
-        # Special offers or promotions
-        promotion_selector = config.get("promotion_info")
-        if promotion_selector:
-            promotion_info = self._extract_text(element, promotion_selector)
-            if promotion_info:
-                promotion_text = self.persian_processor.process_text(promotion_info)
-                mahan_specific["promotion_info"] = promotion_text
-                mahan_specific["has_promotion"] = bool(promotion_text.strip())
-
-        return mahan_specific
-
-    def _validate_mahan_air_flight(self, flight_data: Dict[str, Any]) -> bool:
-        """
-        Validate flight data with Mahan Air specific rules.
-
-        Args:
-            flight_data: Flight data to validate
-
-        Returns:
-            True if flight data is valid for Mahan Air
-        """
         try:
-            # Check if flight number follows Mahan Air pattern (W5xxx)
-            flight_number = flight_data.get("flight_number", "")
-            if flight_number and not flight_number.startswith("W5"):
-                # Log warning but don't reject (might be codeshare)
-                self.logger.debug(
-                    f"Unusual flight number for Mahan Air: {flight_number}"
-                )
+            # Extract aircraft type (Mahan Air often shows this)
+            aircraft_selector = config.get("aircraft_type")
+            if aircraft_selector:
+                aircraft_text = self._extract_text(element, aircraft_selector)
+                if aircraft_text:
+                    mahan_fields["aircraft_type"] = self.persian_processor.process_text(aircraft_text)
 
-            # Validate Mahan Miles if present
-            mahan_miles = flight_data.get("mahan_miles", 0)
-            if mahan_miles < 0 or mahan_miles > 50000:  # Reasonable range
-                self.logger.debug(f"Invalid Mahan Miles value: {mahan_miles}")
-                flight_data["mahan_miles"] = 0
+            # Extract meal service information
+            meal_selector = config.get("meal_service")
+            if meal_selector:
+                meal_text = self._extract_text(element, meal_selector)
+                if meal_text:
+                    mahan_fields["meal_service"] = self.persian_processor.process_text(meal_text)
 
-            # Validate baggage weight if present
-            baggage_weight = flight_data.get("baggage_weight_kg", 0)
-            if baggage_weight < 0 or baggage_weight > 50:  # Reasonable range
-                self.logger.debug(f"Invalid baggage weight: {baggage_weight}")
-                flight_data.pop("baggage_weight_kg", None)
+            # Extract baggage allowance
+            baggage_selector = config.get("baggage_allowance")
+            if baggage_selector:
+                baggage_text = self._extract_text(element, baggage_selector)
+                if baggage_text:
+                    mahan_fields["baggage_allowance"] = self.persian_processor.process_text(baggage_text)
 
-            # Use parent class validation
-            return super()._custom_flight_validation(flight_data)
+            # Extract seat selection availability
+            seat_selector = config.get("seat_selection")
+            if seat_selector:
+                seat_text = self._extract_text(element, seat_selector)
+                if seat_text:
+                    mahan_fields["seat_selection_available"] = "انتخاب صندلی" in seat_text
+
+            # Extract frequent flyer miles
+            miles_selector = config.get("frequent_flyer_miles")
+            if miles_selector:
+                miles_text = self._extract_text(element, miles_selector)
+                if miles_text:
+                    miles = self._extract_miles(miles_text)
+                    if miles > 0:
+                        mahan_fields["frequent_flyer_miles"] = miles
+
+            # Extract refund policy
+            refund_selector = config.get("refund_policy")
+            if refund_selector:
+                refund_text = self._extract_text(element, refund_selector)
+                if refund_text:
+                    mahan_fields["refund_policy"] = self.persian_processor.process_text(refund_text)
+
+            # Extract change policy
+            change_selector = config.get("change_policy")
+            if change_selector:
+                change_text = self._extract_text(element, change_selector)
+                if change_text:
+                    mahan_fields["change_policy"] = self.persian_processor.process_text(change_text)
+
+            # Extract booking class
+            booking_class_selector = config.get("booking_class")
+            if booking_class_selector:
+                booking_class_text = self._extract_text(element, booking_class_selector)
+                if booking_class_text:
+                    mahan_fields["booking_class"] = booking_class_text.strip()
 
         except Exception as e:
-            self.logger.error(f"Error in Mahan Air flight validation: {e}")
+            self.logger.debug(f"Error extracting Mahan Air specific fields: {e}")
+
+        return mahan_fields
+
+    def _validate_mahan_air_flight(self, flight_data: Dict[str, Any]) -> bool:
+        """Validate Mahan Air specific flight data"""
+        try:
+            # Basic validation
+            if not flight_data.get("price") or flight_data["price"] <= 0:
+                return False
+
+            # Mahan Air specific validations
+            # Check if it's a valid Mahan Air flight
+            airline_name = flight_data.get("airline_name", "").lower()
+            if "mahan" not in airline_name and flight_data.get("airline_code") != "W5":
+                return False
+
+            # Validate flight number format (W5 followed by numbers)
+            flight_number = flight_data.get("flight_number", "")
+            if flight_number and not (flight_number.startswith("W5") or flight_number.startswith("ماهان")):
+                self.logger.debug(f"Invalid Mahan Air flight number format: {flight_number}")
+                return False
+
+            # Validate price range for Mahan Air (domestic flights)
+            price = flight_data.get("price", 0)
+            if self._is_domestic_flight_persian(flight_data):
+                # Domestic flights should be within reasonable range
+                if price < 500000 or price > 20000000:  # 500K to 20M IRR
+                    self.logger.debug(f"Price out of range for domestic Mahan Air flight: {price}")
+                    return False
+            else:
+                # International flights
+                if price < 5000000 or price > 100000000:  # 5M to 100M IRR
+                    self.logger.debug(f"Price out of range for international Mahan Air flight: {price}")
+                    return False
+
+            # Validate duration
+            duration = flight_data.get("duration_minutes", 0)
+            if duration < 30 or duration > 1440:  # 30 minutes to 24 hours
+                self.logger.debug(f"Invalid duration for Mahan Air flight: {duration}")
+                return False
+
+            return True
+
+        except Exception as e:
+            self.logger.debug(f"Error validating Mahan Air flight: {e}")
             return False
+
+    def _get_required_search_fields(self) -> List[str]:
+        """Get required search fields for Mahan Air"""
+        return ["origin", "destination", "departure_date", "passengers", "seat_class"]
+
+    def _extract_currency(self, element, config: Dict[str, Any]) -> str:
+        """Extract currency - always IRR for Mahan Air."""
+        return "IRR"
 
     @error_handler("mahan_air_post_processing")
     async def _post_process_results(
         self, results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Post-process results with Mahan Air specific logic.
-
-        Args:
-            results: Raw flight results
-
-        Returns:
-            Processed results
-        """
+        """Post-process Mahan Air results"""
         processed_results = []
 
-        for flight in results:
+        for result in results:
             try:
-                # Add calculated fields
-                flight["flight_id"] = AdapterUtils.create_flight_id(flight)
+                # Normalize airline name
+                result["airline_name"] = self.persian_processor.normalize_airline_name(
+                    result.get("airline_name", "Mahan Air")
+                )
 
-                # Standardize time format
-                if "departure_time" in flight:
-                    flight["departure_time"] = AdapterUtils.standardize_time_format(
-                        flight["departure_time"]
+                # Process flight number
+                if "flight_number" in result:
+                    result["flight_number"] = self.persian_processor.clean_flight_number(
+                        result["flight_number"]
                     )
 
-                if "arrival_time" in flight:
-                    flight["arrival_time"] = AdapterUtils.standardize_time_format(
-                        flight["arrival_time"]
-                    )
+                # Convert Persian numbers to English
+                for field in ["price", "duration_minutes"]:
+                    if field in result and isinstance(result[field], str):
+                        result[field] = self.persian_processor.convert_persian_numbers(result[field])
 
-                # Calculate duration if not present
-                if (
-                    "departure_time" in flight
-                    and "arrival_time" in flight
-                    and "duration_minutes" not in flight
-                ):
-                    duration = AdapterUtils.calculate_duration_minutes(
-                        flight["departure_time"], flight["arrival_time"]
-                    )
-                    if duration > 0:
-                        flight["duration_minutes"] = duration
+                # Add Mahan Air specific metadata
+                result["is_domestic"] = self._is_domestic_flight_persian(result)
+                result["flight_type"] = self._classify_persian_flight(result)
 
-                # Format price for display
-                if "price" in flight and "currency" in flight:
-                    flight["price_formatted"] = AdapterUtils.format_currency(
-                        flight["price"], flight["currency"]
-                    )
-
-                # Add extraction timestamp
-                flight["extracted_at"] = self.current_timestamp.isoformat()
-
-                processed_results.append(flight)
+                processed_results.append(result)
 
             except Exception as e:
-                self.logger.warning(f"Error post-processing flight: {e}")
-                # Still include the flight even if post-processing fails
-                processed_results.append(flight)
-
-        return processed_results
-
-    async def _extract_flight_results(self) -> List[Dict[str, Any]]:
-        """
-        Extract flight results with Mahan Air specific post-processing.
-
-        Uses parent class for standard extraction,
-        then applies Mahan Air specific post-processing.
-        """
-        # Use parent class for standard extraction
-        results = await super()._extract_flight_results()
-
-        # Apply Mahan Air specific post-processing
-        processed_results = await self._post_process_results(results)
-
-        self.logger.info(f"Extracted {len(processed_results)} flights from Mahan Air")
+                self.logger.debug(f"Error post-processing Mahan Air result: {e}")
+                continue
 
         return processed_results
 
     def _get_adapter_specific_config(self) -> Dict[str, Any]:
-        """
-        Get Mahan Air specific configuration.
-
-        Returns:
-            Configuration specific to Mahan Air
-        """
+        """Get Mahan Air specific configuration"""
         return {
-            "supports_charter": True,
-            "supports_loyalty_program": True,
-            "loyalty_program_name": "Mahan Miles",
-            "domestic_routes_only": True,
-            "typical_aircraft_types": ["A310", "A340", "A300", "ATR"],
-            "meal_service_available": True,
-            "baggage_included": True,
+            "airline_code": self.airline_code,
+            "airline_name": self.airline_name,
+            "supports_seat_selection": True,
+            "supports_meal_selection": True,
+            "supports_frequent_flyer": True,
+            "currency": "IRR",
+            "domestic_routes": True,
+            "international_routes": True,
         }

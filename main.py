@@ -82,10 +82,7 @@ async def shutdown_event():
     logger.info("Shutdown complete.")
 
 # Add rate limiting middleware
-rate_limit_middleware = RateLimitMiddleware(
-    app=app, enable_ip_whitelist=True, enable_user_type_limits=True
-)
-app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RateLimitMiddleware, enable_ip_whitelist=True, enable_user_type_limits=True)
 
 # Add CORS middleware
 app.add_middleware(

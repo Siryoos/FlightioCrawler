@@ -14,9 +14,11 @@ from sqlalchemy import (
     JSON,
     func,
     Boolean,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
+from sqlalchemy.pool import QueuePool
 from redis import Redis
 from config import config
 import copy
@@ -210,22 +212,8 @@ class DataManager:
     """Manage data storage and retrieval"""
 
     def __init__(self) -> None:
-        # Initialize database
-        db = config.DATABASE
-        db_url = f"postgresql://{db.USER}:{db.PASSWORD}@{db.HOST}:{db.PORT}/{db.NAME}"
-        try:
-            self.engine = create_engine(db_url, echo=False)
-            self.SessionLocal = sessionmaker(
-                autocommit=False, autoflush=False, bind=self.engine
-            )
-
-            # Create tables
-            Base.metadata.create_all(bind=self.engine)
-
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            self.engine = None
-            self.SessionLocal = None
+        # Initialize database with optimized connection pool
+        self.init_database()
 
         # Initialize Redis
         try:
@@ -241,6 +229,84 @@ class DataManager:
         except Exception as e:
             logger.error(f"Redis connection failed: {e}")
             self.redis = None
+            
+    def init_database(self) -> None:
+        """Initialize database with optimized connection pool settings"""
+        try:
+            # Get connection pool configuration
+            pool_config = config.DATABASE.connection_pool_config
+            
+            # Create engine with optimized settings
+            self.engine = create_engine(
+                config.DATABASE.connection_string,
+                **pool_config,
+                # Additional performance settings
+                isolation_level="READ_COMMITTED",
+                connect_args={
+                    "application_name": "FlightioCrawler",
+                    "client_encoding": "utf8",
+                    "connect_timeout": 10,
+                }
+            )
+            
+            self.SessionLocal = sessionmaker(
+                autocommit=False, 
+                autoflush=False, 
+                bind=self.engine,
+                expire_on_commit=False  # Prevent lazy loading issues
+            )
+            
+            # Test connection
+            with self.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                logger.info("Database connection test successful")
+            
+            # Create tables
+            Base.metadata.create_all(bind=self.engine)
+            
+            # Setup performance monitoring
+            self._setup_performance_monitoring()
+            
+            logger.info(f"Database initialized with pool_size={pool_config['pool_size']}")
+            
+        except Exception as e:
+            logger.error(f"Database connection failed: {e}")
+            self.engine = None
+            self.SessionLocal = None
+            
+    def _setup_performance_monitoring(self) -> None:
+        """Setup database performance monitoring if enabled."""
+        try:
+            if config.DATABASE.LOG_SLOW_QUERIES:
+                # Enable slow query logging
+                with self.engine.connect() as conn:
+                    conn.execute(text("SET log_min_duration_statement = :threshold"), 
+                               {"threshold": config.DATABASE.SLOW_QUERY_THRESHOLD})
+                    conn.commit()
+                logger.info("Slow query monitoring enabled")
+        except Exception as e:
+            logger.warning(f"Failed to setup performance monitoring: {e}")
+            
+    def get_connection_pool_status(self) -> Dict[str, Any]:
+        """Get current connection pool status."""
+        try:
+            if not self.engine:
+                return {"status": "engine_not_initialized"}
+                
+            pool = self.engine.pool
+            return {
+                "pool_size": pool.size(),
+                "checked_in": pool.checkedin(),
+                "checked_out": pool.checkedout(),
+                "overflow": pool.overflow(),
+                "invalid": pool.invalid(),
+                "total_connections": pool.checkedin() + pool.checkedout(),
+                "pool_timeout": config.DATABASE.POOL_TIMEOUT,
+                "max_overflow": config.DATABASE.MAX_OVERFLOW
+            }
+        except Exception as e:
+            logger.error(f"Failed to get connection pool status: {e}")
+            return {"error": str(e)}
 
     def get_session(self) -> Session:
         """Get database session"""

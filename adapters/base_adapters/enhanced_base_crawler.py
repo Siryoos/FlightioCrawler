@@ -3,7 +3,7 @@ Enhanced base crawler with automatic initialization and common crawling logic.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, TypeVar, Generic
+from typing import Dict, List, Optional, Any, TypeVar, Generic, Callable
 from dataclasses import dataclass, field
 import logging
 from datetime import datetime
@@ -14,6 +14,10 @@ import os
 import weakref
 from contextlib import asynccontextmanager
 import aiohttp
+import random
+import traceback
+from enum import Enum
+import time
 
 # Make playwright imports optional
 try:
@@ -46,6 +50,42 @@ from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 from utils.request_batcher import RequestBatcher, RequestSpec
+from .common_error_handler import (
+    CommonErrorHandler,
+    ErrorContext,
+    AdapterError,
+    NavigationError,
+    FormFillingError,
+    ExtractionError,
+    ValidationError,
+    TimeoutError as AdapterTimeoutError,
+    ErrorRecoveryStrategies,
+)
+
+
+class ErrorCategory(Enum):
+    """Error categories for better error handling"""
+    NETWORK = "network"
+    PARSING = "parsing"
+    VALIDATION = "validation"
+    TIMEOUT = "timeout"
+    AUTHENTICATION = "authentication"
+    RATE_LIMIT = "rate_limit"
+    RESOURCE = "resource"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class RetryConfig:
+    """Configuration for retry mechanisms"""
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 60.0
+    exponential_base: float = 2.0
+    jitter: bool = True
+    retryable_errors: List[str] = field(default_factory=lambda: [
+        "TimeoutError", "NavigationError", "NetworkError", "ConnectionError"
+    ])
 
 
 @dataclass
@@ -82,6 +122,10 @@ class CrawlerConfig:
     extraction_config: Dict[str, Any] = field(default_factory=dict)
     data_validation: Dict[str, Any] = field(default_factory=dict)
     resource_limits: Dict[str, Any] = field(default_factory=dict)
+    retry_config: Dict[str, Any] = field(default_factory=dict)
+    proxy: Optional[str] = None  # e.g. "http://user:pass@host:port"
+    user_agents: List[str] = field(default_factory=list)
+    default_headers: Dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
         # Set defaults if not provided
@@ -96,6 +140,7 @@ class CrawlerConfig:
                 "max_retries": 3,
                 "retry_delay": 5,
                 "circuit_breaker": {},
+                "enable_recovery": True,
             }
         if not self.resource_limits:
             self.resource_limits = {
@@ -103,6 +148,28 @@ class CrawlerConfig:
                 "max_processing_time": 300,
                 "max_concurrent_sessions": 3,
                 "enable_memory_monitoring": True
+            }
+        if not self.retry_config:
+            self.retry_config = {
+                "max_retries": 3,
+                "base_delay": 1.0,
+                "max_delay": 60.0,
+                "exponential_base": 2.0,
+                "jitter": True,
+            }
+        if not self.user_agents:
+            self.user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ]
+        if not self.default_headers:
+            self.default_headers = {
+                'Accept-Language': 'en-US,en;q=0.9,fa;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
             }
 
 
@@ -116,10 +183,9 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
     This class automatically handles:
     - Component initialization (rate limiter, error handler, monitoring)
     - Browser and page management with memory optimization
-    - Common crawling workflow
-    - Error handling and logging
-    - Validation
-    - Resource cleanup and memory monitoring
+    - Common crawling workflow with centralized error handling
+    - Error categorization, retry mechanisms, and recovery strategies
+    - Validation and resource cleanup
     - Template method pattern implementation
     """
 
@@ -131,9 +197,9 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             config: Configuration dictionary
             http_session: Optional shared aiohttp session
         """
-        self.config = config
+        self.config = CrawlerConfig(**config)
         self.base_url = self._get_base_url()
-        self.search_url = config.get("search_url", self.base_url)
+        self.search_url = self.config.search_url
 
         # Browser and page management
         self.playwright = None
@@ -152,8 +218,19 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         self._is_closed = False
         
         # Memory monitoring
-        self.resource_limits = config.get("resource_limits", {})
+        self.resource_limits = self.config.resource_limits
         self.enable_memory_monitoring = self.resource_limits.get("enable_memory_monitoring", True)
+        
+        # Error handling enhancement
+        self.retry_config = RetryConfig(**self.config.retry_config)
+        self.error_stats = {
+            "total_errors": 0,
+            "errors_by_category": {},
+            "errors_by_operation": {},
+            "recovery_attempts": 0,
+            "successful_recoveries": 0,
+            "last_error_time": None,
+        }
         
         # Register for cleanup tracking
         if self.enable_memory_monitoring:
@@ -164,6 +241,11 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         self.error_handler = self._create_error_handler()
         self.monitoring = self._create_monitoring()
         self.logger = self._create_logger()
+
+        # Initialize enhanced error handler
+        self.common_error_handler = CommonErrorHandler(
+            self.__class__.__name__, self.config.error_handling
+        )
 
         # Initialize adapter-specific components
         self._initialize_adapter()
@@ -180,9 +262,366 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         await self._setup_request_batcher()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Async context manager exit."""
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with enhanced error handling."""
+        if exc_type:
+            # Log the exception that caused context exit
+            error_context = ErrorContext(
+                adapter_name=self.__class__.__name__,
+                operation="context_exit",
+                additional_info={"exception_type": str(exc_type), "exception_value": str(exc_val)}
+            )
+            await self._handle_error_with_context(exc_val, error_context)
+        
         await self._cleanup_all_resources()
+
+    def _categorize_error(self, error: Exception) -> ErrorCategory:
+        """Categorize errors for better handling"""
+        error_type = type(error).__name__
+        error_message = str(error).lower()
+        
+        if "timeout" in error_message or "timeout" in error_type.lower():
+            return ErrorCategory.TIMEOUT
+        elif "network" in error_message or "connection" in error_message:
+            return ErrorCategory.NETWORK
+        elif "rate limit" in error_message or "429" in error_message:
+            return ErrorCategory.RATE_LIMIT
+        elif "auth" in error_message or "401" in error_message or "403" in error_message:
+            return ErrorCategory.AUTHENTICATION
+        elif "memory" in error_message or "resource" in error_message:
+            return ErrorCategory.RESOURCE
+        elif isinstance(error, (ExtractionError, ValidationError)):
+            return ErrorCategory.VALIDATION
+        elif "parse" in error_message or "json" in error_message:
+            return ErrorCategory.PARSING
+        else:
+            return ErrorCategory.UNKNOWN
+
+    def _is_retryable_error(self, error: Exception, category: ErrorCategory) -> bool:
+        """Determine if an error is retryable"""
+        error_type = type(error).__name__
+        
+        # Check if error type is in retryable list
+        if error_type in self.retry_config.retryable_errors:
+            return True
+        
+        # Check category-based retryability
+        retryable_categories = [
+            ErrorCategory.NETWORK,
+            ErrorCategory.TIMEOUT,
+            ErrorCategory.RATE_LIMIT,
+        ]
+        
+        return category in retryable_categories
+
+    async def _calculate_retry_delay(self, attempt: int) -> float:
+        """Calculate retry delay with exponential backoff and jitter"""
+        delay = min(
+            self.retry_config.base_delay * (self.retry_config.exponential_base ** attempt),
+            self.retry_config.max_delay
+        )
+        
+        if self.retry_config.jitter:
+            # Add jitter to prevent thundering herd
+            delay = delay * (0.5 + random.random() * 0.5)
+        
+        return delay
+
+    async def _handle_error_with_context(
+        self, 
+        error: Exception, 
+        context: ErrorContext,
+        should_retry: bool = True
+    ) -> bool:
+        """
+        Enhanced error handling with categorization and recovery
+        
+        Returns:
+            True if operation should be retried, False otherwise
+        """
+        # Categorize error
+        category = self._categorize_error(error)
+        
+        # Update error statistics
+        self._update_error_stats(error, category, context.operation)
+        
+        # Create enhanced error context
+        enhanced_context = ErrorContext(
+            adapter_name=context.adapter_name,
+            operation=context.operation,
+            search_params=context.search_params,
+            url=context.url,
+            element_index=context.element_index,
+            retry_count=context.retry_count,
+            additional_info={
+                **(context.additional_info or {}),
+                "error_category": category.value,
+                "error_type": type(error).__name__,
+                "timestamp": datetime.now().isoformat(),
+                "stack_trace": traceback.format_exc(),
+            }
+        )
+        
+        # Log error with enhanced context
+        self._log_enhanced_error(error, enhanced_context, category)
+        
+        # Check if error should be retried
+        if should_retry and self._is_retryable_error(error, category):
+            if context.retry_count < self.retry_config.max_retries:
+                # Attempt error recovery
+                recovery_successful = await self._attempt_error_recovery(error, enhanced_context, category)
+                
+                if recovery_successful:
+                    self.error_stats["successful_recoveries"] += 1
+                    self.logger.info(f"Error recovery successful for {context.operation}")
+                
+                return True
+        
+        # Error is not retryable or max retries reached
+        self.logger.error(f"Error handling failed for {context.operation}, not retrying")
+        return False
+
+    def _update_error_stats(self, error: Exception, category: ErrorCategory, operation: str):
+        """Update comprehensive error statistics"""
+        self.error_stats["total_errors"] += 1
+        self.error_stats["last_error_time"] = datetime.now()
+        
+        # Update category stats
+        if category.value not in self.error_stats["errors_by_category"]:
+            self.error_stats["errors_by_category"][category.value] = 0
+        self.error_stats["errors_by_category"][category.value] += 1
+        
+        # Update operation stats
+        if operation not in self.error_stats["errors_by_operation"]:
+            self.error_stats["errors_by_operation"][operation] = 0
+        self.error_stats["errors_by_operation"][operation] += 1
+
+    def _log_enhanced_error(self, error: Exception, context: ErrorContext, category: ErrorCategory):
+        """Log error with enhanced formatting and context"""
+        operation = context.operation
+        error_type = type(error).__name__
+        error_message = str(error)
+        retry_count = context.retry_count
+        
+        # Create structured log message
+        log_msg = f"[{operation}] {category.value.upper()}: {error_type} - {error_message}"
+        
+        if retry_count > 0:
+            log_msg += f" (Retry {retry_count}/{self.retry_config.max_retries})"
+        
+        # Log with appropriate level based on category
+        if category in [ErrorCategory.NETWORK, ErrorCategory.TIMEOUT]:
+            self.logger.warning(log_msg)
+        elif category == ErrorCategory.RATE_LIMIT:
+            self.logger.info(log_msg)
+        else:
+            self.logger.error(log_msg)
+        
+        # Log additional context at debug level
+        if context.additional_info:
+            self.logger.debug(f"Error context: {context.additional_info}")
+
+    async def _attempt_error_recovery(
+        self, 
+        error: Exception, 
+        context: ErrorContext, 
+        category: ErrorCategory
+    ) -> bool:
+        """
+        Attempt error recovery based on error category
+        
+        Returns:
+            True if recovery was attempted and might be successful
+        """
+        self.error_stats["recovery_attempts"] += 1
+        
+        try:
+            if category == ErrorCategory.NETWORK:
+                await self._recover_from_network_error(error, context)
+                return True
+            elif category == ErrorCategory.TIMEOUT:
+                await self._recover_from_timeout_error(error, context)
+                return True
+            elif category == ErrorCategory.RATE_LIMIT:
+                await self._recover_from_rate_limit_error(error, context)
+                return True
+            elif category == ErrorCategory.AUTHENTICATION:
+                await self._recover_from_auth_error(error, context)
+                return True
+            elif category == ErrorCategory.RESOURCE:
+                await self._recover_from_resource_error(error, context)
+                return True
+            else:
+                # Generic recovery
+                await self._generic_error_recovery(error, context)
+                return True
+        except Exception as recovery_error:
+            self.logger.warning(f"Error recovery failed: {recovery_error}")
+            return False
+
+    async def _recover_from_network_error(self, error: Exception, context: ErrorContext):
+        """Recover from network-related errors"""
+        self.logger.info("Attempting network error recovery")
+        
+        # Wait before retry
+        await asyncio.sleep(await self._calculate_retry_delay(context.retry_count))
+        
+        # Try to refresh page if available
+        if self.page and not self.page.is_closed():
+            try:
+                await ErrorRecoveryStrategies.refresh_page(self.page)
+            except Exception as e:
+                self.logger.debug(f"Page refresh failed: {e}")
+
+    async def _recover_from_timeout_error(self, error: Exception, context: ErrorContext):
+        """Recover from timeout errors"""
+        self.logger.info("Attempting timeout error recovery")
+        
+        # Increase wait time for timeout errors
+        delay = await self._calculate_retry_delay(context.retry_count) * 2
+        await asyncio.sleep(delay)
+        
+        # Clear any pending operations
+        if self.page and not self.page.is_closed():
+            try:
+                await self.page.evaluate("window.stop()")
+            except Exception as e:
+                self.logger.debug(f"Page stop failed: {e}")
+
+    async def _recover_from_rate_limit_error(self, error: Exception, context: ErrorContext):
+        """Recover from rate limiting errors"""
+        self.logger.info("Attempting rate limit error recovery")
+        
+        # Wait longer for rate limit errors
+        delay = await self._calculate_retry_delay(context.retry_count) * 3
+        await asyncio.sleep(delay)
+        
+        # Switch user agent if possible
+        if self.page and not self.page.is_closed():
+            try:
+                new_user_agent = self._get_random_user_agent()
+                await ErrorRecoveryStrategies.switch_user_agent(self.page, new_user_agent)
+            except Exception as e:
+                self.logger.debug(f"User agent switch failed: {e}")
+
+    async def _recover_from_auth_error(self, error: Exception, context: ErrorContext):
+        """Recover from authentication errors"""
+        self.logger.info("Attempting authentication error recovery")
+        
+        # Clear cookies and retry
+        if self.page and not self.page.is_closed():
+            try:
+                await ErrorRecoveryStrategies.clear_cookies_and_retry(self.page)
+            except Exception as e:
+                self.logger.debug(f"Cookie clearing failed: {e}")
+
+    async def _recover_from_resource_error(self, error: Exception, context: ErrorContext):
+        """Recover from resource-related errors"""
+        self.logger.info("Attempting resource error recovery")
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Check memory usage
+        self._check_memory_limits()
+        
+        # Wait before retry
+        await asyncio.sleep(await self._calculate_retry_delay(context.retry_count))
+
+    async def _generic_error_recovery(self, error: Exception, context: ErrorContext):
+        """Generic error recovery strategy"""
+        self.logger.info("Attempting generic error recovery")
+        
+        # Basic wait and retry
+        await ErrorRecoveryStrategies.wait_and_retry(
+            await self._calculate_retry_delay(context.retry_count)
+        )
+
+    async def _execute_with_retry(
+        self, 
+        operation: Callable,
+        operation_name: str,
+        context_info: Optional[Dict[str, Any]] = None,
+        *args, 
+        **kwargs
+    ) -> Any:
+        """
+        Execute an operation with retry logic and error handling
+        
+        Args:
+            operation: The async operation to execute
+            operation_name: Name of the operation for logging
+            context_info: Additional context information
+            *args, **kwargs: Arguments to pass to the operation
+            
+        Returns:
+            Result of the operation
+            
+        Raises:
+            Exception: If operation fails after all retries
+        """
+        last_exception = None
+        
+        for attempt in range(self.retry_config.max_retries + 1):
+            try:
+                # Execute the operation
+                result = await operation(*args, **kwargs)
+                
+                # Log success if this was a retry
+                if attempt > 0:
+                    self.logger.info(f"Operation {operation_name} succeeded after {attempt} retries")
+                
+                return result
+                
+            except Exception as e:
+                last_exception = e
+                
+                # Create error context
+                error_context = ErrorContext(
+                    adapter_name=self.__class__.__name__,
+                    operation=operation_name,
+                    retry_count=attempt,
+                    additional_info=context_info
+                )
+                
+                # Handle error with context
+                should_retry = await self._handle_error_with_context(e, error_context)
+                
+                if not should_retry or attempt >= self.retry_config.max_retries:
+                    break
+                
+                # Wait before retry
+                delay = await self._calculate_retry_delay(attempt)
+                self.logger.info(f"Retrying {operation_name} in {delay:.2f} seconds (attempt {attempt + 1})")
+                await asyncio.sleep(delay)
+        
+        # All retries exhausted
+        self.logger.error(f"Operation {operation_name} failed after {self.retry_config.max_retries} retries")
+        raise last_exception
+
+    def get_error_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive error statistics"""
+        return {
+            **self.error_stats,
+            "retry_config": {
+                "max_retries": self.retry_config.max_retries,
+                "base_delay": self.retry_config.base_delay,
+                "max_delay": self.retry_config.max_delay,
+            },
+            "common_error_stats": self.common_error_handler.get_error_statistics(),
+        }
+
+    def reset_error_statistics(self):
+        """Reset error statistics"""
+        self.error_stats = {
+            "total_errors": 0,
+            "errors_by_category": {},
+            "errors_by_operation": {},
+            "recovery_attempts": 0,
+            "successful_recoveries": 0,
+            "last_error_time": None,
+        }
+        self.common_error_handler.reset_error_statistics()
 
     @abstractmethod
     def _get_base_url(self) -> str:
@@ -195,6 +634,12 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         Override in subclasses if needed.
         """
         pass
+
+    def _get_random_user_agent(self) -> str:
+        """Get a random user agent from the list"""
+        if not self.config.user_agents:
+            return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        return random.choice(self.config.user_agents)
 
     async def _setup_http_session(self) -> None:
         """Setup HTTP session if not provided"""
@@ -210,18 +655,14 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             )
             
             timeout = aiohttp.ClientTimeout(total=30, connect=10)
+
+            headers = self.config.default_headers.copy()
+            headers['User-Agent'] = self._get_random_user_agent()
             
             self.http_session = aiohttp.ClientSession(
                 connector=connector,
                 timeout=timeout,
-                headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept-Language': 'en-US,en;q=0.9,fa;q=0.8',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive'
-                }
+                headers=headers,
             )
             self._own_http_session = True
             _resource_tracker.http_session_count += 1
@@ -233,7 +674,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             session = self.http_session if self.http_session else None
             
             # Configure batching parameters
-            batch_config = self.config.get("request_batching", {})
+            batch_config = getattr(self.config, "request_batching", {})
             batch_size = batch_config.get("batch_size", 8)  # Smaller batches for crawlers
             batch_timeout = batch_config.get("batch_timeout", 0.3)  # Faster timeout for crawlers
             max_concurrent_batches = batch_config.get("max_concurrent_batches", 3)
@@ -254,107 +695,78 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             self.logger.info(f"Request batcher initialized with batch_size={batch_size}, timeout={batch_timeout}s")
 
     async def _setup_browser(self) -> None:
-        """Setup browser and page for crawling with enhanced memory optimization."""
-        if not self.playwright:
+        """
+        Setup playwright browser and context with resource optimization.
+        """
+        if not PLAYWRIGHT_AVAILABLE:
+            self.logger.warning("Playwright is not installed. Skipping browser setup.")
+            return
+
+        try:
             self.playwright = await async_playwright().start()
-
-            # Memory-optimized browser options
-            browser_options = {
-                "headless": True,
-                "args": [
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-web-security",
-                    "--disable-features=VizDisplayCompositor",
-                    # Memory optimization flags
-                    "--memory-pressure-off",
-                    "--max_old_space_size=512",
-                    "--disable-background-timer-throttling",
-                    "--disable-renderer-backgrounding",
-                    "--disable-backgrounding-occluded-windows",
-                    "--disable-ipc-flooding-protection",
-                    # Disable unnecessary features for memory saving
-                    "--disable-extensions",
-                    "--disable-plugins",
-                    "--disable-images",  # Disable image loading
-                    "--disable-javascript-harmony-shipping",
-                    "--disable-webgl",
-                    "--disable-3d-apis",
-                    "--disable-accelerated-2d-canvas",
-                    "--disable-accelerated-jpeg-decoding",
-                    "--disable-accelerated-mjpeg-decode",
-                    "--disable-accelerated-video-decode",
-                    "--disable-gpu-memory-buffer-compositor-resources",
-                    "--disable-gpu-memory-buffer-video-frames",
-                    "--disable-software-rasterizer",
-                    # Network optimizations
-                    "--aggressive-cache-discard",
-                    "--enable-low-res-tiling",
-                    "--disable-background-networking"
-                ],
-            }
-
-            self.browser = await self.playwright.chromium.launch(**browser_options)
             _resource_tracker.browser_count += 1
 
-            # Memory-optimized context options
-            context_options = {
-                "viewport": {"width": 1366, "height": 768},  # Smaller viewport
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "extra_http_headers": {
-                    "Accept-Language": "en-US,en;q=0.9,fa;q=0.8",
-                    "Accept-Encoding": "gzip, deflate, br",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive"
-                },
-                "java_script_enabled": True,
-                "bypass_csp": True,
-                # Memory optimization settings
-                "ignore_https_errors": True,
-                "color_scheme": "light",
-                "reduced_motion": "reduce",  # Disable animations
-            }
+            browser_args = [
+                '--disable-gpu',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled'
+            ]
+            
+            proxy_config = {"server": self.config.proxy} if self.config.proxy else None
 
-            self.context = await self.browser.new_context(**context_options)
+            self.browser = await self.playwright.chromium.launch(
+                headless=True,
+                args=browser_args,
+                proxy=proxy_config,
+                handle_sigint=False,
+                handle_sigterm=False,
+                handle_sighup=False
+            )
+            
+            _resource_tracker.update_memory_usage()
+
+            # Create a single, reusable context
+            self.context = await self.browser.new_context(
+                user_agent=self._get_random_user_agent(),
+                java_script_enabled=True,
+                viewport={'width': 1920, 'height': 1080},
+                ignore_https_errors=True,
+            )
+            
+            # Block non-essential resources for performance
+            await self.context.route("**/*", self._route_handler)
             _resource_tracker.context_count += 1
             
-            # Block resource-heavy content types for memory optimization
-            await self.context.route("**/*", self._route_handler)
-            
+            # Create a single page
             self.page = await self.context.new_page()
             _resource_tracker.page_count += 1
 
-            # Additional page optimizations
-            await self.page.set_extra_http_headers({
-                "Accept-Language": "en-US,en;q=0.9,fa;q=0.8", 
-                "Cache-Control": "no-cache"
-            })
-            
-            # Disable resource-heavy features
-            await self.page.evaluate("""
-                // Disable animations and transitions
-                const style = document.createElement('style');
-                style.textContent = `
-                    *, *::before, *::after {
-                        animation-duration: 0.01ms !important;
-                        animation-delay: -0.01ms !important;
-                        transition-duration: 0.01ms !important;
-                        transition-delay: -0.01ms !important;
-                    }
-                `;
-                document.head.appendChild(style);
-            """)
-            
+            self.logger.info("Browser and page setup complete.")
+
+        except Exception as e:
+            self.logger.error(f"Failed to setup browser: {e}", exc_info=True)
+            await self._cleanup_browser()
+            raise
+
     async def _route_handler(self, route):
-        """Handle routing to block unnecessary resources"""
-        # Block images, fonts, and other heavy resources to save memory
-        resource_type = route.request.resource_type
-        if resource_type in ['image', 'media', 'font', 'stylesheet']:
-            await route.abort()
+        """Block non-essential resources to save bandwidth and memory."""
+        if route.request.resource_type in {
+            "image",
+            "stylesheet",
+            "font",
+            "media",
+            "websocket",
+        }:
+            try:
+                await route.abort()
+            except Exception:
+                pass  # Ignore errors if the request is already handled
         else:
-            await route.continue_()
+            try:
+                await route.continue_()
+            except Exception:
+                pass # Ignore errors
 
     async def _cleanup_browser(self) -> None:
         """Enhanced browser cleanup with memory optimization."""
@@ -511,25 +923,15 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
 
     def _create_rate_limiter(self) -> RateLimiter:
         """Create rate limiter from config with enhanced defaults."""
-        rate_config = self.config.get("rate_limiting", {})
-        return RateLimiter(
-            requests_per_second=rate_config.get("requests_per_second", 2),
-            burst_limit=rate_config.get("burst_limit", 5),
-            cooldown_period=rate_config.get("cooldown_period", 60),
-        )
+        return RateLimiter()
 
     def _create_error_handler(self) -> ErrorHandler:
         """Create error handler from config with enhanced defaults."""
-        error_config = self.config.get("error_handling", {})
-        return ErrorHandler(
-            max_retries=error_config.get("max_retries", 3),
-            retry_delay=error_config.get("retry_delay", 5),
-            circuit_breaker_config=error_config.get("circuit_breaker", {}),
-        )
+        return ErrorHandler()
 
     def _create_monitoring(self) -> Monitoring:
         """Create monitoring from config."""
-        return Monitoring(self.config.get("monitoring", {}))
+        return Monitoring(self.config.monitoring)
 
     def _create_logger(self) -> logging.Logger:
         """Create logger for this adapter with enhanced formatting."""
@@ -546,7 +948,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
 
     async def crawl(self, search_params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Main crawling method with enhanced workflow and error handling.
+        Main crawling method with enhanced workflow and centralized error handling.
 
         This method implements the Template Method pattern:
         1. Setup browser (handled by context manager)
@@ -574,17 +976,23 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         self._check_memory_limits()
         
         try:
-            # Main crawling logic
-            await self._run_crawling_logic(search_params)
-            validated_results = await self._extract_and_validate_results()
+            # Execute main crawling logic with centralized error handling
+            validated_results = await self._execute_with_retry(
+                self._execute_crawling_workflow,
+                "crawl_workflow",
+                {"search_params": search_params},
+                search_params
+            )
             
             # Check memory usage during processing
             self._check_memory_limits()
 
+            # Record successful crawl
+            self.monitoring.record_success()
+
         except Exception as e:
-            self.logger.error(f"Crawling failed: {e}")
-            self.error_handler.handle_error(e)
-            # Potentially re-raise or handle as per strategy
+            # Error already handled by _execute_with_retry
+            self.monitoring.record_error()
             raise
         finally:
             # Force garbage collection
@@ -600,20 +1008,70 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
                 adapter_name=self.__class__.__name__,
                 duration=duration,
                 flights_found=len(validated_results),
-                success=not self.error_handler.has_critical_error(),
+                success=len(validated_results) > 0,
                 memory_usage_mb=resource_usage["memory_usage_mb"],
                 peak_memory_mb=resource_usage["peak_memory_mb"]
             )
         return validated_results
 
-    async def _run_crawling_logic(self, search_params: Dict[str, Any]) -> None:
-        """Encapsulates the core crawling steps."""
-        await self.rate_limiter.wait()
+    async def _execute_crawling_workflow(self, search_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Execute the complete crawling workflow with individual error handling for each step."""
+        # Step 1: Rate limiting
+        await self._execute_with_retry(
+            self.rate_limiter.wait,
+            "rate_limiting",
+            {"search_params": search_params}
+        )
+        
+        # Step 2: Parameter validation
+        await self._execute_with_retry(
+            self._validate_search_params_async,
+            "parameter_validation",
+            {"search_params": search_params},
+            search_params
+        )
+        
+        # Step 3: Navigation
+        await self._execute_with_retry(
+            self._navigate_to_search_page,
+            "navigation",
+            {"url": self.search_url}
+        )
+        
+        # Step 4: Page setup
+        await self._execute_with_retry(
+            self._handle_page_setup,
+            "page_setup",
+            {"search_params": search_params}
+        )
+        
+        # Step 5: Form filling
+        await self._execute_with_retry(
+            self._fill_search_form,
+            "form_filling",
+            {"search_params": search_params},
+            search_params
+        )
+        
+        # Step 6: Wait for results
+        await self._execute_with_retry(
+            self._wait_for_results,
+            "wait_for_results",
+            {"search_params": search_params}
+        )
+        
+        # Step 7: Extract and validate results
+        validated_results = await self._execute_with_retry(
+            self._extract_and_validate_results,
+            "extract_and_validate",
+            {"search_params": search_params}
+        )
+        
+        return validated_results
+
+    async def _validate_search_params_async(self, search_params: Dict[str, Any]) -> None:
+        """Async wrapper for search parameter validation."""
         self._validate_search_params(search_params)
-        await self._navigate_to_search_page()
-        await self._handle_page_setup()
-        await self._fill_search_form(search_params)
-        await self._wait_for_results()
 
     async def _extract_and_validate_results(self) -> List[Dict[str, Any]]:
         """Extracts and validates flight results."""
@@ -686,7 +1144,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         try:
             # Strategy 1: Wait for results container
             container_selector = (
-                self.config.get("extraction_config", {})
+                self.config.extraction_config
                 .get("results_parsing", {})
                 .get("container")
             )
@@ -749,46 +1207,57 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         return ["origin", "destination", "departure_date"]
 
     async def _navigate_to_search_page(self) -> None:
-        """Navigate to search page with enhanced error handling and retries."""
-        max_retries = 3
+        """Navigate to search page - centralized retry logic handled by caller."""
+        if not self.page:
+            raise NavigationError(
+                "Page not initialized. Call _setup_browser() first.",
+                ErrorContext(
+                    adapter_name=self.__class__.__name__,
+                    operation="navigation",
+                    url=self.search_url or self.base_url
+                )
+            )
 
-        for attempt in range(max_retries):
-            try:
-                if not self.page:
-                    raise RuntimeError(
-                        "Page not initialized. Call _setup_browser() first."
+        try:
+            await self.page.goto(self.search_url or self.base_url, timeout=30000)
+            await self.page.wait_for_load_state("networkidle", timeout=15000)
+
+            # Verify page loaded correctly
+            title = await self.page.title()
+            if not title or "error" in title.lower():
+                raise NavigationError(
+                    f"Page may not have loaded correctly: {title}",
+                    ErrorContext(
+                        adapter_name=self.__class__.__name__,
+                        operation="navigation",
+                        url=self.search_url or self.base_url,
+                        additional_info={"page_title": title}
                     )
+                )
 
-                await self.page.goto(self.search_url or self.base_url, timeout=30000)
-                await self.page.wait_for_load_state("networkidle", timeout=15000)
+            self.logger.debug(f"Successfully navigated to search page: {title}")
 
-                # Verify page loaded correctly
-                title = await self.page.title()
-                if not title or "error" in title.lower():
-                    raise RuntimeError(f"Page may not have loaded correctly: {title}")
-
-                self.logger.debug(f"Successfully navigated to search page: {title}")
-                return
-
-            except TimeoutError as e:
-                if attempt < max_retries - 1:
-                    self.logger.warning(
-                        f"Navigation timeout (attempt {attempt + 1}), retrying..."
+        except TimeoutError as e:
+            raise AdapterTimeoutError(
+                "Timeout while loading search page",
+                ErrorContext(
+                    adapter_name=self.__class__.__name__,
+                    operation="navigation",
+                    url=self.search_url or self.base_url
+                )
+            ) from e
+        except Exception as e:
+            # Re-raise as NavigationError for proper categorization
+            if not isinstance(e, (NavigationError, AdapterTimeoutError)):
+                raise NavigationError(
+                    f"Navigation failed: {str(e)}",
+                    ErrorContext(
+                        adapter_name=self.__class__.__name__,
+                        operation="navigation",
+                        url=self.search_url or self.base_url
                     )
-                    await asyncio.sleep(2)
-                    continue
-                else:
-                    self.logger.error("Final navigation timeout")
-                    raise RuntimeError("Timeout while loading search page") from e
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    self.logger.warning(
-                        f"Navigation error (attempt {attempt + 1}): {e}"
-                    )
-                    await asyncio.sleep(2)
-                    continue
-                else:
-                    raise
+                ) from e
+            raise
 
     @abstractmethod
     async def _fill_search_form(self, search_params: Dict[str, Any]) -> None:
@@ -809,12 +1278,27 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             container_selector = results_config.get("container")
 
             if not container_selector:
-                raise ValueError(
-                    "No container selector configured for results extraction"
+                raise ExtractionError(
+                    "No container selector configured for results extraction",
+                    ErrorContext(
+                        adapter_name=self.__class__.__name__,
+                        operation="extract_flight_results",
+                        additional_info={"extraction_config": extraction_config}
+                    )
                 )
 
             # Wait for container to be present
-            await self.page.wait_for_selector(container_selector, timeout=10000)
+            try:
+                await self.page.wait_for_selector(container_selector, timeout=10000)
+            except TimeoutError as e:
+                raise AdapterTimeoutError(
+                    f"Timeout waiting for results container: {container_selector}",
+                    ErrorContext(
+                        adapter_name=self.__class__.__name__,
+                        operation="extract_flight_results",
+                        additional_info={"container_selector": container_selector}
+                    )
+                ) from e
 
             # Get page content
             html = await self.page.content()
@@ -864,12 +1348,21 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             self.logger.info(f"Extracted {len(results)} flight results")
             return results
 
+        except (ExtractionError, AdapterTimeoutError):
+            # Re-raise specific errors as-is
+            raise
         except Exception as e:
-            self.logger.error(f"Error extracting flight results: {str(e)}")
             # Force cleanup on error
             if self.enable_memory_monitoring:
                 gc.collect()
-            raise
+            # Wrap other exceptions as ExtractionError
+            raise ExtractionError(
+                f"Error extracting flight results: {str(e)}",
+                ErrorContext(
+                    adapter_name=self.__class__.__name__,
+                    operation="extract_flight_results"
+                )
+            ) from e
 
     @abstractmethod
     def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:

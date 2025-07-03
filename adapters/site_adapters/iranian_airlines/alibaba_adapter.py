@@ -1,5 +1,5 @@
 """
-Optimized Alibaba adapter using EnhancedBaseCrawler with memory efficiency.
+Optimized Alibaba adapter using EnhancedPersianAdapter with memory efficiency.
 """
 
 from typing import Dict, List, Optional, Any
@@ -9,18 +9,19 @@ from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 import gc
 
-from adapters.base_adapters.enhanced_base_crawler import EnhancedBaseCrawler
+from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from scripts.performance_profiler import profile_crawler_operation
 from utils.memory_efficient_cache import cached
 from utils.lazy_loader import get_config_loader
 
 
-class AlibabaAdapter(EnhancedBaseCrawler):
+class AlibabaAdapter(EnhancedPersianAdapter):
     """
-    Memory-optimized Alibaba.ir adapter with enhanced resource management.
+    Memory-optimized Alibaba.ir adapter with enhanced Persian text processing.
     
     Features:
-    - Automatic memory monitoring
+    - Automatic Persian text processing
+    - Memory monitoring and optimization
     - Efficient DOM parsing with minimal memory footprint
     - Lazy configuration loading
     - Proper resource cleanup
@@ -41,12 +42,15 @@ class AlibabaAdapter(EnhancedBaseCrawler):
 
     def _initialize_adapter(self) -> None:
         """Initialize Alibaba-specific components"""
+        # Call parent initialization for Persian processing
+        super()._initialize_adapter()
+        
         # Cache frequently accessed config values for performance
-        self._extraction_config = self.config.get("extraction_config", {})
+        self._extraction_config = self.config.extraction_config
         self._search_form_config = self._extraction_config.get("search_form", {})
         self._results_config = self._extraction_config.get("results_parsing", {})
         
-        self.logger.info("Alibaba adapter initialized with memory optimizations")
+        self.logger.info("Alibaba adapter initialized with Persian text processing")
 
     @profile_crawler_operation("alibaba_crawl")
     async def _handle_page_setup(self) -> None:
@@ -55,8 +59,8 @@ class AlibabaAdapter(EnhancedBaseCrawler):
             # Handle cookie consent efficiently
             await self._handle_alibaba_cookie_consent()
             
-            # Handle language selection
-            await self._handle_alibaba_language_selection()
+            # Use parent's Persian language handling
+            await self._handle_language_selection()
             
             # Wait for page stabilization with timeout
             await self.page.wait_for_load_state("networkidle", timeout=10000)
@@ -85,29 +89,6 @@ class AlibabaAdapter(EnhancedBaseCrawler):
                 return
             except:
                 continue
-
-    async def _handle_alibaba_language_selection(self) -> None:
-        """Handle Alibaba language selection if needed"""
-        try:
-            # Check if we need to switch to Persian
-            current_lang = await self.page.evaluate("document.documentElement.lang")
-            if current_lang and 'fa' not in current_lang.lower():
-                # Try to find language selector
-                lang_selectors = [
-                    'button[data-lang="fa"]',
-                    '.language-selector[data-value="fa"]',
-                    'a[href*="lang=fa"]'
-                ]
-                
-                for selector in lang_selectors:
-                    try:
-                        await self.page.click(selector, timeout=1000)
-                        await self.page.wait_for_load_state("networkidle", timeout=5000)
-                        break
-                    except:
-                        continue
-        except Exception:
-            pass  # Language selection is optional
 
     async def _optimize_page_for_memory(self) -> None:
         """Optimize page for memory efficiency"""
@@ -141,7 +122,22 @@ class AlibabaAdapter(EnhancedBaseCrawler):
 
     @profile_crawler_operation("alibaba_fill_form")
     async def _fill_search_form(self, search_params: Dict[str, Any]) -> None:
-        """Fill Alibaba search form with optimized selectors"""
+        """
+        Fill Alibaba search form using Persian adapter capabilities.
+        
+        This method leverages the Persian text processing from the parent class.
+        """
+        try:
+            # Use parent's Persian form filling capabilities
+            await super()._fill_search_form(search_params)
+            
+        except Exception as e:
+            # Fallback to custom implementation if parent method fails
+            self.logger.warning(f"Parent form filling failed, using custom implementation: {e}")
+            await self._fill_alibaba_form_custom(search_params)
+
+    async def _fill_alibaba_form_custom(self, search_params: Dict[str, Any]) -> None:
+        """Custom Alibaba form filling implementation"""
         try:
             # Pre-cache selectors for efficiency
             origin_selector = self._search_form_config.get("origin_field")
@@ -150,21 +146,26 @@ class AlibabaAdapter(EnhancedBaseCrawler):
             return_selector = self._search_form_config.get("return_date_field")
             cabin_selector = self._search_form_config.get("cabin_class_field")
             
-            # Fill form fields efficiently
+            # Fill form fields efficiently with Persian processing
             if origin_selector:
-                await self._fill_field_with_retry(origin_selector, search_params.get("origin", ""))
+                processed_origin = self._process_airport_code_persian(search_params.get("origin", ""))
+                await self._fill_field_with_retry(origin_selector, processed_origin)
             
             if destination_selector:
-                await self._fill_field_with_retry(destination_selector, search_params.get("destination", ""))
+                processed_destination = self._process_airport_code_persian(search_params.get("destination", ""))
+                await self._fill_field_with_retry(destination_selector, processed_destination)
             
             if departure_selector:
-                await self._fill_field_with_retry(departure_selector, search_params.get("departure_date", ""))
+                processed_date = self._process_persian_date(search_params.get("departure_date", ""))
+                await self._fill_field_with_retry(departure_selector, processed_date)
             
             if search_params.get("return_date") and return_selector:
-                await self._fill_field_with_retry(return_selector, search_params["return_date"])
+                processed_return_date = self._process_persian_date(search_params["return_date"])
+                await self._fill_field_with_retry(return_selector, processed_return_date)
             
             if search_params.get("cabin_class") and cabin_selector:
-                await self._select_option_with_retry(cabin_selector, search_params["cabin_class"])
+                mapped_cabin = self._map_seat_class_persian(search_params["cabin_class"])
+                await self._select_option_with_retry(cabin_selector, mapped_cabin)
             
             # Set passenger count if needed
             if search_params.get("passengers"):
