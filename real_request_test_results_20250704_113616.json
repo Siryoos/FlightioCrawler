@@ -1,0 +1,240 @@
+{
+  "timestamp": 1751616298.690669,
+  "environment_config": {
+    "use_mock": false,
+    "environment": "development",
+    "enable_real_requests": true,
+    "should_use_real_crawler": true,
+    "validation_config": {
+      "use_mock": false,
+      "enable_real_requests": true,
+      "should_use_real_crawler": true,
+      "environment": "development",
+      "anti_detection_enabled": true,
+      "proxy_rotation_enabled": false,
+      "user_agent_rotation_enabled": true,
+      "validation_enabled": true,
+      "response_validation_enabled": true,
+      "anti_bot_detection_enabled": true,
+      "request_statistics_enabled": true,
+      "min_response_size": 1000,
+      "max_response_time": 30
+    },
+    "real_request_config": {
+      "use_selenium": true,
+      "headless": true,
+      "anti_detection": true,
+      "random_delays": true,
+      "user_agent_rotation": true,
+      "proxy_rotation": false,
+      "enable_stealth": true,
+      "respect_robots_txt": true,
+      "enable_circuit_breaker": true,
+      "enable_rate_limiting": true,
+      "enable_monitoring": true,
+      "enable_error_recovery": true,
+      "enable_response_validation": true,
+      "enable_anti_bot_detection": true,
+      "enable_request_statistics": true,
+      "min_response_size": 1000,
+      "max_response_time": 30
+    },
+    "issues": []
+  },
+  "site_connectivity": {
+    "sites": {
+      "flytoday": {
+        "base_url": "https://www.flytoday.ir",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.flytoday.ir:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1000)')]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "alibaba": {
+        "base_url": "https://www.alibaba.ir",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.alibaba.ir:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1000)')]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "safarmarket": {
+        "base_url": "https://www.safarmarket.com",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.safarmarket.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "mz724": {
+        "base_url": "https://www.mz724.com",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Request timeout after 30s",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "partocrs": {
+        "base_url": "https://www.partocrs.com",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.partocrs.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "partoticket": {
+        "base_url": "https://www.partoticket.com",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.partoticket.com:443 ssl:default [nodename nor servname provided, or not known]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "bookcharter724": {
+        "base_url": "https://www.bookcharter724.ir",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.bookcharter724.ir:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "bookcharter": {
+        "base_url": "https://www.bookcharter.ir",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.bookcharter.ir:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      },
+      "pegasus": {
+        "base_url": "https://www.flypgs.com",
+        "accessible": false,
+        "response_time": 0,
+        "status_code": 0,
+        "response_size": 0,
+        "error": "Validation error: Cannot connect to host www.flypgs.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "anti_bot_detected": false,
+        "anti_bot_measures": []
+      }
+    },
+    "total_sites": 9,
+    "accessible_sites": 0,
+    "failed_sites": 9
+  },
+  "crawler_real_requests": {
+    "crawler_initialized": true,
+    "real_requests_made": false,
+    "test_search_params": {
+      "origin": "THR",
+      "destination": "MHD",
+      "departure_date": "2025-01-15",
+      "passengers": 1,
+      "cabin_class": "economy"
+    },
+    "crawl_results": {
+      "flytoday": {
+        "url": "https://www.flytoday.ir",
+        "is_valid": false,
+        "response_time": 0,
+        "response_size": 0,
+        "anti_bot_detected": false,
+        "success": false
+      }
+    },
+    "issues": [],
+    "all_sites_results": {
+      "total_sites": 3,
+      "successful_sites": 0,
+      "sites_with_results": 3
+    }
+  },
+  "anti_detection_measures": {
+    "anti_detection_enabled": true,
+    "user_agent_rotation": true,
+    "proxy_rotation": false,
+    "anti_bot_detection": true,
+    "test_results": {
+      "https://www.google.com": {
+        "anti_bot_detected": false,
+        "anti_bot_measures": [],
+        "response_time": 0,
+        "response_size": 0
+      },
+      "https://www.github.com": {
+        "anti_bot_detected": false,
+        "anti_bot_measures": [],
+        "response_time": 0,
+        "response_size": 0
+      }
+    }
+  },
+  "validation_system": {
+    "validation_enabled": true,
+    "response_validation": true,
+    "statistics_tracking": true,
+    "validation_summary": {
+      "total": 15,
+      "valid": 0,
+      "invalid": 15,
+      "success_rate": 0.0,
+      "avg_response_time": 0.0,
+      "avg_response_size": 0.0
+    },
+    "statistics_summary": {
+      "total": 0,
+      "successful": 0,
+      "failed": 0,
+      "success_rate": 0.0
+    },
+    "test_validation": {
+      "valid": {
+        "is_valid": false,
+        "reason": "Validation error: Cannot connect to host httpbin.org:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "response_time": 0,
+        "response_size": 0
+      },
+      "invalid_status": {
+        "is_valid": false,
+        "reason": "Validation error: Cannot connect to host httpbin.org:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "response_time": 0,
+        "response_size": 0
+      },
+      "slow_response": {
+        "is_valid": false,
+        "reason": "Validation error: Cannot connect to host httpbin.org:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)')]",
+        "response_time": 0,
+        "response_size": 0
+      }
+    }
+  },
+  "summary": {
+    "overall_status": "FAIL",
+    "total_tests": 5,
+    "passed_tests": 3,
+    "failed_tests": 2,
+    "issues": [
+      "No sites are accessible",
+      "Crawler is not making real requests"
+    ],
+    "recommendations": [
+      "Check network connectivity and site availability"
+    ]
+  }
+}

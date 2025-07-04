@@ -368,11 +368,26 @@ class Config:
 
     # Environment Configuration
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    USE_MOCK: bool = os.getenv("USE_MOCK", "true").lower() == "true"
+    USE_MOCK: bool = os.getenv("USE_MOCK", "false").lower() == "true"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
-    # Misc settings
-    CRAWLER_TIMEOUT: int = int(os.getenv("CRAWLER_TIMEOUT", "30"))
+    # Production-specific settings
+    ENABLE_REAL_REQUESTS: bool = os.getenv("ENABLE_REAL_REQUESTS", "true").lower() == "true"
+    ENABLE_ANTI_DETECTION: bool = os.getenv("ENABLE_ANTI_DETECTION", "true").lower() == "true"
+    ENABLE_PROXY_ROTATION: bool = os.getenv("ENABLE_PROXY_ROTATION", "false").lower() == "true"
+    ENABLE_USER_AGENT_ROTATION: bool = os.getenv("ENABLE_USER_AGENT_ROTATION", "true").lower() == "true"
+
+    # Real request validation
+    VALIDATE_REAL_REQUESTS: bool = os.getenv("VALIDATE_REAL_REQUESTS", "true").lower() == "true"
+    REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "30"))
+    MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "3"))
+    
+    # Enhanced real request settings
+    MIN_RESPONSE_SIZE: int = int(os.getenv("MIN_RESPONSE_SIZE", "1000"))  # Minimum response size in bytes
+    MAX_RESPONSE_TIME: int = int(os.getenv("MAX_RESPONSE_TIME", "30"))  # Maximum response time in seconds
+    ENABLE_RESPONSE_VALIDATION: bool = os.getenv("ENABLE_RESPONSE_VALIDATION", "true").lower() == "true"
+    ENABLE_ANTI_BOT_DETECTION: bool = os.getenv("ENABLE_ANTI_BOT_DETECTION", "true").lower() == "true"
+    ENABLE_REQUEST_STATISTICS: bool = os.getenv("ENABLE_REQUEST_STATISTICS", "true").lower() == "true"
 
     # Populated after initialization
     REDIS_URL: str = field(init=False, default="")

@@ -1,228 +1,140 @@
-# ✈️ Flight Crawler - سیستم بهینه‌سازی شده خزنده پروازها
+# ✈️ FlightioCrawler - Advanced Flight Search System
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
-[![Performance](https://img.shields.io/badge/Performance-42.3%25%20Improved-green.svg)](docs/BENCHMARK_RESULTS.md)
-[![Memory](https://img.shields.io/badge/Memory-60.6%25%20Reduced-green.svg)](docs/PERFORMANCE_OPTIMIZATION_REPORT.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Production](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)](docs/PERFORMANCE_OPTIMIZATION_REPORT.md)
+[![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)](PRODUCTION_SETUP.md)
 
-**سیستم پیشرفته و بهینه‌سازی شده جستجو و مقایسه قیمت بلیط هواپیما** با پشتیبانی از سایت‌های ایرانی و بین‌المللی، مجهز به سیستم‌های نظارت پیشرفته، مدیریت حافظه هوشمند و بهینه‌سازی شبکه.
+**Advanced flight search and price comparison system** supporting Iranian and international travel websites, equipped with intelligent monitoring, memory management, and network optimization.
 
-## 🎯 ویژگی‌های کلیدی (نسخه v2.0.0-optimized)
+## 🎯 Key Features
 
-### 🚀 **عملکرد فوق‌العاده بهینه:**
-- ✅ **42.3% بهبود** در زمان پاسخ‌دهی (بیش از هدف 40%)
-- ✅ **60.6% کاهش** مصرف حافظه
-- ✅ **88% بهبود** کارایی شبکه با Request Batching
-- ✅ **99.2% دقت** در تشخیص Memory Leaks
-- ✅ **Zero Downtime** در محیط تولید
+### 🚀 **Performance Optimized:**
+- ✅ **42.3% improvement** in response time
+- ✅ **60.6% reduction** in memory usage
+- ✅ **88% improvement** in network efficiency with Request Batching
+- ✅ **99.2% accuracy** in Memory Leak Detection
+- ✅ **Zero Downtime** in production environment
 
-### 🧠 **مدیریت حافظه هوشمند:**
-- **ResourceTracker** برای نظارت real-time منابع
-- **Memory Leak Detection** خودکار با pattern analysis
-- **Context Managers** برای مدیریت خودکار Browser, Page, HTTP Session
-- **Garbage Collection** بهینه در نقاط استراتژیک
+### 🧠 **Intelligent Memory Management:**
+- **ResourceTracker** for real-time resource monitoring
+- **Memory Leak Detection** with automatic pattern analysis
+- **Context Managers** for automatic Browser, Page, HTTP Session management
+- **Optimized Garbage Collection** at strategic points
 
-### 🌐 **بهینه‌سازی شبکه پیشرفته:**
-- **Request Batching System** با گروه‌بندی هوشمند درخواست‌ها
-- **Connection Pooling** بهینه‌شده با keep-alive optimization
-- **Adaptive Timeout** و retry mechanisms
-- **Network Error Recovery** خودکار
+### 🌐 **Advanced Network Optimization:**
+- **Request Batching System** with intelligent request grouping
+- **Connection Pooling** optimized with keep-alive
+- **Adaptive Timeout** and retry mechanisms
+- **Automatic Network Error Recovery**
 
-### 💾 **سیستم Cache پیشرفته:**
-- **LRU + TTL Caching** با memory pressure monitoring
-- **Redis Integration** برای distributed caching
-- **Pattern-based Invalidation** برای cache freshness
-- **Lazy Loading** برای دیتای حجیم
+### 💾 **Advanced Caching System:**
+- **LRU + TTL Caching** with memory pressure monitoring
+- **Redis Integration** for distributed caching
+- **Pattern-based Invalidation** for cache freshness
+- **Lazy Loading** for large datasets
 
-### 📊 **نظارت و Monitoring جامع:**
-- **Performance Profiler** با bottleneck identification
-- **Health Check System** برای محیط تولید
-- **Memory Leak Detection** خودکار با alerting
-- **Real-time Metrics** و dashboard
+### 📊 **Comprehensive Monitoring:**
+- **Performance Profiler** with bottleneck identification
+- **Health Check System** for production environment
+- **Memory Leak Detection** with automatic alerting
+- **Real-time Metrics** and dashboard
 
----
+## 🚀 Quick Start
 
-## 📈 نتایج عملکرد (Before vs After)
-
-| شاخص | قبل از بهینه‌سازی | بعد از بهینه‌سازی | بهبود |
-|-------|------------------|------------------|-------|
-| **زمان پاسخ** | 45.2 ثانیه | 26.1 ثانیه | **42.3%** ↓ |
-| **مصرف حافظه** | 465 MB | 183 MB | **60.6%** ↓ |
-| **Memory Leaks** | 15% sessions | 0% sessions | **100%** ↓ |
-| **Network Connections** | 100 requests | 12 connections | **88%** ↓ |
-| **Error Rate** | 12.7% | 3.8% | **70.1%** ↓ |
-| **Startup Time** | 8.3 ثانیه | 2.1 ثانیه | **74.7%** ↓ |
-
-📊 [مشاهده گزارش کامل Benchmark](docs/BENCHMARK_RESULTS.md)
-
----
-
-## 🏗️ معماری سیستم
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   Flight Crawler v2.0 Architecture              │
-│                                                                 │
-│  ┌─────────────────┐    ┌──────────────────┐    ┌─────────────┐ │
-│  │  Request        │    │  Memory          │    │  Cache      │ │
-│  │  Batcher        │◄──►│  Monitor         │◄──►│  System     │ │
-│  │  (39.7% faster)│    │  (99.2% accuracy)│    │  (88.7% hit)│ │
-│  └─────────────────┘    └──────────────────┘    └─────────────┘ │
-│           │                       │                      │       │
-│           ▼                       ▼                      ▼       │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │              Enhanced Base Crawler                          │ │
-│  │         (60% memory reduction + auto cleanup)              │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│           │                       │                      │       │
-│           ▼                       ▼                      ▼       │
-│  ┌─────────────────┐    ┌──────────────────┐    ┌─────────────┐ │
-│  │  Site Adapters  │    │  Health Check    │    │  Performance│ │
-│  │  (44% faster    │    │  System          │    │  Profiler   │ │
-│  │   parsing)      │    │  (Production)    │    │  (Auto)     │ │
-│  └─────────────────┘    └──────────────────┘    └─────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🚀 راه‌اندازی سریع
-
-### پیش‌نیازها:
+### Prerequisites:
 ```bash
 Python 3.9+
-Node.js 16+ (برای Playwright)
-Redis (اختیاری - برای distributed caching)
-PostgreSQL (اختیاری - برای persistence)
+Node.js 16+ (for Playwright)
+Redis (optional - for distributed caching)
+PostgreSQL (optional - for persistence)
 ```
 
-### نصب:
+### Installation:
 ```bash
-# کلون پروژه
+# Clone project
 git clone https://github.com/your-repo/FlightioCrawler.git
 cd FlightioCrawler
 
-# نصب dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# نصب Playwright browsers
+# Install Playwright browsers
 playwright install
 
-# تنظیم متغیرهای محیطی
+# Set environment variables
 export PYTHONPATH=$PWD
 export CRAWLER_ENV=production
 export MEMORY_MONITORING=enabled
 ```
 
-### استفاده سریع:
+### Quick Usage:
 ```python
 from main_crawler import IranianFlightCrawler
 import asyncio
 
 async def search_flights():
-    # ایجاد crawler با بهینه‌سازی‌های پیشرفته
+    # Create crawler with advanced optimizations
     crawler = IranianFlightCrawler(max_concurrent_crawls=5)
     
     search_params = {
-        "origin": "THR",  # تهران
-        "destination": "IKA",  # امام خمینی
+        "origin": "THR",  # Tehran
+        "destination": "IKA",  # Imam Khomeini
         "departure_date": "2024-12-25",
         "passengers": 1,
         "seat_class": "economy"
     }
     
-    # جستجوی بهینه‌شده در تمام سایت‌ها
+    # Optimized search across all sites
     results = await crawler.crawl_all_sites(search_params)
     
-    # مشاهده آمار عملکرد
+    # View performance stats
     if crawler.request_batcher:
         stats = crawler.request_batcher.get_stats()
         print(f"Network savings: {stats['network_savings_percent']}%")
     
-    # بستن منابع
+    # Close resources
     await crawler.close()
     
     return results
 
-# اجرا
+# Run
 results = asyncio.run(search_flights())
 print(f"Found {len(results)} flights with optimized performance!")
 ```
 
----
+## 🎯 Supported Sites
 
-## 🎯 سایت‌های پشتیبانی شده
-
-### 🇮🇷 سایت‌های ایرانی:
-- ✅ **Alibaba.ir** (بهینه‌سازی شده - 44% سریع‌تر)
+### 🇮🇷 Iranian Sites:
+- ✅ **Alibaba.ir** (optimized - 44% faster)
 - ✅ **Flightio.com** 
 - ✅ **FlyToday.ir**
 - ✅ **Iran Air**
 - ✅ **Mahan Air**
+- ✅ **SafarMarket**
+- ✅ **MZ724**
+- ✅ **Parto CRS**
+- ✅ **Parto Ticket**
+- ✅ **BookCharter**
+- ✅ **BookCharter724**
 
-### 🌍 سایت‌های بین‌المللی:
+### 🌍 International Sites:
 - ✅ **Lufthansa**
 - ✅ **Air France**
 - ✅ **British Airways** 
 - ✅ **Emirates**
 - ✅ **Turkish Airlines**
 - ✅ **Qatar Airways**
+- ✅ **Pegasus**
 
----
-
-## 🔧 پیکربندی پیشرفته
-
-### تنظیمات Memory Management:
-```python
-config = {
-    "resource_limits": {
-        "max_memory_mb": 1024,
-        "max_processing_time": 300,
-        "max_concurrent_sessions": 3,
-        "enable_memory_monitoring": True,
-        "cleanup_interval": 60
-    }
-}
-```
-
-### تنظیمات Request Batching:
-```python
-config = {
-    "request_batching": {
-        "batch_size": 8,
-        "batch_timeout": 0.3,
-        "max_concurrent_batches": 3,
-        "enable_compression": True,
-        "enable_memory_optimization": True
-    }
-}
-```
-
-### تنظیمات Cache System:
-```python
-config = {
-    "cache": {
-        "max_size_mb": 256,
-        "ttl_seconds": 1800,
-        "cleanup_interval": 300,
-        "enable_redis": True,
-        "eviction_policy": "lru"
-    }
-}
-```
-
----
-
-## 📊 API و Integration
+## 📊 API and Integration
 
 ### FastAPI Endpoints:
 ```bash
-GET  /health                 # سلامت سیستم
-GET  /metrics               # metrics و آمار
-POST /search                # جستجوی پروازها
-GET  /search/{search_id}    # دریافت نتایج
-GET  /performance           # آمار عملکرد
+GET  /health                 # System health
+GET  /metrics               # Metrics and statistics
+POST /search                # Flight search
+GET  /search/{search_id}    # Get results
+GET  /performance           # Performance stats
 ```
 
 ### WebSocket Support:
@@ -247,11 +159,9 @@ Response:
 }
 ```
 
----
+## 🧪 Testing and Quality Assurance
 
-## 🧪 Testing و Quality Assurance
-
-### اجرای تست‌های Performance:
+### Run Performance Tests:
 ```bash
 # Memory benchmarks
 python scripts/memory_benchmark_suite.py
@@ -272,9 +182,7 @@ pytest --cov=. --cov-report=html
 # Coverage: 94.3% (target: >90%)
 ```
 
----
-
-## 📈 Monitoring و Production
+## 📈 Monitoring and Production
 
 ### Memory Monitoring:
 ```python
@@ -298,7 +206,7 @@ async def my_crawler_function():
     pass
 ```
 
-### Health Checks در Production:
+### Health Checks in Production:
 ```python
 from monitoring.health_checks import HealthCheckSystem
 
@@ -310,26 +218,22 @@ health_system = HealthCheckSystem(
 await health_system.start_monitoring()
 ```
 
----
+## 📚 Documentation
 
-## 📚 مستندات جامع
-
-### 📖 مستندات کامل:
-- 📊 [گزارش جامع بهینه‌سازی](docs/PERFORMANCE_OPTIMIZATION_REPORT.md)
-- 📈 [نتایج Benchmark](docs/BENCHMARK_RESULTS.md)
-- 🏗️ [معماری سیستم](docs/ARCHITECTURE.md)
-- 🔧 [راهنمای Configuration](docs/CONFIG_GUIDE.md)
+### 📖 Complete Documentation:
+- 📊 [Performance Optimization Report](docs/PERFORMANCE_OPTIMIZATION_REPORT.md)
+- 📈 [Benchmark Results](docs/BENCHMARK_RESULTS.md)
+- 🏗️ [System Architecture](ARCHITECTURE.md)
+- 🔧 [Configuration Guide](docs/CONFIG_GUIDE.md)
 - 🛠️ [API Documentation](docs/API_DOCS.md)
 
-### 🎓 آموزش‌ها:
-- [راه‌اندازی Development Environment](docs/DEVELOPMENT_SETUP.md)
-- [Best Practices برای Memory Management](docs/MEMORY_BEST_PRACTICES.md)
+### 🎓 Tutorials:
+- [Development Environment Setup](docs/DEVELOPMENT_SETUP.md)
+- [Memory Management Best Practices](docs/MEMORY_BEST_PRACTICES.md)
 - [Performance Tuning Guide](docs/PERFORMANCE_TUNING.md)
-- [Production Deployment](docs/PRODUCTION_DEPLOYMENT.md)
+- [Production Deployment](PRODUCTION_SETUP.md)
 
----
-
-## 🤝 مشارکت و توسعه
+## 🤝 Contributing
 
 ### Development Setup:
 ```bash
@@ -342,7 +246,7 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dev dependencies
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 
 # Setup pre-commit hooks
 pre-commit install
@@ -366,89 +270,75 @@ pytest
 - **Memory:** Zero memory leaks
 - **Code Style:** Black + isort + flake8
 
----
+## 🆘 Troubleshooting and Support
 
-## 🆘 عیب‌یابی و Support
-
-### مشکلات رایج:
+### Common Issues:
 
 #### Memory Issues:
 ```bash
-# چک کردن memory usage
+# Check memory usage
 python -c "from monitoring.health_checks import get_memory_usage; print(get_memory_usage())"
 
-# اجرای memory leak detector
+# Run memory leak detector
 python scripts/memory_leak_detector.py --analyze
 ```
 
 #### Network Issues:
 ```bash
-# تست request batching
+# Test request batching
 python scripts/test_request_batching.py
 
-# چک کردن network connectivity
+# Check network connectivity
 python -c "from main_crawler import IranianFlightCrawler; import asyncio; asyncio.run(IranianFlightCrawler().batch_site_health_checks(['alibaba']))"
 ```
 
 #### Performance Issues:
 ```bash
-# اجرای performance profiler
+# Run performance profiler
 python scripts/performance_profiler.py --profile-all
 
-# مقایسه با baseline
+# Compare with baseline
 python scripts/verify_performance_improvements.py
 ```
 
-### تماس و پشتیبانی:
+### Contact and Support:
 - 📧 Email: support@flightcrawler.com
 - 💬 Discord: [Flight Crawler Community](https://discord.gg/flightcrawler)
 - 🐛 Issues: [GitHub Issues](https://github.com/your-repo/FlightioCrawler/issues)
 - 📖 Docs: [Documentation Site](https://docs.flightcrawler.com)
 
----
-
 ## 📄 License
 
-این پروژه تحت مجوز [MIT License](LICENSE) منتشر شده است.
+This project is licensed under the [MIT License](LICENSE).
 
 ```
-MIT License - مجوز آزاد برای استفاده تجاری و غیرتجاری
+MIT License - Free license for commercial and non-commercial use
 ```
 
----
+## 🎉 Acknowledgments
 
-## 🎉 تشکر و قدردانی
-
-### 👥 تیم توسعه:
+### 👥 Development Team:
 - **Lead Developer:** Flight Crawler Optimization Team
 - **Performance Engineering:** Memory Management Specialists  
-- **QA Engineering:** Testing و Benchmark Team
+- **QA Engineering:** Testing and Benchmark Team
 - **DevOps:** Production Infrastructure Team
 
-### 🙏 تشکر ویژه:
-- جامعه Open Source برای ابزارها و کتابخانه‌های فوق‌العاده
-- تیم Playwright برای browser automation قدرتمند
-- جامعه aiohttp برای async HTTP client عالی
-- تمام contributors و testers که در بهبود این پروژه مشارکت داشتند
+### 🙏 Special Thanks:
+- Open Source community for amazing tools and libraries
+- Playwright team for powerful browser automation
+- aiohttp community for excellent async HTTP client
+- All contributors and testers who participated in improving this project
 
----
+## 🚀 Project Future
 
-## 🚀 آینده پروژه
-
-### 🔮 ویژگی‌های آینده (Roadmap):
-- **Q1 2025:** GPU Acceleration برای پردازش‌های سنگین
+### 🔮 Future Features (Roadmap):
+- **Q1 2025:** GPU Acceleration for heavy processing
 - **Q2 2025:** ML-based Predictive Caching
 - **Q3 2025:** Advanced Analytics Dashboard
-- **Q4 2025:** Auto-scaling و Cloud-native deployment
+- **Q4 2025:** Auto-scaling and Cloud-native deployment
 
-### 🎯 اهداف عملکرد:
-- **50%+ بهبود** اضافی در عملکرد
+### 🎯 Performance Goals:
+- **50%+ additional improvement** in performance
 - **Zero Downtime** deployments
 - **Sub-second** response times
-- **99.9% Uptime** در production
-
----
-
-**⭐ اگر این پروژه برایتان مفید بود، لطفاً ستاره بدهید!**
-
-**📊 کیفیت کد:** A+ Grade | **🚀 Performance:** 42.3% Improved | **💾 Memory:** 60.6% Optimized | **✅ Production Ready**
+- **99.9% Uptime** in production

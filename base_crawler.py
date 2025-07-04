@@ -9,6 +9,8 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 import aiohttp
 from bs4 import BeautifulSoup
+import time
+import random
 
 from environment_manager import env_manager
 from requests.url_requester import AdvancedCrawler
@@ -38,20 +40,33 @@ class BaseSiteCrawler(ABC):
         # Environment-based configuration
         self.crawler_config = env_manager.get_crawler_config(site_name)
         self.use_mock = env_manager.should_use_mock_data()
+        self.should_use_real = env_manager.should_use_real_crawler()
 
         # Initialize crawler based on environment
-        if env_manager.should_use_real_crawler():
+        if self.should_use_real:
             self.web_crawler = AdvancedCrawler(use_selenium=True)
+            logger.info(f"Initialized real web crawler for {site_name}")
         else:
             self.web_crawler = None
+            logger.info(f"Initialized mock crawler for {site_name}")
 
-        logger.info(f"Initialized {site_name} crawler - Mock: {self.use_mock}")
+        # Real request validation
+        self.request_count = 0
+        self.successful_requests = 0
+        self.failed_requests = 0
+        self.last_request_time = None
+
+        logger.info(f"Initialized {site_name} crawler - Mock: {self.use_mock}, Real: {self.should_use_real}")
 
     async def search_flights(self, search_params: Dict[str, Any]) -> List[Dict]:
         """Main entry point for flight search"""
         env_manager.log_execution_mode(
             self.site_name, f"search_flights({search_params})"
         )
+
+        # Validate real request configuration
+        if self.should_use_real:
+            await self._validate_real_request_setup()
 
         try:
             if self.use_mock:
@@ -63,6 +78,19 @@ class BaseSiteCrawler(ABC):
             if self.error_handler:
                 await self.error_handler.handle_error(self.site_name, str(e))
             return []
+
+    async def _validate_real_request_setup(self) -> None:
+        """Validate that real request setup is correct"""
+        if not self.web_crawler:
+            raise RuntimeError(f"Web crawler not initialized for {self.site_name}")
+        
+        # Validate configuration
+        config_validation = env_manager.validate_real_request_config()
+        logger.info(f"Real request config validation for {self.site_name}: {config_validation}")
+        
+        # Check if we should proceed with real requests
+        if not config_validation["should_use_real_crawler"]:
+            logger.warning(f"Real requests disabled for {self.site_name}")
 
     async def _search_flights_mock(self, search_params: Dict[str, Any]) -> List[Dict]:
         """Search using mock/cached HTML files"""
@@ -92,34 +120,174 @@ class BaseSiteCrawler(ABC):
             logger.error(f"Web crawler not initialized for {self.site_name}")
             return []
 
+        start_time = time.time()
+        self.request_count += 1
+        self.last_request_time = time.time()
+
         try:
             # Build search URL
             search_url = await self.build_search_url(search_params)
+            logger.info(f"[REAL] {self.site_name}: Making request to {search_url}")
 
             # Rate limiting
             if self.rate_limiter:
-                await self.rate_limiter.wait_for_rate_limit(self.site_name)
+                await self.rate_limiter.wait_if_needed(self.site_name)
 
-            # Perform web crawl
-            html_content, metadata = self.web_crawler.extract_with_selenium(search_url)
-            soup = BeautifulSoup(html_content, "html.parser")
+            # Real request validation
+            if env_manager.should_validate_response():
+                validation_result = await self._validate_real_request(search_url)
+                if not validation_result["is_valid"]:
+                    logger.warning(f"Real request validation failed for {self.site_name}: {validation_result['reason']}")
+                    return []
+
+            # Make the actual request
+            success, crawl_data, message = self.web_crawler.crawl(search_url)
+            
+            if not success:
+                logger.error(f"[REAL] {self.site_name}: Crawl failed - {message}")
+                return []
+
+            # Anti-bot detection
+            if env_manager.should_detect_anti_bot():
+                anti_bot_result = self._detect_anti_bot_measures(crawl_data)
+                if anti_bot_result["detected"]:
+                    logger.warning(f"Anti-bot measures detected for {self.site_name}: {anti_bot_result['measures']}")
+                    # Continue but log the detection
+
+            # Track request statistics
+            if env_manager.should_track_statistics():
+                self._track_request_statistics(start_time, crawl_data)
 
             # Parse flights from HTML
-            flights = await self.parse_flights(soup, search_params)
+            html_content = crawl_data.get("html", "")
+            if not html_content:
+                logger.error(f"[REAL] {self.site_name}: No HTML content received")
+                return []
 
-            # Record metrics
-            if self.monitor:
-                self.monitor.record_request(self.site_name, metadata.get("duration", 0))
-                self.monitor.record_flights(self.site_name, len(flights))
+            soup = BeautifulSoup(html_content, "html.parser")
+            flights = await self.parse_flights(soup, search_params)
 
             logger.info(f"[REAL] {self.site_name}: Found {len(flights)} flights")
             return flights
 
         except Exception as e:
-            logger.error(f"Error in real crawl for {self.site_name}: {e}")
-            if self.error_handler:
-                await self.error_handler.handle_error(self.site_name, str(e))
+            logger.error(f"[REAL] {self.site_name}: Error during real search - {e}")
             return []
+
+    async def _validate_real_request(self, url: str) -> Dict[str, Any]:
+        """Validate real request before making it"""
+        validation_result = {
+            "is_valid": True,
+            "reason": "",
+            "response_time": 0,
+            "response_size": 0,
+            "status_code": 0
+        }
+
+        try:
+            import aiohttp
+            start_time = time.time()
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=env_manager.max_response_time) as response:
+                    response_time = time.time() - start_time
+                    content = await response.text()
+                    
+                    validation_result.update({
+                        "response_time": response_time,
+                        "response_size": len(content),
+                        "status_code": response.status
+                    })
+
+                    # Check response time
+                    if response_time > env_manager.max_response_time:
+                        validation_result["is_valid"] = False
+                        validation_result["reason"] = f"Response time too slow: {response_time:.2f}s"
+
+                    # Check response size
+                    elif len(content) < env_manager.min_response_size:
+                        validation_result["is_valid"] = False
+                        validation_result["reason"] = f"Response too small: {len(content)} bytes"
+
+                    # Check status code
+                    elif response.status >= 400:
+                        validation_result["is_valid"] = False
+                        validation_result["reason"] = f"HTTP error: {response.status}"
+
+        except Exception as e:
+            validation_result["is_valid"] = False
+            validation_result["reason"] = f"Validation error: {str(e)}"
+
+        return validation_result
+
+    def _detect_anti_bot_measures(self, crawl_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Detect anti-bot measures in the response"""
+        detection_result = {
+            "detected": False,
+            "measures": []
+        }
+
+        try:
+            html_content = crawl_data.get("html", "").lower()
+            
+            # Common anti-bot indicators
+            anti_bot_indicators = [
+                "captcha", "cloudflare", "bot detection", "security check",
+                "please verify", "human verification", "access denied",
+                "blocked", "suspicious activity", "rate limit"
+            ]
+
+            for indicator in anti_bot_indicators:
+                if indicator in html_content:
+                    detection_result["detected"] = True
+                    detection_result["measures"].append(indicator)
+
+            # Check for suspicious response patterns
+            if crawl_data.get("status_code") in [403, 429, 503]:
+                detection_result["detected"] = True
+                detection_result["measures"].append(f"HTTP {crawl_data.get('status_code')}")
+
+        except Exception as e:
+            logger.warning(f"Error detecting anti-bot measures: {e}")
+
+        return detection_result
+
+    def _track_request_statistics(self, start_time: float, crawl_data: Dict[str, Any]) -> None:
+        """Track request statistics for monitoring"""
+        try:
+            end_time = time.time()
+            duration = end_time - start_time
+            
+            stats = {
+                "site": self.site_name,
+                "timestamp": time.time(),
+                "duration": duration,
+                "response_size": len(crawl_data.get("html", "")),
+                "status_code": crawl_data.get("status_code", 0),
+                "success": bool(crawl_data.get("html"))
+            }
+            
+            # Store statistics (could be sent to monitoring system)
+            logger.info(f"Request statistics for {self.site_name}: {stats}")
+            
+        except Exception as e:
+            logger.warning(f"Error tracking request statistics: {e}")
+
+    def get_request_stats(self) -> Dict[str, Any]:
+        """Get statistics about real requests"""
+        total_requests = self.request_count
+        success_rate = (self.successful_requests / total_requests * 100) if total_requests > 0 else 0
+        
+        return {
+            "site_name": self.site_name,
+            "total_requests": total_requests,
+            "successful_requests": self.successful_requests,
+            "failed_requests": self.failed_requests,
+            "success_rate": success_rate,
+            "last_request_time": self.last_request_time,
+            "using_real_requests": self.should_use_real,
+            "using_mock_data": self.use_mock,
+        }
 
     @abstractmethod
     async def build_search_url(self, search_params: Dict[str, Any]) -> str:
