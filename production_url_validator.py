@@ -6,45 +6,22 @@ import logging
 from urllib.robotparser import RobotFileParser
 from typing import Dict, Tuple
 from config import PRODUCTION_SITES
+from security.ssl_manager import get_ssl_manager
 
 logger = logging.getLogger(__name__)
-
-def create_ssl_context(verify_ssl: bool = None) -> ssl.SSLContext:
-    """Create SSL context based on environment configuration"""
-    if verify_ssl is None:
-        verify_ssl = os.getenv("SSL_VERIFY", "false").lower() == "true"  # Default to false for production URL validation
-    
-    if verify_ssl:
-        # Production mode - verify SSL certificates
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = True
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
-    else:
-        # Development mode or bypass mode - disable SSL verification
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        # Disable warnings about unverified HTTPS requests
-        try:
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        except ImportError:
-            pass
-    
-    return ssl_context
 
 class ProductionURLValidator:
     """Validates and verifies real website URLs before crawling."""
 
     def __init__(self):
-        self.ssl_context = create_ssl_context()
-        logger.info(f"ProductionURLValidator SSL verification: {'enabled' if self.ssl_context.verify_mode == ssl.CERT_REQUIRED else 'disabled'}")
+        self.ssl_manager = get_ssl_manager()
+        logger.info(f"ProductionURLValidator SSL verification: {self.ssl_manager.config.mode.value} mode")
 
     async def _check_connectivity(self, url: str) -> Tuple[bool, float, bool, bool]:
         """Return tuple (ok, response_time, rate_limited, anti_bot)"""
         start = time.monotonic()
         try:
-            connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+            connector = self.ssl_manager.create_aiohttp_connector()
             timeout = aiohttp.ClientTimeout(total=10)
             
             headers = {
@@ -76,7 +53,7 @@ class ProductionURLValidator:
         robots_url = base_url.rstrip("/") + "/robots.txt"
         parser = RobotFileParser()
         try:
-            connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+            connector = self.ssl_manager.create_aiohttp_connector()
             timeout = aiohttp.ClientTimeout(total=10)
             
             async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:

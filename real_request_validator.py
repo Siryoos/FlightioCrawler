@@ -50,27 +50,8 @@ class RequestStatistics:
     anti_bot_detected: bool
 
 
-# Global SSL context configuration
-def create_ssl_context(verify_ssl: bool = None) -> ssl.SSLContext:
-    """Create SSL context based on environment configuration"""
-    if verify_ssl is None:
-        verify_ssl = os.getenv("SSL_VERIFY", "true").lower() == "true"
-    
-    if verify_ssl:
-        # Production mode - verify SSL certificates
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = True
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
-    else:
-        # Development mode - bypass SSL verification
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        # Disable warnings about unverified HTTPS requests
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    
-    return ssl_context
+# Import SSL manager
+from security.ssl_manager import get_ssl_manager
 
 
 class RealRequestValidator:
@@ -81,9 +62,9 @@ class RealRequestValidator:
         self.statistics_history: List[RequestStatistics] = []
         self.max_history_size = 1000
         
-        # Configure SSL context based on environment
-        self.ssl_context = create_ssl_context()
-        logger.info(f"SSL verification: {'enabled' if self.ssl_context.verify_mode == ssl.CERT_REQUIRED else 'disabled'}")
+        # Configure SSL manager
+        self.ssl_manager = get_ssl_manager()
+        logger.info(f"SSL verification: {self.ssl_manager.config.mode.value} mode")
 
     async def validate_request(
         self, 
@@ -116,8 +97,8 @@ class RealRequestValidator:
         )
 
         try:
-            # Create connector with SSL context
-            connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+            # Create connector with SSL manager
+            connector = self.ssl_manager.create_aiohttp_connector()
             
             # Create session with custom headers and SSL context
             headers = {

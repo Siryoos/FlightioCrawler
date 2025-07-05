@@ -1,6 +1,7 @@
 """
 Health Check Module for FlightIO API
 Comprehensive health monitoring for all system components
+Enhanced with deep health monitoring and circuit breaker integration
 """
 
 import asyncio
@@ -10,7 +11,7 @@ import psutil
 import redis
 import psycopg2
 from psycopg2 import sql
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import JSONResponse
 import aiohttp
 import logging
@@ -18,11 +19,20 @@ from dataclasses import dataclass
 from enum import Enum
 import os
 
+from monitoring.comprehensive_health_checks import (
+    get_health_checker, check_system_health, check_component_health, 
+    HealthStatus as ComprehensiveHealthStatus
+)
+from security.authentication_middleware import get_current_user
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/health", tags=["health"])
+
+# Initialize comprehensive health checker
+comprehensive_health_checker = get_health_checker()
 
 
 class HealthStatus(str, Enum):
@@ -374,4 +384,234 @@ async def readiness_probe():
         "status": "ready",
         "timestamp": time.time(),
         "critical_services": "healthy"
-    } 
+    }
+
+
+# Enhanced comprehensive health check endpoints
+@router.get("/comprehensive", response_model=Dict[str, Any])
+async def comprehensive_health_check(
+    current_user=Depends(get_current_user)
+):
+    """Enhanced comprehensive health check with deep system monitoring"""
+    try:
+        # Get comprehensive health status
+        health_status = await check_system_health()
+        
+        # Determine HTTP status code based on health
+        status_code = status.HTTP_200_OK
+        if health_status["status"] == "unhealthy":
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        elif health_status["status"] == "degraded":
+            status_code = status.HTTP_206_PARTIAL_CONTENT
+        
+        return JSONResponse(
+            status_code=status_code,
+            content=health_status
+        )
+        
+    except Exception as e:
+        logger.error(f"Comprehensive health check failed: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+        )
+
+
+@router.get("/component/{component_name}", response_model=Dict[str, Any])
+async def component_health_check(
+    component_name: str,
+    current_user=Depends(get_current_user)
+):
+    """Check health of specific system component"""
+    try:
+        result = await check_component_health(component_name)
+        
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Component '{component_name}' not found"
+            )
+        
+        # Determine HTTP status code
+        status_code = status.HTTP_200_OK
+        if result.status == ComprehensiveHealthStatus.UNHEALTHY:
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        elif result.status == ComprehensiveHealthStatus.DEGRADED:
+            status_code = status.HTTP_206_PARTIAL_CONTENT
+        
+        return JSONResponse(
+            status_code=status_code,
+            content=result.to_dict()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Component health check failed for {component_name}: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "name": component_name,
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+        )
+
+
+@router.get("/dependencies", response_model=Dict[str, Any])
+async def dependencies_health_check(
+    current_user=Depends(get_current_user)
+):
+    """Check health of all external dependencies with circuit breaker status"""
+    try:
+        dependencies = ["database", "redis", "network_connectivity", "circuit_breakers"]
+        dependency_results = {}
+        
+        for dep in dependencies:
+            result = await check_component_health(dep)
+            if result:
+                dependency_results[dep] = {
+                    "status": result.status.value,
+                    "message": result.message,
+                    "duration_ms": result.duration_ms,
+                    "details": result.details
+                }
+        
+        # Overall dependency health
+        all_healthy = all(
+            result.get("status") == "healthy" 
+            for result in dependency_results.values()
+        )
+        
+        any_unhealthy = any(
+            result.get("status") == "unhealthy" 
+            for result in dependency_results.values()
+        )
+        
+        overall_status = "healthy"
+        status_code = status.HTTP_200_OK
+        
+        if any_unhealthy:
+            overall_status = "unhealthy"
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        elif not all_healthy:
+            overall_status = "degraded"
+            status_code = status.HTTP_206_PARTIAL_CONTENT
+        
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": overall_status,
+                "timestamp": time.time(),
+                "dependencies": dependency_results,
+                "summary": {
+                    "total": len(dependency_results),
+                    "healthy": len([r for r in dependency_results.values() if r.get("status") == "healthy"]),
+                    "degraded": len([r for r in dependency_results.values() if r.get("status") == "degraded"]),
+                    "unhealthy": len([r for r in dependency_results.values() if r.get("status") == "unhealthy"])
+                }
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Dependencies check failed: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+        )
+
+
+@router.get("/circuit-breakers", response_model=Dict[str, Any])
+async def circuit_breakers_status(
+    current_user=Depends(get_current_user)
+):
+    """Get circuit breaker status for all monitored services"""
+    try:
+        result = await check_component_health("circuit_breakers")
+        
+        if not result:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": "Circuit breaker monitoring not available"}
+            )
+        
+        status_code = status.HTTP_200_OK
+        if result.status == ComprehensiveHealthStatus.UNHEALTHY:
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        elif result.status == ComprehensiveHealthStatus.DEGRADED:
+            status_code = status.HTTP_206_PARTIAL_CONTENT
+        
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": result.status.value,
+                "timestamp": time.time(),
+                "circuit_breakers": result.details,
+                "message": result.message
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Circuit breaker status check failed: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+        )
+
+
+@router.post("/monitoring/start", response_model=Dict[str, Any])
+async def start_health_monitoring(
+    current_user=Depends(get_current_user)
+):
+    """Start continuous health monitoring"""
+    try:
+        await comprehensive_health_checker.start_periodic_checks()
+        
+        return {
+            "status": "started",
+            "timestamp": time.time(),
+            "message": "Continuous health monitoring started",
+            "monitoring_interval": comprehensive_health_checker.config.get("check_interval", 60)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to start health monitoring: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to start health monitoring"
+        )
+
+
+@router.post("/monitoring/stop", response_model=Dict[str, Any])
+async def stop_health_monitoring(
+    current_user=Depends(get_current_user)
+):
+    """Stop continuous health monitoring"""
+    try:
+        await comprehensive_health_checker.stop_periodic_checks()
+        
+        return {
+            "status": "stopped",
+            "timestamp": time.time(),
+            "message": "Continuous health monitoring stopped"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to stop health monitoring: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to stop health monitoring"
+        ) 

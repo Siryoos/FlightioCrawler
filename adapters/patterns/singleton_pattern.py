@@ -16,7 +16,7 @@ import logging
 import json
 import sqlite3
 import time
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, ABCMeta
 from typing import Dict, Any, Optional, Type, Union, List
 from pathlib import Path
 from dataclasses import dataclass
@@ -62,6 +62,13 @@ class SingletonMeta(type):
         return cls._instances[cls]
 
 
+class SingletonABCMeta(ABCMeta, SingletonMeta):
+    """
+    Combined metaclass that provides both singleton and abstract base class functionality.
+    """
+    pass
+
+
 class ResourceManager(ABC):
     """Abstract base class for resource managers."""
 
@@ -91,7 +98,7 @@ class DatabaseConnectionInfo:
     isolation_level: Optional[str] = None
 
 
-class DatabaseManager(ResourceManager, metaclass=SingletonMeta):
+class DatabaseManager(ResourceManager, metaclass=SingletonABCMeta):
     """
     Singleton database connection manager.
     Manages SQLite connections with connection pooling.
@@ -194,7 +201,7 @@ class DatabaseManager(ResourceManager, metaclass=SingletonMeta):
         return self._initialized and self._connection_info is not None
 
 
-class ConfigurationManager(ResourceManager, metaclass=SingletonMeta):
+class ConfigurationManager(ResourceManager, metaclass=SingletonABCMeta):
     """
     Singleton configuration manager.
     Manages application configurations with hot-reloading support.
@@ -324,7 +331,7 @@ class ConfigurationManager(ResourceManager, metaclass=SingletonMeta):
         return self._initialized
 
 
-class CacheManager(ResourceManager, metaclass=SingletonMeta):
+class CacheManager(ResourceManager, metaclass=SingletonABCMeta):
     """
     Singleton cache manager with TTL support.
     Thread-safe in-memory cache for frequently accessed data.

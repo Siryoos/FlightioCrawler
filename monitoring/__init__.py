@@ -5,16 +5,35 @@ Monitoring package for flight crawler system.
 # Import the class directly without causing circular import
 try:
     from .production_memory_monitor import ProductionMemoryMonitor
-    # Import the main Monitoring class from monitoring.py
+    # Import the main CrawlerMonitor class from the parent monitoring.py
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-    from monitoring import Monitoring
-    __all__ = ['ProductionMemoryMonitor', 'Monitoring']
+    from monitoring import CrawlerMonitor, Monitoring
+    __all__ = ['ProductionMemoryMonitor', 'CrawlerMonitor', 'Monitoring']
 except ImportError:
     # If there's an import error, create dummy classes
     class ProductionMemoryMonitor:
         def __init__(self, *args, **kwargs):
+            pass
+    
+    class CrawlerMonitor:
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def record_success(self):
+            pass
+        
+        def record_error(self):
+            pass
+        
+        def get_all_metrics(self):
+            return {}
+        
+        def get_health_status(self):
+            return {"status": "unknown"}
+        
+        def track_request(self, domain, start_time):
             pass
     
     class Monitoring:
@@ -27,4 +46,4 @@ except ImportError:
         def record_error(self):
             pass
     
-    __all__ = ['ProductionMemoryMonitor', 'Monitoring'] 
+    __all__ = ['ProductionMemoryMonitor', 'CrawlerMonitor', 'Monitoring'] 

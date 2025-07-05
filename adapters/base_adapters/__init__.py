@@ -6,6 +6,7 @@ Enhanced base adapters for flight crawling with common utilities.
 from .enhanced_base_crawler import EnhancedBaseCrawler
 from .enhanced_international_adapter import EnhancedInternationalAdapter
 from .enhanced_persian_adapter import EnhancedPersianAdapter
+from .unified_site_adapter import UnifiedSiteAdapter
 
 # Common utilities and helper functions
 from typing import Dict, List, Optional, Any, Union
@@ -524,6 +525,7 @@ __all__ = [
     "EnhancedBaseCrawler",
     "EnhancedInternationalAdapter",
     "EnhancedPersianAdapter",
+    "UnifiedSiteAdapter",
     "AdapterUtils",
     "ConfigurationHelper",
     "ErrorReportingHelper",

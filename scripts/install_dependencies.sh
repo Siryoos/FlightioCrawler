@@ -1,277 +1,426 @@
 #!/bin/bash
 
-# FlightioCrawler System Dependencies Installation Script
-# This script installs all necessary system dependencies for the crawler
+# Comprehensive Dependency Installation Script for FlightIO Crawler
+# This script installs all required system dependencies for different operating systems
 
 set -e
 
-echo "🔧 Installing FlightioCrawler System Dependencies..."
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Detect OS
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    OS="linux"
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-    OS="mac"
-elif [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
-    OS="windows"
-else
-    echo "❌ Unsupported operating system: $OSTYPE"
-    exit 1
-fi
+# Logging functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
 
-echo "📱 Detected OS: $OS"
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
 
-# Install system dependencies based on OS
-if [[ "$OS" == "linux" ]]; then
-    echo "🐧 Installing Linux dependencies..."
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Detect operating system
+detect_os() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if command -v apt-get &> /dev/null; then
+            echo "ubuntu"
+        elif command -v yum &> /dev/null; then
+            echo "centos"
+        elif command -v dnf &> /dev/null; then
+            echo "fedora"
+        else
+            echo "linux"
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
+        echo "windows"
+    else
+        echo "unknown"
+    fi
+}
+
+# Check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Install system dependencies for Ubuntu/Debian
+install_ubuntu_deps() {
+    log_info "Installing system dependencies for Ubuntu/Debian..."
     
-    # Update package manager
-    sudo apt-get update
+    # Update package index
+    sudo apt-get update -y
     
-    # Install basic system packages
+    # Install basic development tools
     sudo apt-get install -y \
-        curl \
-        wget \
-        git \
         build-essential \
-        python3-dev \
-        python3-pip \
-        python3-venv \
-        pkg-config \
-        libssl-dev \
-        libffi-dev \
-        libxml2-dev \
-        libxslt1-dev \
-        libjpeg-dev \
-        zlib1g-dev \
-        libpq-dev \
-        redis-server \
-        postgresql \
-        postgresql-contrib \
-        nginx \
-        software-properties-common \
+        wget \
+        curl \
+        git \
+        unzip \
         ca-certificates \
         gnupg \
         lsb-release
     
-    # Install Chromium and browser dependencies
-    echo "🌐 Installing Chromium and browser dependencies..."
+    # Install Python development headers
+    sudo apt-get install -y \
+        python3-dev \
+        python3-pip \
+        python3-venv
+    
+    # Install PostgreSQL client libraries
+    sudo apt-get install -y \
+        postgresql-client \
+        libpq-dev
+    
+    # Install Chromium and WebDriver
     sudo apt-get install -y \
         chromium-browser \
-        chromium-chromedriver \
-        xvfb \
-        x11-xkb-utils \
-        xkb-data \
-        x11-utils \
-        libasound2 \
+        chromium-chromedriver
+    
+    # Install fonts for Persian text rendering
+    sudo apt-get install -y \
+        fonts-noto \
+        fonts-noto-cjk \
+        fonts-noto-color-emoji \
+        fonts-liberation \
+        fonts-dejavu-core
+    
+    # Install additional dependencies for browser automation
+    sudo apt-get install -y \
+        libnss3 \
         libatk-bridge2.0-0 \
         libdrm2 \
-        libgtk-3-0 \
-        libnspr4 \
-        libnss3 \
-        libx11-xcb1 \
         libxcomposite1 \
         libxdamage1 \
         libxrandr2 \
+        libgbm1 \
         libxss1 \
-        libxtst6 \
-        fonts-liberation \
-        libappindicator1 \
-        libasound2 \
-        libatk1.0-0 \
-        libcairo-gobject2 \
-        libdrm2 \
-        libgtk-3-0 \
-        libnspr4 \
-        libnss3 \
-        libx11-xcb1 \
-        libxcomposite1 \
-        libxcursor1 \
-        libxdamage1 \
-        libxi6 \
-        libxtst6 \
-        libgconf-2-4 \
-        libxrandr2 \
-        libasound2 \
-        libpangocairo-1.0-0 \
-        libatk1.0-0 \
-        libcairo-gobject2 \
-        libgtk-3-0 \
-        libgdk-pixbuf2.0-0
+        libasound2
+    
+    log_success "Ubuntu/Debian system dependencies installed"
+}
 
-    # Install Persian fonts
-    echo "🔤 Installing Persian fonts..."
-    sudo apt-get install -y \
-        fonts-farsiweb \
-        fonts-liberation \
-        fonts-noto \
-        fonts-noto-color-emoji \
-        fonts-dejavu-core \
-        fontconfig
+# Install system dependencies for CentOS/RHEL
+install_centos_deps() {
+    log_info "Installing system dependencies for CentOS/RHEL..."
+    
+    # Install EPEL repository
+    sudo yum install -y epel-release
+    
+    # Install basic development tools
+    sudo yum groupinstall -y "Development Tools"
+    sudo yum install -y \
+        wget \
+        curl \
+        git \
+        unzip
+    
+    # Install Python development headers
+    sudo yum install -y \
+        python3-devel \
+        python3-pip
+    
+    # Install PostgreSQL client libraries
+    sudo yum install -y \
+        postgresql-devel
+    
+    # Install Chromium
+    sudo yum install -y chromium
+    
+    # Install fonts
+    sudo yum install -y \
+        google-noto-fonts \
+        google-noto-cjk-fonts \
+        google-noto-emoji-fonts \
+        liberation-fonts \
+        dejavu-fonts
+    
+    log_success "CentOS/RHEL system dependencies installed"
+}
 
-    # Install Node.js (for some web automation tools)
-    echo "📦 Installing Node.js..."
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+# Install system dependencies for Fedora
+install_fedora_deps() {
+    log_info "Installing system dependencies for Fedora..."
+    
+    # Install basic development tools
+    sudo dnf groupinstall -y "Development Tools"
+    sudo dnf install -y \
+        wget \
+        curl \
+        git \
+        unzip
+    
+    # Install Python development headers
+    sudo dnf install -y \
+        python3-devel \
+        python3-pip
+    
+    # Install PostgreSQL client libraries
+    sudo dnf install -y \
+        postgresql-devel
+    
+    # Install Chromium
+    sudo dnf install -y chromium
+    
+    # Install fonts
+    sudo dnf install -y \
+        google-noto-fonts \
+        google-noto-cjk-fonts \
+        google-noto-emoji-fonts \
+        liberation-fonts \
+        dejavu-fonts
+    
+    log_success "Fedora system dependencies installed"
+}
 
-elif [[ "$OS" == "mac" ]]; then
-    echo "🍎 Installing macOS dependencies..."
+# Install system dependencies for macOS
+install_macos_deps() {
+    log_info "Installing system dependencies for macOS..."
     
     # Check if Homebrew is installed
-    if ! command -v brew &> /dev/null; then
-        echo "Installing Homebrew..."
+    if ! command_exists brew; then
+        log_info "Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
     
-    # Install basic packages
-    brew install \
-        python3 \
-        postgresql \
-        redis \
-        nginx \
-        git \
-        curl \
-        wget \
-        pkg-config \
-        openssl \
-        libffi \
-        libxml2 \
-        libxslt \
-        jpeg \
-        zlib \
-        node
-
+    # Update Homebrew
+    brew update
+    
+    # Install basic tools
+    brew install wget curl git
+    
+    # Install PostgreSQL client
+    brew install postgresql
+    
     # Install Chromium
-    echo "🌐 Installing Chromium..."
     brew install --cask chromium
     
-    # Install chromedriver
-    brew install chromedriver
-
-elif [[ "$OS" == "windows" ]]; then
-    echo "🪟 Windows dependencies installation..."
-    echo "Please install the following manually:"
-    echo "1. Python 3.8+ from https://python.org"
-    echo "2. PostgreSQL from https://www.postgresql.org/download/windows/"
-    echo "3. Redis from https://github.com/microsoftarchive/redis/releases"
-    echo "4. Google Chrome from https://www.google.com/chrome/"
-    echo "5. ChromeDriver from https://chromedriver.chromium.org/"
-    echo "6. Git from https://git-scm.com/download/win"
-fi
+    # Install fonts for Persian text rendering
+    brew install --cask font-noto-sans
+    brew install --cask font-noto-sans-cjk
+    brew install --cask font-noto-color-emoji
+    
+    log_success "macOS system dependencies installed"
+}
 
 # Install Python dependencies
-echo "🐍 Installing Python dependencies..."
-pip3 install --upgrade pip setuptools wheel
-
-# Install Playwright and download browsers
-echo "🎭 Installing Playwright browsers..."
-pip3 install playwright
-playwright install chromium
-playwright install-deps chromium
-
-# Install required system Python packages
-echo "📦 Installing system Python packages..."
-pip3 install --upgrade \
-    certifi \
-    urllib3 \
-    requests \
-    aiohttp \
-    beautifulsoup4 \
-    lxml \
-    selenium \
-    psycopg2-binary \
-    redis \
-    python-dotenv
-
-# Set up environment variables
-echo "🔧 Setting up environment variables..."
-cat > .env.system << EOF
-# System Configuration
-CHROME_BIN=/usr/bin/chromium-browser
-CHROMEDRIVER_PATH=/usr/bin/chromedriver
-SSL_VERIFY=false
-HEADLESS=true
-DISPLAY=:99
-
-# Database URLs
-DATABASE_URL=postgresql://postgres:password@localhost:5432/flight_data
-REDIS_URL=redis://localhost:6379/0
-
-# Security
-SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-SSL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-EOF
-
-# Create necessary directories
-echo "📁 Creating necessary directories..."
-mkdir -p logs screenshots temp data/cache
-
-# Set permissions
-chmod +x scripts/*.sh
-chmod +x scripts/*.py
-
-# Install and configure PostgreSQL
-echo "🐘 Configuring PostgreSQL..."
-if [[ "$OS" == "linux" ]]; then
-    sudo systemctl start postgresql
-    sudo systemctl enable postgresql
+install_python_deps() {
+    log_info "Installing Python dependencies..."
     
-    # Create database user and database
-    sudo -u postgres psql -c "CREATE USER flight_user WITH ENCRYPTED PASSWORD 'secure_password';"
-    sudo -u postgres psql -c "CREATE DATABASE flight_data OWNER flight_user;"
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE flight_data TO flight_user;"
-fi
+    # Upgrade pip
+    python3 -m pip install --upgrade pip
+    
+    # Install required Python packages
+    python3 -m pip install --upgrade \
+        certifi \
+        aiohttp \
+        beautifulsoup4 \
+        selenium \
+        playwright \
+        asyncpg \
+        redis \
+        psutil \
+        urllib3 \
+        lxml \
+        requests
+    
+    log_success "Python dependencies installed"
+}
 
-# Install and configure Redis
-echo "🔴 Configuring Redis..."
-if [[ "$OS" == "linux" ]]; then
-    sudo systemctl start redis-server
-    sudo systemctl enable redis-server
-fi
+# Install and setup Playwright
+install_playwright() {
+    log_info "Installing Playwright browsers..."
+    
+    # Install Playwright browsers
+    python3 -m playwright install chromium --with-deps
+    python3 -m playwright install firefox --with-deps
+    python3 -m playwright install webkit --with-deps
+    
+    log_success "Playwright browsers installed"
+}
 
-# Update font cache
-echo "🔤 Updating font cache..."
-if [[ "$OS" == "linux" ]]; then
-    sudo fc-cache -fv
-fi
+# Verify installations
+verify_installations() {
+    log_info "Verifying installations..."
+    
+    local errors=0
+    
+    # Check Python
+    if command_exists python3; then
+        log_success "Python3: $(python3 --version)"
+    else
+        log_error "Python3 not found"
+        ((errors++))
+    fi
+    
+    # Check pip
+    if command_exists pip3; then
+        log_success "pip3: $(pip3 --version | cut -d' ' -f1-2)"
+    else
+        log_error "pip3 not found"
+        ((errors++))
+    fi
+    
+    # Check PostgreSQL client
+    if command_exists psql; then
+        log_success "PostgreSQL client: $(psql --version)"
+    else
+        log_warning "PostgreSQL client not found (optional)"
+    fi
+    
+    # Check Chromium/Chrome
+    if command_exists chromium-browser; then
+        log_success "Chromium browser found"
+    elif command_exists chromium; then
+        log_success "Chromium found"
+    elif command_exists google-chrome; then
+        log_success "Google Chrome found"
+    else
+        log_warning "No Chromium/Chrome browser found"
+    fi
+    
+    # Check Python packages
+    local packages=("aiohttp" "beautifulsoup4" "selenium" "playwright" "asyncpg" "redis" "certifi")
+    for package in "${packages[@]}"; do
+        if python3 -c "import $package" 2>/dev/null; then
+            log_success "Python package '$package' available"
+        else
+            log_error "Python package '$package' not available"
+            ((errors++))
+        fi
+    done
+    
+    # Check Playwright browsers
+    if python3 -c "from playwright.sync_api import sync_playwright; sync_playwright().start()" 2>/dev/null; then
+        log_success "Playwright installation verified"
+    else
+        log_error "Playwright installation failed"
+        ((errors++))
+    fi
+    
+    if [ $errors -eq 0 ]; then
+        log_success "All verifications passed!"
+        return 0
+    else
+        log_error "$errors verification(s) failed"
+        return 1
+    fi
+}
 
-# Create systemd service for development
-if [[ "$OS" == "linux" ]]; then
-    echo "🔧 Creating systemd service template..."
-    cat > flightio-crawler.service << EOF
-[Unit]
-Description=FlightioCrawler Service
-After=network.target postgresql.service redis.service
+# Create requirements.txt if it doesn't exist
+create_requirements() {
+    if [ ! -f "requirements.txt" ]; then
+        log_info "Creating requirements.txt..."
+        cat > requirements.txt << EOF
+# Core dependencies
+aiohttp>=3.8.0
+beautifulsoup4>=4.11.0
+selenium>=4.0.0
+playwright>=1.30.0
+asyncpg>=0.27.0
+redis>=4.3.0
+certifi>=2022.0.0
+urllib3>=1.26.0
+psutil>=5.9.0
+lxml>=4.9.0
+requests>=2.28.0
 
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/path/to/FlightioCrawler
-Environment=PATH=/usr/bin:/usr/local/bin
-Environment=PYTHONPATH=/path/to/FlightioCrawler
-ExecStart=/usr/bin/python3 main.py
-Restart=always
-RestartSec=10
+# Additional dependencies
+python-dotenv>=0.19.0
+pydantic>=1.10.0
+fastapi>=0.85.0
+uvicorn>=0.18.0
 
-[Install]
-WantedBy=multi-user.target
+# Development dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.20.0
+black>=22.0.0
+flake8>=5.0.0
+mypy>=0.991
 EOF
-fi
+        log_success "requirements.txt created"
+    fi
+}
 
-echo "✅ System dependencies installation completed!"
-echo ""
-echo "📋 Next steps:"
-echo "1. Update the database configuration in .env.system"
-echo "2. Run 'python3 -m pip install -r requirements.txt' to install Python dependencies"
-echo "3. Run 'python3 init_db.py' to initialize the database"
-echo "4. Test the installation with 'python3 test_dependencies.py'"
-echo ""
-echo "🔧 Configuration files created:"
-echo "- .env.system (system environment variables)"
-echo "- flightio-crawler.service (systemd service template)"
-echo ""
-echo "⚠️  Don't forget to:"
-echo "- Update database passwords in production"
-echo "- Configure SSL certificates for production"
-echo "- Set up proper firewall rules"
-echo "- Configure monitoring and logging" 
+# Main installation function
+main() {
+    log_info "Starting FlightIO Crawler dependency installation..."
+    
+    # Detect operating system
+    OS=$(detect_os)
+    log_info "Detected operating system: $OS"
+    
+    # Create requirements.txt
+    create_requirements
+    
+    # Install system dependencies based on OS
+    case $OS in
+        ubuntu)
+            install_ubuntu_deps
+            ;;
+        centos)
+            install_centos_deps
+            ;;
+        fedora)
+            install_fedora_deps
+            ;;
+        macos)
+            install_macos_deps
+            ;;
+        windows)
+            log_warning "Windows detected. Please install dependencies manually:"
+            log_info "1. Install Python 3.8+ from https://python.org"
+            log_info "2. Install Google Chrome or Chromium browser"
+            log_info "3. Run: pip install -r requirements.txt"
+            log_info "4. Run: playwright install chromium --with-deps"
+            exit 0
+            ;;
+        *)
+            log_error "Unsupported operating system: $OS"
+            exit 1
+            ;;
+    esac
+    
+    # Install Python dependencies
+    install_python_deps
+    
+    # Install Playwright
+    install_playwright
+    
+    # Verify installations
+    if verify_installations; then
+        log_success "✓ All dependencies installed successfully!"
+        log_info "You can now run the FlightIO Crawler"
+    else
+        log_error "✗ Some dependencies failed to install"
+        log_info "Please check the errors above and install missing dependencies manually"
+        exit 1
+    fi
+}
+
+# Check if script is run with sudo when needed
+check_sudo() {
+    if [[ $EUID -eq 0 ]] && [[ "$OS" != "macos" ]]; then
+        log_error "This script should not be run as root (except for specific system package installations)"
+        log_info "The script will use sudo when needed for system packages"
+        exit 1
+    fi
+}
+
+# Run main function
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    check_sudo
+    main "$@"
+fi 

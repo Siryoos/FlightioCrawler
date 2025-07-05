@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Metadata } from 'next';
 import QueryProvider from './components/QueryProvider';
 import ErrorBoundary from './components/ErrorBoundary';
+import RealTimeStatusMonitor from './components/RealTimeStatusMonitor';
 
 // export const metadata: Metadata = { // Metadata cannot be used with 'use client'
 //   title: 'FlightioCrawler',
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ErrorBoundary>
           <QueryProvider>
             {children}
+            <RealTimeStatusMonitor />
           </QueryProvider>
         </ErrorBoundary>
       </body>

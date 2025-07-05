@@ -1,0 +1,32 @@
+{
+  "timestamp": "2025-07-05T19:16:17.257542",
+  "ssl_statistics": {
+    "config": {
+      "mode": "permissive",
+      "verify_hostname": true,
+      "verify_certificates": true,
+      "ca_bundle_path": "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/certifi/cacert.pem",
+      "custom_ca_paths": [],
+      "allow_self_signed": false
+    },
+    "contexts": {
+      "total_contexts": 1,
+      "context_names": [
+        "default"
+      ]
+    },
+    "verification_cache": {
+      "total_entries": 0,
+      "cache_hits": 0
+    },
+    "failed_hosts": {
+      "total_failed": 0,
+      "failed_hosts": []
+    }
+  },
+  "system_info": {
+    "python_ssl_version": "OpenSSL 3.0.11 19 Sep 2023",
+    "ssl_context_available": true,
+    "certifi_version": "2025.01.31"
+  }
+}

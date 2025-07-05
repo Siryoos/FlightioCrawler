@@ -71,8 +71,8 @@ from .enhanced_error_handler import (
     error_handler_decorator,
     get_global_error_handler
 )
-from ..patterns.builder_pattern import CrawlerConfigBuilder
-from monitoring.enhanced_monitoring import EnhancedMonitoring
+from ..patterns.builder_pattern import AdapterConfigBuilder
+from monitoring.enhanced_monitoring_system import EnhancedMonitoringSystem
 
 
 class ErrorCategory(Enum):

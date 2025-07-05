@@ -18,33 +18,15 @@ except Exception:  # pragma: no cover - optional dependency
 
 from bs4 import BeautifulSoup
 from persian_text import PersianTextProcessor
-from monitoring import CrawlerMonitor, ErrorHandler
+from monitoring import CrawlerMonitor
+from error_handler import ErrorHandler
 from config import config
 from playwright.async_api import async_playwright, Browser, Page
 from rate_limiter import RateLimiter
 from stealth_crawler import StealthCrawler
 
 # SSL Configuration
-def create_ssl_context(verify_ssl: bool = None) -> ssl.SSLContext:
-    """Create SSL context based on environment configuration"""
-    if verify_ssl is None:
-        verify_ssl = os.getenv("SSL_VERIFY", "false").lower() == "true"
-    
-    if verify_ssl:
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = True
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
-    else:
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        try:
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        except ImportError:
-            pass
-    
-    return ssl_context
+from security.ssl_manager import get_ssl_manager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -67,7 +49,7 @@ class BaseSiteCrawler(StealthCrawler):
         self.monitor = monitor
         self.error_handler = error_handler
         self.logger = logging.getLogger(__name__)
-        self.ssl_context = create_ssl_context()
+        self.ssl_manager = get_ssl_manager()
 
         # Configure browser
         self.browser_config = BrowserConfig(
@@ -81,7 +63,7 @@ class BaseSiteCrawler(StealthCrawler):
         """Fallback JSON API fetch for sites with dynamic pages."""
         api_url = getattr(self, "api_url", f"{self.base_url}/api/search")
         try:
-            connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+            connector = self.ssl_manager.create_aiohttp_connector()
             timeout = aiohttp.ClientTimeout(total=10)
             
             headers = {

@@ -39,6 +39,15 @@ class EventType(Enum):
     PERFORMANCE_WARNING = "performance_warning"
 
 
+class EventSeverity(Enum):
+    """Severity levels for events."""
+
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+
 @dataclass
 class CrawlerEvent:
     """Event data structure for crawler events."""
@@ -49,7 +58,7 @@ class CrawlerEvent:
     data: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
     correlation_id: Optional[str] = None
-    severity: str = "info"  # info, warning, error, critical
+    severity: EventSeverity = EventSeverity.INFO
 
 
 class EventObserver(ABC):
@@ -101,11 +110,11 @@ class LoggingObserver(EventObserver):
             message += f" - CorrelationID: {event.correlation_id}"
 
         # Log with appropriate level based on severity
-        if event.severity == "error":
+        if event.severity == EventSeverity.ERROR:
             self.logger.error(message)
-        elif event.severity == "warning":
+        elif event.severity == EventSeverity.WARNING:
             self.logger.warning(message)
-        elif event.severity == "critical":
+        elif event.severity == EventSeverity.CRITICAL:
             self.logger.critical(message)
         else:
             self.logger.info(message)
@@ -425,7 +434,7 @@ class CrawlerEventSystem:
         source: str,
         data: Optional[Dict[str, Any]] = None,
         correlation_id: Optional[str] = None,
-        severity: str = "info",
+        severity: EventSeverity = EventSeverity.INFO,
     ) -> None:
         """Emit an event to all observers."""
         event = CrawlerEvent(
@@ -490,7 +499,7 @@ async def emit_crawl_failed(
 ) -> None:
     """Emit crawl failed event."""
     await get_event_system().emit_event(
-        EventType.CRAWL_FAILED, source, data, correlation_id, "error"
+        EventType.CRAWL_FAILED, source, data, correlation_id, EventSeverity.ERROR
     )
 
 
@@ -512,5 +521,82 @@ async def emit_error_occurred(
 ) -> None:
     """Emit error occurred event."""
     await get_event_system().emit_event(
-        EventType.ERROR_OCCURRED, source, data, correlation_id, "error"
+        EventType.ERROR_OCCURRED, source, data, correlation_id, EventSeverity.ERROR
     )
+
+
+async def emit_data_extracted(
+    source: str,
+    data: Optional[Dict[str, Any]] = None,
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit data extracted event."""
+    await get_event_system().emit_event(
+        EventType.FLIGHT_EXTRACTED, source, data, correlation_id
+    )
+
+
+async def emit_error(
+    source: str,
+    data: Optional[Dict[str, Any]] = None,
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit error event."""
+    await get_event_system().emit_event(
+        EventType.ERROR_OCCURRED, source, data, correlation_id, EventSeverity.ERROR
+    )
+
+
+async def emit_warning(
+    source: str,
+    data: Optional[Dict[str, Any]] = None,
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit warning event."""
+    await get_event_system().emit_event(
+        EventType.ERROR_OCCURRED, source, data, correlation_id, EventSeverity.WARNING
+    )
+
+
+async def emit_performance_warning(
+    source: str,
+    data: Optional[Dict[str, Any]] = None,
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit performance warning event."""
+    await get_event_system().emit_event(
+        EventType.PERFORMANCE_WARNING, source, data, correlation_id, EventSeverity.WARNING
+    )
+
+
+class EventContext:
+    """Context manager for event correlation."""
+    
+    def __init__(self, source: str, correlation_id: Optional[str] = None):
+        self.source = source
+        self.correlation_id = correlation_id or f"ctx_{datetime.now().timestamp()}"
+        self.start_time = None
+        
+    async def __aenter__(self):
+        self.start_time = datetime.now()
+        await emit_crawl_started(self.source, correlation_id=self.correlation_id)
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            await emit_crawl_failed(
+                self.source, 
+                data={"error": str(exc_val), "duration": (datetime.now() - self.start_time).total_seconds()},
+                correlation_id=self.correlation_id
+            )
+        else:
+            await emit_crawl_completed(
+                self.source,
+                data={"duration": (datetime.now() - self.start_time).total_seconds()},
+                correlation_id=self.correlation_id
+            )
+
+
+def event_context(source: str, correlation_id: Optional[str] = None) -> EventContext:
+    """Create an event context manager for automatic event emission."""
+    return EventContext(source, correlation_id)
