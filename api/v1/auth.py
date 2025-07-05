@@ -85,6 +85,18 @@ class UpdateUserRequest(BaseModel):
     permissions: Optional[List[str]] = None
 
 
+class UpdateProfileRequest(BaseModel):
+    """Update profile request for self-updates"""
+    email: Optional[EmailStr] = None
+    current_password: Optional[str] = Field(None, min_length=8, max_length=128)
+    
+    @validator('email')
+    def email_requires_password(cls, v, values):
+        if v and not values.get('current_password'):
+            raise ValueError('Current password is required when updating email')
+        return v
+
+
 class AuthResponse(BaseModel):
     """Authentication response"""
     access_token: str
@@ -155,10 +167,12 @@ async def login(
         
         # Schedule background task for login analytics
         background_tasks.add_task(
-            _log_login_analytics,
+            auth_system.log_login_analytics,
             auth_result["user"],
             client_ip,
-            request_info.headers.get("user-agent")
+            request_info.headers.get("user-agent"),
+            True,  # success
+            None   # no failure reason
         )
         
         return AuthResponse(
@@ -210,7 +224,7 @@ async def register(
         
         # Schedule background task for registration analytics
         background_tasks.add_task(
-            _log_registration_analytics,
+            auth_system.log_registration_analytics,
             user,
             client_ip,
             request_info.headers.get("user-agent")
@@ -249,15 +263,17 @@ async def refresh_token(
     Refresh access token using refresh token
     """
     try:
-        # TODO: Implement refresh token logic
-        # This would typically involve:
-        # 1. Validating the refresh token
-        # 2. Generating a new access token
-        # 3. Optionally rotating the refresh token
+        # Validate refresh token and generate new access token
+        token_data = await auth_system.refresh_access_token(request.refresh_token)
         
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Token refresh not implemented yet"
+        logger.info(f"Token refreshed successfully for user: {token_data['user']['username']}")
+        
+        return AuthResponse(
+            access_token=token_data["access_token"],
+            refresh_token=token_data["refresh_token"],
+            token_type=token_data["token_type"],
+            expires_in=token_data["expires_in"],
+            user=token_data["user"]
         )
         
     except HTTPException:
@@ -412,11 +428,15 @@ async def list_api_keys(
     List user's API keys (without exposing the actual keys)
     """
     try:
-        # TODO: Implement API key listing
-        # This would return a list of API keys for the current user
-        # without exposing the actual key values
+        # Get user's API keys without exposing sensitive information
+        api_keys = await auth_system.list_user_api_keys(current_user.user_id)
         
-        return {"api_keys": []}
+        logger.info(f"Listed {len(api_keys)} API keys for user: {current_user.username}")
+        
+        return {
+            "api_keys": api_keys,
+            "total_count": len(api_keys)
+        }
         
     except Exception as e:
         logger.error(f"List API keys error: {e}")
@@ -444,7 +464,7 @@ async def revoke_api_key(
                 detail="API key not found"
             )
         
-        logger.info(f"API key revoked for user {current_user.username}: {key_id}")
+        logger.info(f"API key revoked by user {current_user.username}: {key_id}")
         
         return {"message": "API key revoked successfully"}
         
@@ -455,6 +475,77 @@ async def revoke_api_key(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to revoke API key"
+        )
+
+
+@router.get("/api-keys/{key_id}")
+async def get_api_key_details(
+    key_id: str,
+    auth_system: AuthenticationSystem = Depends(get_auth_system),
+    current_user: User = Depends(create_auth_dependencies(get_auth_system())["get_current_user"])
+):
+    """
+    Get detailed information about a specific API key
+    """
+    try:
+        api_key_details = await auth_system.get_api_key_details(key_id, current_user.user_id)
+        
+        if not api_key_details:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="API key not found"
+            )
+        
+        return api_key_details
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get API key details error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get API key details"
+        )
+
+
+@router.put("/api-keys/{key_id}")
+async def update_api_key(
+    key_id: str,
+    name: Optional[str] = None,
+    permissions: Optional[List[str]] = None,
+    is_active: Optional[bool] = None,
+    auth_system: AuthenticationSystem = Depends(get_auth_system),
+    current_user: User = Depends(create_auth_dependencies(get_auth_system())["get_current_user"])
+):
+    """
+    Update API key properties
+    """
+    try:
+        success = await auth_system.update_api_key(
+            key_id=key_id,
+            user_id=current_user.user_id,
+            name=name,
+            permissions=permissions,
+            is_active=is_active
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="API key not found"
+            )
+        
+        logger.info(f"API key updated by user {current_user.username}: {key_id}")
+        
+        return {"message": "API key updated successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Update API key error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update API key"
         )
 
 
@@ -522,13 +613,39 @@ async def update_user(
     Update user information (admin only)
     """
     try:
-        # TODO: Implement user update logic
-        # This would update user information in the authentication system
+        # Update user using admin function
+        success = await auth_system.admin_update_user(
+            user_id=user_id,
+            email=request.email,
+            role=request.role,
+            is_active=request.is_active,
+            permissions=request.permissions
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Get updated user data
+        updated_user = await auth_system.get_user_by_id(user_id)
         
         logger.info(f"User {user_id} updated by admin {current_user.username}")
         
-        return {"message": "User updated successfully"}
+        return UserResponse(
+            user_id=updated_user.user_id,
+            username=updated_user.username,
+            email=updated_user.email,
+            role=updated_user.role,
+            is_active=updated_user.is_active,
+            is_verified=updated_user.is_verified,
+            created_at=updated_user.created_at,
+            last_login=updated_user.last_login
+        )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Update user error: {e}")
         raise HTTPException(
@@ -589,25 +706,117 @@ async def get_security_stats(
         )
 
 
-# Background tasks
-async def _log_login_analytics(user: User, ip_address: str, user_agent: Optional[str]):
-    """Log login analytics"""
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    request: UpdateProfileRequest,
+    auth_system: AuthenticationSystem = Depends(get_auth_system),
+    current_user: User = Depends(create_auth_dependencies(get_auth_system())["get_current_user"])
+):
+    """
+    Update current user's profile
+    """
     try:
-        # TODO: Implement login analytics logging
-        # This could store login information for security monitoring
-        pass
+        # Update user profile
+        success = await auth_system.update_user_profile(
+            user_id=current_user.user_id,
+            email=request.email,
+            current_password=request.current_password
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Profile update failed"
+            )
+        
+        # Get updated user data
+        updated_user = await auth_system.get_user_by_id(current_user.user_id)
+        
+        logger.info(f"Profile updated for user: {current_user.username}")
+        
+        return UserResponse(
+            user_id=updated_user.user_id,
+            username=updated_user.username,
+            email=updated_user.email,
+            role=updated_user.role,
+            is_active=updated_user.is_active,
+            is_verified=updated_user.is_verified,
+            created_at=updated_user.created_at,
+            last_login=updated_user.last_login
+        )
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Login analytics error: {e}")
+        logger.error(f"Update profile error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile"
+        )
 
 
-async def _log_registration_analytics(user: User, ip_address: str, user_agent: Optional[str]):
-    """Log registration analytics"""
+# Analytics endpoints
+@router.get("/admin/analytics/login")
+async def get_login_analytics(
+    hours: int = 24,
+    auth_system: AuthenticationSystem = Depends(get_auth_system),
+    current_user: User = Depends(create_auth_dependencies(get_auth_system())["require_admin"])
+):
+    """
+    Get login analytics (admin only)
+    """
     try:
-        # TODO: Implement registration analytics logging
-        # This could store registration information for user insights
-        pass
+        analytics = await auth_system.get_login_analytics(hours)
+        return analytics
+        
     except Exception as e:
-        logger.error(f"Registration analytics error: {e}")
+        logger.error(f"Get login analytics error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get login analytics"
+        )
+
+
+@router.get("/admin/analytics/registration")
+async def get_registration_analytics(
+    days: int = 30,
+    auth_system: AuthenticationSystem = Depends(get_auth_system),
+    current_user: User = Depends(create_auth_dependencies(get_auth_system())["require_admin"])
+):
+    """
+    Get registration analytics (admin only)
+    """
+    try:
+        analytics = await auth_system.get_registration_analytics(days)
+        return analytics
+        
+    except Exception as e:
+        logger.error(f"Get registration analytics error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get registration analytics"
+        )
+
+
+@router.get("/admin/security/events")
+async def get_security_events(
+    hours: int = 24,
+    auth_system: AuthenticationSystem = Depends(get_auth_system),
+    current_user: User = Depends(create_auth_dependencies(get_auth_system())["require_admin"])
+):
+    """
+    Get security events for monitoring (admin only)
+    """
+    try:
+        events = await auth_system.get_security_events(hours)
+        return {"events": events, "count": len(events)}
+        
+    except Exception as e:
+        logger.error(f"Get security events error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get security events"
+        )
 
 
 # Health check endpoint

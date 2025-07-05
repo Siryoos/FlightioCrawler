@@ -1,28 +1,167 @@
 version: '3.8'
 
+networks:
+  flightio-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+  monitoring-network:
+    driver: bridge
+    internal: true
+  database-network:
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  secret_key:
+    file: ./secrets/secret_key.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+
 services:
-  # API Service - Lightweight container for API endpoints
+  # PostgreSQL Database with security hardening
+  postgres:
+    image: postgres:15-alpine
+    container_name: flightio-postgres
+    environment:
+      - POSTGRES_USER=crawler
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+      - POSTGRES_DB=flight_data
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    secrets:
+      - db_password
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./init_simple.sql:/docker-entrypoint-initdb.d/init_simple.sql:ro
+      - ./populate_platforms.sql:/docker-entrypoint-initdb.d/populate_platforms.sql:ro
+    networks:
+      - database-network
+      - flightio-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crawler -d flight_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+
+  # Redis Cache with security hardening
+  redis:
+    image: redis:7.2-alpine
+    container_name: flightio-redis
+    command: >
+      redis-server
+      --requirepass-file /run/secrets/redis_password
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --tcp-keepalive 60
+      --timeout 300
+    secrets:
+      - redis_password
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - flightio-network
+      - monitoring-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # API Service with enhanced security
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
     container_name: flightio-api
-    ports:
-      - "8000:8000"
     environment:
       - DB_HOST=postgres
       - DB_NAME=flight_data
       - DB_USER=crawler
-      - DB_PASSWORD=secure_password
+      - DB_PASSWORD_FILE=/run/secrets/db_password
       - DB_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
       - REDIS_DB=0
-      - DATABASE_URL=postgresql://crawler:secure_password@postgres:5432/flight_data
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - DATABASE_URL=postgresql://crawler@postgres:5432/flight_data
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
       - DEBUG_MODE=false
       - ENVIRONMENT=production
+      - SECURITY_HEADERS=true
+      - RATE_LIMITING=true
+      - CORS_ORIGINS=https://flightio.com,https://app.flightio.com
+    secrets:
+      - db_password
+      - redis_password
+      - secret_key
+      - jwt_secret
+    ports:
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,6 +169,11 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs:rw
+      - ./data/storage:/app/data/storage:rw
+      - ./config:/app/config:ro
+    networks:
+      - flightio-network
+      - monitoring-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ready"]
@@ -45,31 +189,46 @@ services:
         reservations:
           cpus: '0.5'
           memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/tmp
 
-  # Crawler Service - Heavy container with browser capabilities
+  # Crawler Service with enhanced security
   crawler:
     build:
       context: .
       dockerfile: Dockerfile.crawler
     container_name: flightio-crawler
-    ports:
-      - "8001:8001"
     environment:
       - DB_HOST=postgres
       - DB_NAME=flight_data
       - DB_USER=crawler
-      - DB_PASSWORD=secure_password
+      - DB_PASSWORD_FILE=/run/secrets/db_password
       - DB_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
       - REDIS_DB=0
-      - DATABASE_URL=postgresql://crawler:secure_password@postgres:5432/flight_data
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+      - DATABASE_URL=postgresql://crawler@postgres:5432/flight_data
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
       - CRAWLER_TIMEOUT=30
       - CRAWLER_CONCURRENCY=3
       - CRAWLER_RETRY_ATTEMPTS=3
       - ENVIRONMENT=production
+      - SECURITY_MODE=true
+      - BROWSER_SANDBOX=false
+      - BROWSER_HEADLESS=true
+    secrets:
+      - db_password
+      - redis_password
+      - secret_key
+    ports:
+      - "127.0.0.1:8001:8001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,10 +239,15 @@ services:
     volumes:
       - ./logs:/app/logs:rw
       - ./data/storage:/app/data/storage:rw
+      - ./screenshots:/app/screenshots:rw
       - ./requests:/app/requests:rw
+      - ./config:/app/config:ro
+    networks:
+      - flightio-network
+      - monitoring-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health', timeout=10)"] 
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 60s
       timeout: 30s
       retries: 2
@@ -96,8 +260,15 @@ services:
         reservations:
           cpus: '1.0'
           memory: 1G
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+    tmpfs:
+      - /tmp
+      - /app/tmp
 
-  # Frontend Service
+  # Frontend Service with security
   frontend:
     build:
       context: ./frontend
@@ -106,11 +277,15 @@ services:
     environment:
       - NEXT_PUBLIC_API_BASE=http://localhost:8000
       - NODE_ENV=production
+      - CSP_ENABLED=true
+      - SECURE_HEADERS=true
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      - flightio-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
@@ -123,72 +298,40 @@ services:
         limits:
           cpus: '0.5'
           memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
 
-  # Redis Cache
-  redis:
-    image: redis:7.2-alpine
-    container_name: flightio-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: flightio-postgres
-    environment:
-      - POSTGRES_USER=crawler
-      - POSTGRES_PASSWORD=secure_password
-      - POSTGRES_DB=flight_data
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crawler -d flight_data"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  # Monitoring Service - Dedicated monitoring container
+  # Enhanced Monitoring Service
   monitor:
     build:
       context: .
       dockerfile: Dockerfile.monitor
     container_name: flightio-monitor
-    ports:
-      - "9090:9090"
     environment:
       - DB_HOST=postgres
       - DB_NAME=flight_data
       - DB_USER=crawler
-      - DB_PASSWORD=secure_password
+      - DB_PASSWORD_FILE=/run/secrets/db_password
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
       - LOG_LEVEL=INFO
       - ENVIRONMENT=production
       - MONITORING_PORT=9090
+      - PROMETHEUS_URL=http://prometheus:9090
+      - GRAFANA_URL=http://grafana:3000
+    secrets:
+      - db_password
+      - redis_password
+    ports:
+      - "127.0.0.1:9090:9090"
     depends_on:
       postgres:
         condition: service_healthy
@@ -197,108 +340,220 @@ services:
     volumes:
       - ./logs:/app/logs:rw
       - ./monitoring:/app/monitoring:ro
+      - ./config:/app/config:ro
+    networks:
+      - flightio-network
+      - monitoring-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
-      interval: 60s
+      interval: 30s
       timeout: 10s
-      retries: 2
+      retries: 3
       start_period: 30s
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/tmp
 
-  # Background Worker Service
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
-    container_name: flightio-worker
-    environment:
-      - DB_HOST=postgres
-      - DB_NAME=flight_data
-      - DB_USER=crawler
-      - DB_PASSWORD=secure_password
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=1
-      - LOG_LEVEL=INFO
-      - ENVIRONMENT=production
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: flightio-prometheus
+    ports:
+      - "127.0.0.1:9091:9090"
     volumes:
-      - ./logs:/app/logs:rw
-      - ./data/storage:/app/data/storage:rw
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.wal-compression'
+    networks:
+      - monitoring-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "celery", "inspect", "ping", "-A", "tasks"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 60s
     deploy:
       resources:
         limits:
           cpus: '1.0'
           memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
-  # ML Processing Worker (specialized worker)
-  ml-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
-    container_name: flightio-ml-worker
-    command: ["celery", "worker", "-A", "tasks", "--loglevel=info", "--queues=ml_tasks", "--concurrency=1"]
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: flightio-grafana
+    ports:
+      - "127.0.0.1:3002:3000"
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=flight_data
-      - DB_USER=crawler
-      - DB_PASSWORD=secure_password
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=2
-      - LOG_LEVEL=INFO
-      - ENVIRONMENT=production
-      - CELERY_BROKER_URL=redis://redis:6379/2
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/db_password
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY=true
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    secrets:
+      - db_password
     volumes:
-      - ./logs:/app/logs:rw
-      - ./data:/app/data:rw
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana_dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - monitoring-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "celery", "inspect", "ping", "-A", "tasks"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 60s
+    depends_on:
+      - prometheus
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1G
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/lib/grafana/plugins
+      - /var/log/grafana
 
-# Network configuration
-networks:
-  default:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+  # Nginx Reverse Proxy with security
+  nginx:
+    image: nginx:alpine
+    container_name: flightio-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/security.conf:/etc/nginx/conf.d/security.conf:ro
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - flightio-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
 
-volumes:
-  redis_data:
-    driver: local
-  postgres_data:
-    driver: local 
+# Background Worker Service
+worker:
+  build:
+    context: .
+    dockerfile: Dockerfile.worker
+  container_name: flightio-worker
+  environment:
+    - DB_HOST=postgres
+    - DB_NAME=flight_data
+    - DB_USER=crawler
+    - DB_PASSWORD=secure_password
+    - REDIS_HOST=redis
+    - REDIS_PORT=6379
+    - REDIS_DB=1
+    - LOG_LEVEL=INFO
+    - ENVIRONMENT=production
+    - CELERY_BROKER_URL=redis://redis:6379/1
+    - CELERY_RESULT_BACKEND=redis://redis:6379/1
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  volumes:
+    - ./logs:/app/logs:rw
+    - ./data/storage:/app/data/storage:rw
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "celery", "inspect", "ping", "-A", "tasks"]
+    interval: 60s
+    timeout: 30s
+    retries: 3
+    start_period: 60s
+  deploy:
+    resources:
+      limits:
+        cpus: '1.0'
+        memory: 512M
+
+# ML Processing Worker (specialized worker)
+ml-worker:
+  build:
+    context: .
+    dockerfile: Dockerfile.worker
+  container_name: flightio-ml-worker
+  command: ["celery", "worker", "-A", "tasks", "--loglevel=info", "--queues=ml_tasks", "--concurrency=1"]
+  environment:
+    - DB_HOST=postgres
+    - DB_NAME=flight_data
+    - DB_USER=crawler
+    - DB_PASSWORD=secure_password
+    - REDIS_HOST=redis
+    - REDIS_PORT=6379
+    - REDIS_DB=2
+    - LOG_LEVEL=INFO
+    - ENVIRONMENT=production
+    - CELERY_BROKER_URL=redis://redis:6379/2
+    - CELERY_RESULT_BACKEND=redis://redis:6379/2
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  volumes:
+    - ./logs:/app/logs:rw
+    - ./data:/app/data:rw
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "celery", "inspect", "ping", "-A", "tasks"]
+    interval: 60s
+    timeout: 30s
+    retries: 3
+    start_period: 60s
+  deploy:
+    resources:
+      limits:
+        cpus: '1.0'
+        memory: 1G

@@ -1,5 +1,56 @@
 import { create, StateCreator } from 'zustand';
-import { Airport } from '../components/AirportData'; // Assuming Airport type is exported from here
+import { Airport } from '../components/AirportData';
+
+// Utility function to apply filters and sorting
+function applyFiltersAndSort(
+  airports: Airport[], 
+  searchTerm: string, 
+  filterCountry: string, 
+  sortBy: string
+): Airport[] {
+  let filtered = [...airports];
+
+  // Apply search filter
+  if (searchTerm.trim() !== '') {
+    const term = searchTerm.toLowerCase();
+    filtered = filtered.filter(a =>
+      a.city.toLowerCase().includes(term) ||
+      a.name.toLowerCase().includes(term) ||
+      (a.iata && a.iata.toLowerCase().includes(term)) ||
+      (a.icao && a.icao.toLowerCase().includes(term)) ||
+      a.country.toLowerCase().includes(term)
+    );
+  }
+
+  // Apply country filter
+  if (filterCountry !== 'all' && filterCountry !== '') {
+    filtered = filtered.filter(a => a.country === filterCountry);
+  }
+
+  // Apply sorting
+  switch (sortBy) {
+    case 'name':
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case 'city':
+      filtered.sort((a, b) => a.city.localeCompare(b.city));
+      break;
+    case 'country':
+      filtered.sort((a, b) => a.country.localeCompare(b.country));
+      break;
+    case 'iata':
+      filtered.sort((a, b) => (a.iata || '').localeCompare(b.iata || ''));
+      break;
+    case 'passengers':
+      filtered.sort((a, b) => (b.passengers || 0) - (a.passengers || 0));
+      break;
+    default:
+      // Default to name sorting
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  return filtered;
+}
 
 // 1. Define the interface for the store's state and actions
 interface AirportStoreState {
@@ -31,17 +82,23 @@ const airportStoreCreator: StateCreator<AirportStoreState> = (set, get) => ({
   // Actions
   setSearchTerm: (term: string) => {
     set({ searchTerm: term });
-    // TODO: Implement filtering logic here
+    const { airports, filterCountry, sortBy } = get();
+    const filtered = applyFiltersAndSort(airports, term, filterCountry, sortBy);
+    set({ filteredAirports: filtered });
   },
 
   setFilterCountry: (country: string) => {
     set({ filterCountry: country });
-    // TODO: Implement filtering logic here
+    const { airports, searchTerm, sortBy } = get();
+    const filtered = applyFiltersAndSort(airports, searchTerm, country, sortBy);
+    set({ filteredAirports: filtered });
   },
 
   setSortBy: (criteria: string) => {
     set({ sortBy: criteria });
-    // TODO: Implement sorting logic here
+    const { airports, searchTerm, filterCountry } = get();
+    const filtered = applyFiltersAndSort(airports, searchTerm, filterCountry, criteria);
+    set({ filteredAirports: filtered });
   },
 
   fetchAirports: async () => {
@@ -54,7 +111,9 @@ const airportStoreCreator: StateCreator<AirportStoreState> = (set, get) => ({
         throw new Error('Failed to fetch airports');
       }
       const data: Airport[] = await response.json();
-      set({ airports: data, filteredAirports: data, loading: false });
+      const { searchTerm, filterCountry, sortBy } = get();
+      const filtered = applyFiltersAndSort(data, searchTerm, filterCountry, sortBy);
+      set({ airports: data, filteredAirports: filtered, loading: false });
     } catch (err) {
       const error = err instanceof Error ? err.message : 'An unknown error occurred';
       set({ error, loading: false });

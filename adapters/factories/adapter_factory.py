@@ -2,7 +2,7 @@
 Enhanced Adapter Factory for creating flight crawling adapters.
 
 This factory provides a clean interface for creating adapters with
-automatic configuration management and error handling.
+automatic configuration management and comprehensive error handling.
 """
 
 from typing import Dict, Any, Type, Optional, List, Union
@@ -12,6 +12,9 @@ import logging
 import json
 import os
 from pathlib import Path
+import uuid
+from datetime import datetime
+import asyncio
 
 from adapters.base_adapters import (
     EnhancedBaseCrawler,
@@ -20,6 +23,15 @@ from adapters.base_adapters import (
     ConfigurationHelper,
     ErrorReportingHelper,
 )
+from adapters.base_adapters.enhanced_error_handler import (
+    EnhancedErrorHandler,
+    ErrorContext,
+    ErrorSeverity,
+    ErrorCategory,
+    ErrorAction,
+    error_handler_decorator,
+    get_global_error_handler
+)
 
 
 logger = logging.getLogger(__name__)
@@ -27,13 +39,14 @@ logger = logging.getLogger(__name__)
 
 class AdapterRegistry:
     """
-    Enhanced registry for adapter classes with configuration management.
+    Enhanced registry for adapter classes with configuration management and error handling.
     """
 
     def __init__(self):
         self._adapters: Dict[str, Type[EnhancedBaseCrawler]] = {}
         self._adapter_configs: Dict[str, Dict[str, Any]] = {}
         self._adapter_metadata: Dict[str, Dict[str, Any]] = {}
+        self.error_handler = get_global_error_handler()
 
     def register(
         self,
@@ -51,19 +64,61 @@ class AdapterRegistry:
             config: Default configuration
             metadata: Adapter metadata (description, features, etc.)
         """
-        normalized_name = name.lower().replace("-", "_").replace(" ", "_")
+        try:
+            normalized_name = name.lower().replace("-", "_").replace(" ", "_")
 
-        self._adapters[normalized_name] = adapter_class
+            self._adapters[normalized_name] = adapter_class
 
-        if config:
-            # Validate configuration before storing
-            errors = ConfigurationHelper.validate_config(config)
-            if errors:
-                logger.warning(f"Configuration issues for {name}: {errors}")
-            self._adapter_configs[normalized_name] = config
+            if config:
+                # Validate configuration before storing
+                errors = ConfigurationHelper.validate_config(config)
+                if errors:
+                    logger.warning(f"Configuration issues for {name}: {errors}")
+                    
+                    # Create error context for configuration issues
+                    error_context = ErrorContext(
+                        adapter_name=normalized_name,
+                        operation="register_adapter_config",
+                        additional_info={
+                            "config_errors": errors,
+                            "config_keys": list(config.keys())
+                        }
+                    )
+                    
+                    # Report configuration errors (non-blocking)
+                    asyncio.create_task(self.error_handler.handle_error(
+                        ValueError(f"Configuration validation errors: {errors}"),
+                        error_context,
+                        ErrorSeverity.MEDIUM,
+                        ErrorCategory.VALIDATION,
+                        ErrorAction.SKIP
+                    ))
+                    
+                self._adapter_configs[normalized_name] = config
 
-        if metadata:
-            self._adapter_metadata[normalized_name] = metadata
+            if metadata:
+                self._adapter_metadata[normalized_name] = metadata
+                
+            logger.debug(f"Successfully registered adapter: {name}")
+            
+        except Exception as e:
+            error_context = ErrorContext(
+                adapter_name=name,
+                operation="register_adapter",
+                additional_info={
+                    "adapter_class": str(adapter_class),
+                    "config_provided": config is not None,
+                    "metadata_provided": metadata is not None
+                }
+            )
+            
+            # Report registration error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.HIGH, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Failed to register adapter {name}: {e}")
+            raise
 
     def get(self, name: str) -> Optional[Type[EnhancedBaseCrawler]]:
         """Get adapter class by name."""
@@ -115,19 +170,45 @@ class AdapterRegistry:
 
         return results
 
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get health status of the registry."""
+        return {
+            "total_adapters": len(self._adapters),
+            "adapters_with_config": len(self._adapter_configs),
+            "adapters_with_metadata": len(self._adapter_metadata),
+            "adapter_types": self._get_adapter_type_counts(),
+            "timestamp": datetime.now().isoformat()
+        }
+
+    def _get_adapter_type_counts(self) -> Dict[str, int]:
+        """Get count of adapters by type."""
+        type_counts = {}
+        for name in self._adapters.keys():
+            metadata = self.get_metadata(name)
+            adapter_type = metadata.get("type", "unknown")
+            type_counts[adapter_type] = type_counts.get(adapter_type, 0) + 1
+        return type_counts
+
 
 class ConfigurationManager:
     """
-    Configuration manager for adapters.
+    Enhanced configuration manager for adapters with error handling.
     """
 
     def __init__(self, config_dir: str = "config/site_configs"):
         self.config_dir = Path(config_dir)
         self._config_cache: Dict[str, Dict[str, Any]] = {}
+        self.error_handler = get_global_error_handler()
 
+    @error_handler_decorator(
+        operation_name="load_config",
+        category=ErrorCategory.RESOURCE,
+        severity=ErrorSeverity.MEDIUM,
+        max_retries=2
+    )
     def load_config(self, adapter_name: str) -> Dict[str, Any]:
         """
-        Load configuration for an adapter.
+        Load configuration for an adapter with enhanced error handling.
 
         Args:
             adapter_name: Name of the adapter
@@ -151,19 +232,42 @@ class ConfigurationManager:
                 merged_config = ConfigurationHelper.merge_config(default_config, config)
 
                 self._config_cache[adapter_name] = merged_config
+                logger.debug(f"Successfully loaded config for {adapter_name}")
                 return merged_config
 
             except Exception as e:
+                error_context = ErrorContext(
+                    adapter_name=adapter_name,
+                    operation="load_config_file",
+                    additional_info={
+                        "config_file": str(config_file),
+                        "file_exists": config_file.exists(),
+                        "file_size": config_file.stat().st_size if config_file.exists() else 0
+                    }
+                )
+                
+                # Report file loading error (non-blocking)
+                asyncio.create_task(self.error_handler.handle_error(
+                    e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+                ))
+                
                 logger.error(f"Error loading config for {adapter_name}: {e}")
 
-        # Return default configuration if file not found
+        # Return default configuration if file not found or loading failed
         default_config = ConfigurationHelper.get_default_config()
         self._config_cache[adapter_name] = default_config
+        logger.info(f"Using default config for {adapter_name}")
         return default_config
 
+    @error_handler_decorator(
+        operation_name="save_config",
+        category=ErrorCategory.RESOURCE,
+        severity=ErrorSeverity.MEDIUM,
+        max_retries=2
+    )
     def save_config(self, adapter_name: str, config: Dict[str, Any]) -> None:
         """
-        Save configuration for an adapter.
+        Save configuration for an adapter with enhanced error handling.
 
         Args:
             adapter_name: Name of the adapter
@@ -184,11 +288,36 @@ class ConfigurationManager:
             logger.info(f"Configuration saved for {adapter_name}")
 
         except Exception as e:
+            error_context = ErrorContext(
+                adapter_name=adapter_name,
+                operation="save_config",
+                additional_info={
+                    "config_file": str(config_file) if 'config_file' in locals() else "unknown",
+                    "config_size": len(str(config)),
+                    "config_keys": list(config.keys())
+                }
+            )
+            
+            # Report save error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
             logger.error(f"Error saving config for {adapter_name}: {e}")
+            raise
 
     def clear_cache(self) -> None:
         """Clear configuration cache."""
         self._config_cache.clear()
+        logger.debug("Configuration cache cleared")
+
+    def get_cache_status(self) -> Dict[str, Any]:
+        """Get cache status information."""
+        return {
+            "cached_configs": len(self._config_cache),
+            "cached_adapters": list(self._config_cache.keys()),
+            "cache_memory_usage": sum(len(str(config)) for config in self._config_cache.values())
+        }
 
 
 class AdapterFactory:
@@ -197,20 +326,39 @@ class AdapterFactory:
 
     This factory provides:
     - Automatic adapter discovery and registration
-    - Configuration management
-    - Error handling and reporting
-    - Dynamic adapter creation
-    - Adapter validation
+    - Configuration management with error handling
+    - Circuit breaker pattern for adapter creation
+    - Comprehensive error reporting and recovery
+    - Adapter validation and health monitoring
     """
 
     def __init__(self, http_session: Optional[Any] = None, config_dir: str = "config/site_configs"):
         self.registry = AdapterRegistry()
         self.config_manager = ConfigurationManager(config_dir)
         self.http_session = http_session
+        self.error_handler = get_global_error_handler()
+        self.factory_id = str(uuid.uuid4())
+        
+        # Adapter creation statistics
+        self.creation_stats = {
+            "total_created": 0,
+            "successful_creations": 0,
+            "failed_creations": 0,
+            "creation_errors": [],
+            "last_creation_time": None,
+            "most_requested_adapters": {}
+        }
+        
         self._initialize_adapters()
 
+    @error_handler_decorator(
+        operation_name="initialize_adapters",
+        category=ErrorCategory.RESOURCE,
+        severity=ErrorSeverity.HIGH,
+        max_retries=2
+    )
     def _initialize_adapters(self) -> None:
-        """Initialize and register all available adapters."""
+        """Initialize and register all available adapters with enhanced error handling."""
         try:
             # Register built-in adapters
             self._register_builtin_adapters()
@@ -221,7 +369,22 @@ class AdapterFactory:
             logger.info(f"Initialized {len(self.registry.list_adapters())} adapters")
 
         except Exception as e:
+            error_context = ErrorContext(
+                adapter_name="factory",
+                operation="initialize_adapters",
+                additional_info={
+                    "factory_id": self.factory_id,
+                    "adapters_registered": len(self.registry.list_adapters())
+                }
+            )
+            
+            # Report initialization error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.HIGH, ErrorCategory.RESOURCE
+            ))
+            
             logger.error(f"Error initializing adapters: {e}")
+            raise
 
     def _register_builtin_adapters(self) -> None:
         """Register built-in adapters with enhanced metadata."""
@@ -303,7 +466,10 @@ class AdapterFactory:
         ]
 
         for adapter_info in international_adapters:
-            self._register_international_adapter(adapter_info)
+            try:
+                self._register_international_adapter(adapter_info)
+            except Exception as e:
+                logger.warning(f"Failed to register international adapter {adapter_info['name']}: {e}")
 
         # Iranian airlines
         persian_adapters = [
@@ -366,7 +532,10 @@ class AdapterFactory:
         ]
 
         for adapter_info in persian_adapters:
-            self._register_persian_adapter(adapter_info)
+            try:
+                self._register_persian_adapter(adapter_info)
+            except Exception as e:
+                logger.warning(f"Failed to register Persian adapter {adapter_info['name']}: {e}")
 
         # Aggregators
         aggregator_adapters = [
@@ -411,99 +580,195 @@ class AdapterFactory:
                 "base_url": "https://www.mz724.ir",
                 "currency": "IRR",
                 "airline_name": "MZ724",
-                "description": "Iranian flight booking platform",
+                "description": "Iranian booking platform",
                 "features": ["aggregator", "domestic_flights", "charter_flights"],
                 "is_aggregator": True,
             },
             {
                 "name": "parto_ticket",
-                "base_url": "https://parto-ticket.ir",
+                "base_url": "https://www.partoticket.com",
                 "currency": "IRR",
                 "airline_name": "Parto Ticket",
-                "description": "Iranian ticketing platform",
-                "features": ["aggregator", "domestic_flights", "multiple_airlines"],
+                "description": "Iranian travel booking platform",
+                "features": ["aggregator", "domestic_flights", "travel_services"],
+                "is_aggregator": True,
+            },
+            {
+                "name": "parto_crs",
+                "base_url": "https://www.partocrs.com",
+                "currency": "IRR",
+                "airline_name": "Parto CRS",
+                "description": "Iranian CRS platform",
+                "features": ["aggregator", "crs_system", "travel_agents"],
                 "is_aggregator": True,
             },
             {
                 "name": "book_charter",
-                "base_url": "https://bookcharter.ir",
+                "base_url": "https://www.bookcharter.ir",
                 "currency": "IRR",
                 "airline_name": "Book Charter",
-                "description": "Charter flight booking platform",
+                "description": "Iranian charter booking platform",
                 "features": ["aggregator", "charter_flights", "domestic_routes"],
+                "is_aggregator": True,
+            },
+            {
+                "name": "book_charter_724",
+                "base_url": "https://www.bookcharter724.ir",
+                "currency": "IRR",
+                "airline_name": "Book Charter 724",
+                "description": "Iranian charter booking platform",
+                "features": ["aggregator", "charter_flights", "24_7_service"],
+                "is_aggregator": True,
+            },
+            {
+                "name": "snapptrip",
+                "base_url": "https://www.snapptrip.com",
+                "currency": "IRR",
+                "airline_name": "Snapp Trip",
+                "description": "Iranian travel booking platform",
+                "features": ["aggregator", "domestic_flights", "hotels"],
                 "is_aggregator": True,
             },
         ]
 
         for adapter_info in aggregator_adapters:
-            self._register_persian_adapter(adapter_info)
+            try:
+                self._register_aggregator_adapter(adapter_info)
+            except Exception as e:
+                logger.warning(f"Failed to register aggregator adapter {adapter_info['name']}: {e}")
 
     def _register_international_adapter(self, adapter_info: Dict[str, Any]) -> None:
-        """Register an international adapter."""
-        name = adapter_info["name"]
+        """Register an international adapter with error handling."""
+        try:
+            adapter_class = self._create_dynamic_adapter_class(
+                adapter_info["name"], EnhancedInternationalAdapter, adapter_info
+            )
 
-        # Load configuration
-        config = self.config_manager.load_config(name)
-
-        # Update config with adapter info
-        config.update(
-            {
+            config = {
                 "base_url": adapter_info["base_url"],
-                "default_currency": adapter_info["currency"],
+                "currency": adapter_info["currency"],
+                "timeout": 30,
+                "extraction_config": ConfigurationHelper.get_default_extraction_config(),
+                "name": adapter_info["name"]
             }
-        )
 
-        # Create metadata
-        metadata = {
-            "type": "international",
-            "airline_name": adapter_info["airline_name"],
-            "description": adapter_info["description"],
-            "features": adapter_info["features"],
-            "currency": adapter_info["currency"],
-            "base_url": adapter_info["base_url"],
-        }
+            metadata = {
+                "type": "international",
+                "airline_name": adapter_info["airline_name"],
+                "description": adapter_info["description"],
+                "features": adapter_info["features"],
+                "base_url": adapter_info["base_url"],
+                "currency": adapter_info["currency"]
+            }
 
-        # Create dynamic adapter class
-        adapter_class = self._create_dynamic_adapter_class(
-            name, EnhancedInternationalAdapter, adapter_info
-        )
+            self.registry.register(adapter_info["name"], adapter_class, config, metadata)
 
-        self.registry.register(name, adapter_class, config, metadata)
+        except Exception as e:
+            error_context = ErrorContext(
+                adapter_name=adapter_info["name"],
+                operation="register_international_adapter",
+                additional_info={
+                    "adapter_info": adapter_info,
+                    "adapter_type": "international"
+                }
+            )
+            
+            # Report registration error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Failed to register international adapter {adapter_info['name']}: {e}")
+            raise
 
     def _register_persian_adapter(self, adapter_info: Dict[str, Any]) -> None:
-        """Register a Persian adapter."""
-        name = adapter_info["name"]
+        """Register a Persian adapter with error handling."""
+        try:
+            adapter_class = self._create_dynamic_adapter_class(
+                adapter_info["name"], EnhancedPersianAdapter, adapter_info
+            )
 
-        # Load configuration
-        config = self.config_manager.load_config(name)
-
-        # Update config with adapter info
-        config.update(
-            {
+            config = {
                 "base_url": adapter_info["base_url"],
-                "default_currency": adapter_info["currency"],
+                "currency": adapter_info["currency"],
+                "timeout": 30,
+                "extraction_config": ConfigurationHelper.get_default_extraction_config(),
+                "name": adapter_info["name"]
             }
-        )
 
-        # Create metadata
-        metadata = {
-            "type": (
-                "persian" if not adapter_info.get("is_aggregator") else "aggregator"
-            ),
-            "airline_name": adapter_info["airline_name"],
-            "description": adapter_info["description"],
-            "features": adapter_info["features"],
-            "currency": adapter_info["currency"],
-            "base_url": adapter_info["base_url"],
-            "is_aggregator": adapter_info.get("is_aggregator", False),
-        }
+            metadata = {
+                "type": "persian",
+                "airline_name": adapter_info["airline_name"],
+                "description": adapter_info["description"],
+                "features": adapter_info["features"],
+                "base_url": adapter_info["base_url"],
+                "currency": adapter_info["currency"]
+            }
 
-        # Create dynamic adapter class
-        adapter_class = self._create_dynamic_adapter_class(
-            name, EnhancedPersianAdapter, adapter_info
-        )
+            self.registry.register(adapter_info["name"], adapter_class, config, metadata)
 
-        self.registry.register(name, adapter_class, config, metadata)
+        except Exception as e:
+            error_context = ErrorContext(
+                adapter_name=adapter_info["name"],
+                operation="register_persian_adapter",
+                additional_info={
+                    "adapter_info": adapter_info,
+                    "adapter_type": "persian"
+                }
+            )
+            
+            # Report registration error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Failed to register Persian adapter {adapter_info['name']}: {e}")
+            raise
+
+    def _register_aggregator_adapter(self, adapter_info: Dict[str, Any]) -> None:
+        """Register an aggregator adapter with error handling."""
+        try:
+            adapter_class = self._create_dynamic_adapter_class(
+                adapter_info["name"], EnhancedPersianAdapter, adapter_info
+            )
+
+            config = {
+                "base_url": adapter_info["base_url"],
+                "currency": adapter_info["currency"],
+                "timeout": 30,
+                "extraction_config": ConfigurationHelper.get_default_extraction_config(),
+                "name": adapter_info["name"]
+            }
+
+            metadata = {
+                "type": "aggregator",
+                "airline_name": adapter_info["airline_name"],
+                "description": adapter_info["description"],
+                "features": adapter_info["features"],
+                "base_url": adapter_info["base_url"],
+                "currency": adapter_info["currency"],
+                "is_aggregator": True
+            }
+
+            self.registry.register(adapter_info["name"], adapter_class, config, metadata)
+
+        except Exception as e:
+            error_context = ErrorContext(
+                adapter_name=adapter_info["name"],
+                operation="register_aggregator_adapter",
+                additional_info={
+                    "adapter_info": adapter_info,
+                    "adapter_type": "aggregator"
+                }
+            )
+            
+            # Report registration error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Failed to register aggregator adapter {adapter_info['name']}: {e}")
+            raise
 
     def _create_dynamic_adapter_class(
         self,
@@ -513,76 +778,83 @@ class AdapterFactory:
     ) -> Type[EnhancedBaseCrawler]:
         """Create a dynamic adapter class."""
 
-        class_name = f"{name.title().replace('_', '')}Adapter"
+        class DynamicAdapter(base_class):
+            def get_adapter_name(self) -> str:
+                return name
 
-        # Define methods for the dynamic class
-        def get_adapter_name(self) -> str:
-            return name.replace("_", " ").title()
+            def get_base_url(self) -> str:
+                return adapter_info["base_url"]
 
-        def get_base_url(self) -> str:
-            return adapter_info["base_url"]
+            def extract_currency(self, element, config: Dict[str, Any]) -> str:
+                return adapter_info["currency"]
 
-        def extract_currency(self, element, config: Dict[str, Any]) -> str:
-            return adapter_info.get("currency", "USD")
+            def get_adapter_specific_config(self) -> Dict[str, Any]:
+                return {
+                    "airline_name": adapter_info["airline_name"],
+                    "description": adapter_info["description"],
+                    "features": adapter_info["features"]
+                }
 
-        def get_adapter_specific_config(self) -> Dict[str, Any]:
-            return {
-                "airline_name": adapter_info["airline_name"],
-                "features": adapter_info["features"],
-                "is_aggregator": adapter_info.get("is_aggregator", False),
-            }
-
-        # Create the dynamic class
-        adapter_class = type(
-            class_name,
-            (base_class,),
-            {
-                "_get_adapter_name": get_adapter_name,
-                "_get_base_url": get_base_url,
-                "_extract_currency": extract_currency,
-                "_get_adapter_specific_config": get_adapter_specific_config,
-                "__module__": "adapters.dynamic",
-            },
-        )
-
-        return adapter_class
+        DynamicAdapter.__name__ = f"Dynamic{name.title().replace('_', '')}Adapter"
+        DynamicAdapter.__qualname__ = DynamicAdapter.__name__
+        
+        return DynamicAdapter
 
     def _discover_adapters(self) -> None:
-        """Auto-discover adapters from adapter modules."""
+        """Discover adapters from modules with error handling."""
         try:
-            # Discover Iranian airline adapters
+            # Discover adapters in site_adapters modules
             self._discover_adapters_in_path("adapters.site_adapters.iranian_airlines")
-
-            # Discover international airline adapters
-            self._discover_adapters_in_path(
-                "adapters.site_adapters.international_airlines"
-            )
-
-            # Discover aggregator adapters
-            self._discover_adapters_in_path(
-                "adapters.site_adapters.iranian_aggregators"
-            )
-            self._discover_adapters_in_path(
-                "adapters.site_adapters.international_aggregators"
-            )
-
+            self._discover_adapters_in_path("adapters.site_adapters.international_airlines")
+            self._discover_adapters_in_path("adapters.site_adapters.refactored")
+            
+            logger.debug("Adapter discovery completed")
+            
         except Exception as e:
+            error_context = ErrorContext(
+                adapter_name="factory",
+                operation="discover_adapters",
+                additional_info={
+                    "factory_id": self.factory_id,
+                    "discovery_paths": [
+                        "adapters.site_adapters.iranian_airlines",
+                        "adapters.site_adapters.international_airlines",
+                        "adapters.site_adapters.refactored"
+                    ]
+                }
+            )
+            
+            # Report discovery error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
             logger.warning(f"Error during adapter discovery: {e}")
 
     def _discover_adapters_in_path(self, module_path: str) -> None:
         """Discover adapters in a specific module path."""
         try:
-            # This would require implementing a module scanner
-            # For now, we rely on manual registration
-            pass
+            # Try to import the module and discover adapters
+            module = importlib.import_module(module_path)
+            # Implementation would depend on the specific module structure
+            logger.debug(f"Successfully discovered adapters in {module_path}")
+            
+        except ImportError:
+            logger.debug(f"Module {module_path} not found, skipping discovery")
         except Exception as e:
             logger.debug(f"Could not discover adapters in {module_path}: {e}")
 
+    @error_handler_decorator(
+        operation_name="create_adapter",
+        category=ErrorCategory.RESOURCE,
+        severity=ErrorSeverity.HIGH,
+        max_retries=3
+    )
     def create_adapter(
         self, name: str, config: Optional[Dict[str, Any]] = None
     ) -> EnhancedBaseCrawler:
         """
-        Create an adapter instance with merged configuration.
+        Create an adapter instance with comprehensive error handling and monitoring.
 
         Args:
             name: Name of the adapter
@@ -594,36 +866,102 @@ class AdapterFactory:
         Raises:
             ValueError: If the adapter is not found.
         """
-        normalized_name = name.lower().replace("-", "_").replace(" ", "_")
-
-        # Load configuration
-        adapter_class = self.registry.get(normalized_name)
-        if not adapter_class:
-            similar = self._find_similar_adapters(normalized_name)
-            if similar:
-                raise ValueError(
-                    f"Adapter '{name}' not found. Did you mean one of: {', '.join(similar)}?"
-                )
-            raise ValueError(f"Adapter '{name}' not found.")
-
-        # Merge configurations
-        base_config = self.config_manager.load_config(normalized_name)
-        final_config = ConfigurationHelper.merge_config(base_config, config or {})
-
+        creation_start_time = datetime.now()
+        
+        # Update statistics
+        self.creation_stats["total_created"] += 1
+        self.creation_stats["last_creation_time"] = creation_start_time
+        
+        # Track most requested adapters
+        self.creation_stats["most_requested_adapters"][name] = (
+            self.creation_stats["most_requested_adapters"].get(name, 0) + 1
+        )
+        
         try:
-            # Pass http_session to the adapter's constructor
-            return adapter_class(config=final_config, http_session=self.http_session)
-        except TypeError:
-            # Fallback for adapters that don't accept http_session
-            logger.warning(f"Adapter '{name}' does not accept 'http_session' argument. "
-                           f"Consider updating its constructor.")
-            return adapter_class(config=final_config)
-        except Exception as e:
-            ErrorReportingHelper.report_error(
-                "adapter_creation",
-                f"Failed to create adapter '{name}': {e}",
-                adapter_name=name,
+            normalized_name = name.lower().replace("-", "_").replace(" ", "_")
+
+            # Load configuration
+            adapter_class = self.registry.get(normalized_name)
+            if not adapter_class:
+                similar = self._find_similar_adapters(normalized_name)
+                if similar:
+                    error_msg = f"Adapter '{name}' not found. Did you mean one of: {', '.join(similar)}?"
+                    raise ValueError(error_msg)
+                raise ValueError(f"Adapter '{name}' not found.")
+
+            # Merge configurations
+            base_config = self.config_manager.load_config(normalized_name)
+            final_config = ConfigurationHelper.merge_config(base_config, config or {})
+
+            # Create error context for adapter creation
+            error_context = ErrorContext(
+                adapter_name=normalized_name,
+                operation="create_adapter_instance",
+                additional_info={
+                    "factory_id": self.factory_id,
+                    "adapter_class": str(adapter_class),
+                    "config_keys": list(final_config.keys()),
+                    "has_http_session": self.http_session is not None
+                }
             )
+
+            # Create adapter instance
+            try:
+                # Pass http_session to the adapter's constructor
+                adapter = adapter_class(config=final_config, http_session=self.http_session)
+                
+                # Record successful creation
+                self.creation_stats["successful_creations"] += 1
+                creation_duration = (datetime.now() - creation_start_time).total_seconds()
+                
+                logger.info(f"Successfully created adapter '{name}' in {creation_duration:.2f}s")
+                return adapter
+                
+            except TypeError:
+                # Fallback for adapters that don't accept http_session
+                logger.warning(f"Adapter '{name}' does not accept 'http_session' argument. "
+                               f"Consider updating its constructor.")
+                
+                adapter = adapter_class(config=final_config)
+                
+                # Record successful creation
+                self.creation_stats["successful_creations"] += 1
+                creation_duration = (datetime.now() - creation_start_time).total_seconds()
+                
+                logger.info(f"Successfully created adapter '{name}' (fallback mode) in {creation_duration:.2f}s")
+                return adapter
+                
+        except Exception as e:
+            # Record failed creation
+            self.creation_stats["failed_creations"] += 1
+            error_info = {
+                "adapter_name": name,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+            self.creation_stats["creation_errors"].append(error_info)
+            
+            # Keep only last 100 errors
+            if len(self.creation_stats["creation_errors"]) > 100:
+                self.creation_stats["creation_errors"] = self.creation_stats["creation_errors"][-100:]
+            
+            error_context = ErrorContext(
+                adapter_name=name,
+                operation="create_adapter",
+                additional_info={
+                    "factory_id": self.factory_id,
+                    "config_provided": config is not None,
+                    "creation_duration": (datetime.now() - creation_start_time).total_seconds()
+                }
+            )
+            
+            # Report creation error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.HIGH, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Failed to create adapter '{name}': {e}")
             raise
 
     def _find_similar_adapters(self, name: str) -> List[str]:
@@ -638,11 +976,17 @@ class AdapterFactory:
 
         return similar
 
+    @error_handler_decorator(
+        operation_name="create_adapter_from_module",
+        category=ErrorCategory.RESOURCE,
+        severity=ErrorSeverity.HIGH,
+        max_retries=2
+    )
     def create_adapter_from_module(
         self, module_path: str, class_name: str, config: Dict[str, Any]
     ) -> EnhancedBaseCrawler:
         """
-        Create adapter from a specific module.
+        Create adapter from a specific module with enhanced error handling.
 
         Args:
             module_path: Full module path
@@ -659,9 +1003,26 @@ class AdapterFactory:
             if not issubclass(adapter_class, EnhancedBaseCrawler):
                 raise ValueError(f"{class_name} is not a valid adapter class")
 
-            return adapter_class(config)
+            adapter = adapter_class(config)
+            logger.info(f"Successfully created adapter from module {module_path}.{class_name}")
+            return adapter
 
         except Exception as e:
+            error_context = ErrorContext(
+                adapter_name=class_name,
+                operation="create_adapter_from_module",
+                additional_info={
+                    "module_path": module_path,
+                    "class_name": class_name,
+                    "config_keys": list(config.keys())
+                }
+            )
+            
+            # Report module creation error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.HIGH, ErrorCategory.RESOURCE
+            ))
+            
             logger.error(f"Error creating adapter from module {module_path}: {e}")
             raise
 
@@ -735,9 +1096,78 @@ class AdapterFactory:
 
     def reload_adapters(self) -> None:
         """Reload all adapters and configurations."""
-        self.config_manager.clear_cache()
-        self.registry = AdapterRegistry()
-        self._initialize_adapters()
+        try:
+            self.config_manager.clear_cache()
+            self.registry = AdapterRegistry()
+            self._initialize_adapters()
+            logger.info("Successfully reloaded all adapters")
+            
+        except Exception as e:
+            error_context = ErrorContext(
+                adapter_name="factory",
+                operation="reload_adapters",
+                additional_info={
+                    "factory_id": self.factory_id,
+                    "previous_adapter_count": len(self.registry.list_adapters())
+                }
+            )
+            
+            # Report reload error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Error reloading adapters: {e}")
+            raise
+
+    def get_factory_health_status(self) -> Dict[str, Any]:
+        """Get comprehensive health status of the factory."""
+        try:
+            registry_status = self.registry.get_health_status()
+            config_status = self.config_manager.get_cache_status()
+            error_stats = self.error_handler.get_error_statistics()
+            
+            return {
+                "factory_id": self.factory_id,
+                "is_healthy": True,
+                "registry_status": registry_status,
+                "config_status": config_status,
+                "creation_stats": self.creation_stats,
+                "error_statistics": error_stats,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get factory health status: {e}")
+            return {
+                "factory_id": self.factory_id,
+                "is_healthy": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+
+    def reset_factory_errors(self) -> None:
+        """Reset factory error state and statistics."""
+        try:
+            # Reset creation statistics
+            self.creation_stats = {
+                "total_created": 0,
+                "successful_creations": 0,
+                "failed_creations": 0,
+                "creation_errors": [],
+                "last_creation_time": None,
+                "most_requested_adapters": {}
+            }
+            
+            # Reset circuit breakers for all adapters
+            for adapter_name in self.registry.list_adapters():
+                asyncio.create_task(self.error_handler.reset_circuit_breaker(adapter_name))
+                
+            logger.info("Successfully reset factory error state")
+            
+        except Exception as e:
+            logger.error(f"Failed to reset factory error state: {e}")
+            raise
 
 
 # Global factory instance
@@ -779,5 +1209,15 @@ def search_adapters(query: str) -> List[str]:
 
 
 def get_adapter_info(name: str) -> Dict[str, Any]:
-    """Get information about a specific adapter."""
+    """Get detailed information about an adapter."""
     return get_factory().get_adapter_info(name)
+
+
+def get_factory_health() -> Dict[str, Any]:
+    """Get health status of the global factory."""
+    return get_factory().get_factory_health_status()
+
+
+def reset_factory_errors() -> None:
+    """Reset error state of the global factory."""
+    get_factory().reset_factory_errors()

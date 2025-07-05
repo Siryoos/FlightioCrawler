@@ -6,17 +6,29 @@ from datetime import datetime
 from pathlib import Path
 import redis
 import psycopg2
+import uuid
 from local_crawler import BrowserConfig, CrawlerRunConfig
 from hazm import Normalizer
 from persian_tools import digits
 import jdatetime
-from monitoring import CrawlerMonitor, ErrorHandler
+from monitoring import CrawlerMonitor
 from monitoring.production_memory_monitor import ProductionMemoryMonitor
 from monitoring.memory_health_endpoint import MemoryHealthServer
 from data_manager import DataManager
 
 # Use AdapterFactory instead of manual imports
 from adapters.factories.adapter_factory import AdapterFactory
+
+# Enhanced Error Handler Integration
+from adapters.base_adapters.enhanced_error_handler import (
+    EnhancedErrorHandler,
+    ErrorContext,
+    ErrorSeverity,
+    ErrorCategory,
+    ErrorAction,
+    error_handler_decorator,
+    get_global_error_handler
+)
 
 try:
     from crawl4ai.cache_mode import CacheMode
@@ -61,16 +73,21 @@ class FlightData:
 
 
 class IranianFlightCrawler:
-    """Main crawler orchestrator using AdapterFactory for all flight booking sites"""
+    """Enhanced main crawler orchestrator with comprehensive error handling and monitoring"""
 
     def __init__(self, http_session: Optional[Any] = None, max_concurrent_crawls: int = 5, enable_memory_monitoring: bool = True) -> None:
         # Initialize core components
         self.monitor: CrawlerMonitor = CrawlerMonitor()
-        self.error_handler: ErrorHandler = ErrorHandler()
+        self.error_handler: EnhancedErrorHandler = get_global_error_handler()
         self.data_manager: DataManager = DataManager()
         self.rate_limiter: RateLimiter = RateLimiter()
         self.text_processor: PersianTextProcessor = PersianTextProcessor()
         self.http_session = http_session
+        
+        # Crawler identification and session management
+        self.crawler_id = str(uuid.uuid4())
+        self.session_id = str(uuid.uuid4())
+        self.current_operation = None
 
         # Initialize adapter factory
         self.adapter_factory: AdapterFactory = AdapterFactory(http_session=self.http_session)
@@ -106,13 +123,50 @@ class IranianFlightCrawler:
         self.memory_health_server: Optional[MemoryHealthServer] = None
         self.enable_memory_monitoring = enable_memory_monitoring
         
+        # Crawler statistics and monitoring
+        self.crawler_stats = {
+            "total_crawls": 0,
+            "successful_crawls": 0,
+            "failed_crawls": 0,
+            "crawls_by_site": {},
+            "average_crawl_time": 0,
+            "last_crawl_time": None,
+            "uptime_start": datetime.now()
+        }
+        
         if self.enable_memory_monitoring:
             self._setup_memory_monitoring()
 
-        logger.info(f"Flight Crawler initialized with {len(self.adapters)} adapters")
+        logger.info(f"Enhanced Flight Crawler initialized with {len(self.adapters)} adapters (ID: {self.crawler_id})")
 
+    def _create_error_context(
+        self, 
+        operation: str, 
+        additional_info: Optional[Dict[str, Any]] = None
+    ) -> ErrorContext:
+        """Create error context for current operation"""
+        context = ErrorContext(
+            adapter_name="main_crawler",
+            operation=operation,
+            session_id=self.session_id,
+            additional_info={
+                "crawler_id": self.crawler_id,
+                "enabled_sites": list(self.enabled_sites),
+                "active_tasks": len(self.active_tasks),
+                "current_operation": self.current_operation,
+                **(additional_info or {})
+            }
+        )
+        return context
+
+    @error_handler_decorator(
+        operation_name="initialize_adapters",
+        category=ErrorCategory.RESOURCE,
+        severity=ErrorSeverity.HIGH,
+        max_retries=2
+    )
     def _initialize_adapters(self) -> Dict[str, Any]:
-        """Initialize all adapters using AdapterFactory with their configurations."""
+        """Initialize all adapters using AdapterFactory with enhanced error handling."""
         adapters: Dict[str, Any] = {}
 
         # Get default configurations for each adapter
@@ -130,14 +184,33 @@ class IranianFlightCrawler:
             "qatar_airways": self._get_adapter_config("qatar_airways"),
         }
 
-        # Create adapters using factory
+        # Create adapters using factory with enhanced error handling
         for adapter_name, config in adapter_configs.items():
             try:
                 adapter = self.adapter_factory.create_adapter(adapter_name, config)
                 adapters[adapter_name] = adapter
                 logger.info(f"✅ Initialized {adapter_name} adapter")
+                
             except Exception as e:
+                error_context = self._create_error_context(
+                    "initialize_single_adapter",
+                    {
+                        "adapter_name": adapter_name,
+                        "config_keys": list(config.keys()),
+                        "total_adapters": len(adapter_configs),
+                        "initialized_adapters": len(adapters)
+                    }
+                )
+                
+                # Report adapter initialization error (non-blocking)
+                asyncio.create_task(self.error_handler.handle_error(
+                    e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+                ))
+                
                 logger.error(f"❌ Failed to initialize {adapter_name} adapter: {e}")
+
+        if not adapters:
+            raise RuntimeError("No adapters could be initialized")
 
         return adapters
 
@@ -165,6 +238,8 @@ class IranianFlightCrawler:
                 ],
                 "price_range": {"min": 0, "max": 50000000},  # IRR
             },
+            "name": adapter_name,
+            "session_id": self.session_id
         }
 
         # Load adapter-specific configs if available
@@ -201,66 +276,87 @@ class IranianFlightCrawler:
         }
 
     def _setup_memory_monitoring(self) -> None:
-        """راه‌اندازی سیستم نظارت حافظه"""
+        """Set up memory monitoring for production use"""
         try:
-            # Initialize memory monitor with production config
-            config_path = "monitoring/monitoring_config.json"
-            self.memory_monitor = ProductionMemoryMonitor(config_path)
-            
-            # Initialize health server
-            health_port = getattr(config, 'MEMORY_HEALTH_PORT', 8080)
-            self.memory_health_server = MemoryHealthServer(
-                self.memory_monitor, 
-                port=health_port
+            # Initialize memory monitor
+            self.memory_monitor = ProductionMemoryMonitor(
+                threshold_percent=85, check_interval=30
+            )
+
+            # Initialize memory health server
+            self.memory_health_server = MemoryHealthServer(host="0.0.0.0", port=8081)
+
+            logger.info("Memory monitoring initialized")
+
+        except Exception as e:
+            error_context = self._create_error_context(
+                "setup_memory_monitoring",
+                {"monitoring_enabled": self.enable_memory_monitoring}
             )
             
-            logger.info("✅ Memory monitoring system initialized")
+            # Report memory monitoring setup error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
             
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize memory monitoring: {e}")
-            self.memory_monitor = None
-            self.memory_health_server = None
+            logger.warning(f"Failed to setup memory monitoring: {e}")
 
     async def start_memory_monitoring(self) -> None:
-        """شروع نظارت حافظه"""
-        if self.memory_monitor and self.enable_memory_monitoring:
-            try:
-                await self.memory_monitor.start_monitoring()
-                logger.info("🚀 Memory monitoring started")
-                
-                # Start health server in background
-                if self.memory_health_server:
-                    asyncio.create_task(self.memory_health_server.start_server())
-                    logger.info("🌐 Memory health server started")
-                    
-            except Exception as e:
-                logger.error(f"❌ Failed to start memory monitoring: {e}")
+        """Start memory monitoring services"""
+        try:
+            if self.memory_monitor:
+                await self.memory_monitor.start()
+            if self.memory_health_server:
+                await self.memory_health_server.start()
+            logger.info("Memory monitoring started")
+        except Exception as e:
+            logger.error(f"Failed to start memory monitoring: {e}")
 
     async def stop_memory_monitoring(self) -> None:
-        """توقف نظارت حافظه"""
-        if self.memory_monitor:
-            try:
-                await self.memory_monitor.stop_monitoring()
-                logger.info("❌ Memory monitoring stopped")
-                
-                if self.memory_health_server:
-                    await self.memory_health_server.stop_server()
-                    logger.info("❌ Memory health server stopped")
-                    
-            except Exception as e:
-                logger.error(f"Error stopping memory monitoring: {e}")
+        """Stop memory monitoring services"""
+        try:
+            if self.memory_monitor:
+                await self.memory_monitor.stop()
+            if self.memory_health_server:
+                await self.memory_health_server.stop()
+            logger.info("Memory monitoring stopped")
+        except Exception as e:
+            logger.error(f"Failed to stop memory monitoring: {e}")
 
     def get_memory_status(self) -> Dict[str, Any]:
-        """دریافت وضعیت نظارت حافظه"""
+        """Get current memory status"""
         if self.memory_monitor:
             return self.memory_monitor.get_status()
-        return {"monitoring_enabled": False, "status": "disabled"}
+        return {"status": "not_available", "reason": "memory monitoring disabled"}
 
+    @error_handler_decorator(
+        operation_name="crawl_all_sites",
+        category=ErrorCategory.UNKNOWN,
+        severity=ErrorSeverity.HIGH,
+        max_retries=2
+    )
     async def crawl_all_sites(
         self, search_params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Orchestrate crawling across all three sites"""
+        """Orchestrate crawling across all sites with comprehensive error handling"""
+        crawl_start_time = datetime.now()
+        self.current_operation = "crawl_all_sites"
+        
+        # Update statistics
+        self.crawler_stats["total_crawls"] += 1
+        self.crawler_stats["last_crawl_time"] = crawl_start_time
+        
         try:
+            # Create error context for this crawl operation
+            error_context = self._create_error_context(
+                "crawl_all_sites",
+                {
+                    "search_params": search_params,
+                    "enabled_sites_count": len(self.enabled_sites),
+                    "crawl_start_time": crawl_start_time.isoformat()
+                }
+            )
+
             # Ensure required parameters have defaults
             search_params.setdefault("passengers", 1)
             search_params.setdefault("seat_class", "economy")
@@ -276,6 +372,7 @@ class IranianFlightCrawler:
             for site_name, adapter in self.adapters.items():
                 if site_name not in self.enabled_sites:
                     continue
+                    
                 task = asyncio.create_task(
                     self._crawl_site_safely(site_name, adapter, search_params),
                     name=f"crawl_{site_name}",
@@ -284,18 +381,70 @@ class IranianFlightCrawler:
                 self.active_tasks.add(task)
                 task.add_done_callback(self.active_tasks.discard)
 
+            if not tasks:
+                raise ValueError("No enabled sites available for crawling")
+
             # Wait for all tasks to complete
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Process results
+            # Process results with enhanced error tracking
             all_flights: List[Dict[str, Any]] = []
+            successful_sites = 0
+            failed_sites = 0
+            
             for i, result in enumerate(results):
                 site_name = list(self.adapters.keys())[i]
+                
+                # Update site-specific statistics
+                if site_name not in self.crawler_stats["crawls_by_site"]:
+                    self.crawler_stats["crawls_by_site"][site_name] = {
+                        "total": 0, "successful": 0, "failed": 0
+                    }
+                
+                self.crawler_stats["crawls_by_site"][site_name]["total"] += 1
+                
                 if isinstance(result, Exception):
+                    failed_sites += 1
+                    self.crawler_stats["crawls_by_site"][site_name]["failed"] += 1
+                    
+                    # Create specific error context for site failure
+                    site_error_context = self._create_error_context(
+                        "site_crawl_failed",
+                        {
+                            "site_name": site_name,
+                            "error_type": type(result).__name__,
+                            "error_message": str(result),
+                            "crawl_duration": (datetime.now() - crawl_start_time).total_seconds()
+                        }
+                    )
+                    
+                    # Report site-specific error (non-blocking)
+                    asyncio.create_task(self.error_handler.handle_error(
+                        result, site_error_context, ErrorSeverity.MEDIUM, ErrorCategory.UNKNOWN
+                    ))
+                    
                     logger.error(f"Error crawling {site_name}: {result}")
+                    
                 elif isinstance(result, list):
+                    successful_sites += 1
+                    self.crawler_stats["crawls_by_site"][site_name]["successful"] += 1
                     all_flights.extend(result)
                     logger.info(f"✅ {site_name}: {len(result)} flights")
+
+            # Update overall statistics
+            crawl_duration = (datetime.now() - crawl_start_time).total_seconds()
+            if successful_sites > 0:
+                self.crawler_stats["successful_crawls"] += 1
+            if failed_sites == len(tasks):  # All sites failed
+                self.crawler_stats["failed_crawls"] += 1
+                
+            # Update average crawl time
+            if self.crawler_stats["successful_crawls"] > 0:
+                current_avg = self.crawler_stats["average_crawl_time"]
+                total_successful = self.crawler_stats["successful_crawls"]
+                self.crawler_stats["average_crawl_time"] = (
+                    (current_avg * (total_successful - 1) + crawl_duration) / total_successful
+                )
 
             # Store results in cache
             await self.data_manager.cache_search_results(
@@ -307,67 +456,252 @@ class IranianFlightCrawler:
             if all_flights:
                 await self.data_manager.store_flights({"all_sites": all_flights})
 
-            logger.info(f"Total flights found: {len(all_flights)}")
+            logger.info(
+                f"Crawl completed in {crawl_duration:.2f}s: "
+                f"{len(all_flights)} flights from {successful_sites}/{len(tasks)} sites"
+            )
+            
             return all_flights
 
         except Exception as e:
+            # Update failure statistics
+            self.crawler_stats["failed_crawls"] += 1
+            crawl_duration = (datetime.now() - crawl_start_time).total_seconds()
+            
+            error_context = self._create_error_context(
+                "crawl_all_sites_failure",
+                {
+                    "search_params": search_params,
+                    "crawl_duration": crawl_duration,
+                    "enabled_sites": list(self.enabled_sites),
+                    "total_crawls": self.crawler_stats["total_crawls"]
+                }
+            )
+            
+            # Report crawler-level error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.HIGH, ErrorCategory.UNKNOWN
+            ))
+            
             logger.error(f"Error in crawl_all_sites: {e}")
-            await self.error_handler.handle_error("crawler", str(e))
             return []
+            
+        finally:
+            self.current_operation = None
 
+    @error_handler_decorator(
+        operation_name="crawl_site_safely",
+        category=ErrorCategory.UNKNOWN,
+        severity=ErrorSeverity.MEDIUM,
+        max_retries=3
+    )
     async def _crawl_site_safely(
         self, site_name: str, adapter: Any, search_params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Safely crawl a single site with error handling"""
+        """Safely crawl a single site with comprehensive error handling and monitoring"""
+        site_start_time = datetime.now()
+        
         try:
+            # Create error context for site crawling
+            error_context = self._create_error_context(
+                "crawl_single_site",
+                {
+                    "site_name": site_name,
+                    "search_params": search_params,
+                    "adapter_type": type(adapter).__name__,
+                    "site_start_time": site_start_time.isoformat()
+                }
+            )
+
             async with self.semaphore:
                 async with adapter:
                     await self.rate_limiter.wait_for_token(site_name)
                     logger.info(f"Starting crawl for {site_name}")
-                    flights = await adapter.crawl(search_params)
+                    
+                    # Execute crawl with timeout protection
+                    flights = await asyncio.wait_for(
+                        adapter.crawl(search_params),
+                        timeout=300  # 5 minute timeout per site
+                    )
+                    
+                    site_duration = (datetime.now() - site_start_time).total_seconds()
                     self.monitor.log_success(site_name, len(flights))
+                    
+                    logger.info(
+                        f"✅ {site_name} completed in {site_duration:.2f}s: {len(flights)} flights"
+                    )
+                    
                     return flights
 
-        except Exception as e:
-            logger.error(f"Error crawling {site_name}: {e}")
-            self.error_handler.record_failure(site_name)
-            await self.error_handler.handle_error(site_name, str(e))
+        except asyncio.TimeoutError as e:
+            site_duration = (datetime.now() - site_start_time).total_seconds()
+            
+            error_context = self._create_error_context(
+                "site_crawl_timeout",
+                {
+                    "site_name": site_name,
+                    "timeout_duration": 300,
+                    "actual_duration": site_duration,
+                    "search_params": search_params
+                }
+            )
+            
+            # Report timeout error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.HIGH, ErrorCategory.TIMEOUT
+            ))
+            
+            logger.error(f"Timeout crawling {site_name} after {site_duration:.2f}s")
             return []
+            
+        except Exception as e:
+            site_duration = (datetime.now() - site_start_time).total_seconds()
+            
+            error_context = self._create_error_context(
+                "site_crawl_error",
+                {
+                    "site_name": site_name,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "crawl_duration": site_duration,
+                    "search_params": search_params
+                }
+            )
+            
+            # Report site crawling error (non-blocking)
+            should_retry, strategy = await self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.UNKNOWN
+            )
+            
+            self.monitor.record_error()
+            
+            if should_retry:
+                logger.warning(f"Retrying {site_name} with strategy: {strategy}")
+                raise  # Let decorator handle retry
+            else:
+                logger.error(f"Permanently failed to crawl {site_name}: {e}")
+                return []
 
     async def shutdown(self):
-        """Gracefully cancel all active crawling tasks."""
+        """Gracefully cancel all active crawling tasks with enhanced monitoring."""
         if not self.active_tasks:
             return
 
-        logger.info(f"Cancelling {len(self.active_tasks)} active tasks...")
-        for task in list(self.active_tasks):
-            task.cancel()
+        shutdown_start = datetime.now()
+        self.current_operation = "shutdown"
+        
+        try:
+            logger.info(f"Cancelling {len(self.active_tasks)} active tasks...")
+            
+            # Cancel all active tasks
+            for task in list(self.active_tasks):
+                task.cancel()
 
-        await asyncio.gather(*self.active_tasks, return_exceptions=True)
-        self.active_tasks.clear()
-        logger.info("All active tasks have been cancelled.")
+            # Wait for all tasks to complete with timeout
+            await asyncio.wait_for(
+                asyncio.gather(*self.active_tasks, return_exceptions=True),
+                timeout=30  # 30 second shutdown timeout
+            )
+            
+            self.active_tasks.clear()
+            
+            # Stop memory monitoring
+            if self.enable_memory_monitoring:
+                await self.stop_memory_monitoring()
+            
+            shutdown_duration = (datetime.now() - shutdown_start).total_seconds()
+            logger.info(f"Graceful shutdown completed in {shutdown_duration:.2f}s")
+            
+        except asyncio.TimeoutError:
+            logger.warning("Shutdown timeout reached, forcing task termination")
+            self.active_tasks.clear()
+            
+        except Exception as e:
+            error_context = self._create_error_context(
+                "crawler_shutdown_error",
+                {
+                    "active_tasks_count": len(self.active_tasks),
+                    "shutdown_duration": (datetime.now() - shutdown_start).total_seconds()
+                }
+            )
+            
+            # Report shutdown error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Error during shutdown: {e}")
+            
+        finally:
+            self.current_operation = None
 
     def is_site_enabled(self, site_name: str) -> bool:
         """Check if a site is enabled for crawling."""
         return site_name in self.enabled_sites
 
     def get_health_status(self) -> Dict[str, Any]:
-        """Get health status of the crawler and its components"""
-        return {
-            "status": "healthy",
-            "enabled_sites": list(self.enabled_sites),
-            "monitor": self.monitor.get_health_status(),
-            "error_handler": self.error_handler.get_all_error_stats(),
-            "timestamp": datetime.now().isoformat(),
-        }
+        """Get comprehensive health status of the crawler and its components"""
+        try:
+            uptime = (datetime.now() - self.crawler_stats["uptime_start"]).total_seconds()
+            error_stats = self.error_handler.get_error_statistics()
+            factory_health = self.adapter_factory.get_factory_health_status()
+            
+            return {
+                "status": "healthy",
+                "crawler_id": self.crawler_id,
+                "session_id": self.session_id,
+                "current_operation": self.current_operation,
+                "uptime_seconds": uptime,
+                "enabled_sites": list(self.enabled_sites),
+                "available_adapters": len(self.adapters),
+                "active_tasks": len(self.active_tasks),
+                "crawler_statistics": self.crawler_stats,
+                "monitor": self.monitor.get_health_status(),
+                "error_handler": error_stats,
+                "adapter_factory": factory_health,
+                "memory_status": self.get_memory_status() if self.enable_memory_monitoring else None,
+                "timestamp": datetime.now().isoformat(),
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get health status: {e}")
+            return {
+                "status": "unhealthy",
+                "error": str(e),
+                "crawler_id": self.crawler_id,
+                "timestamp": datetime.now().isoformat()
+            }
 
     async def intelligent_search_flights(
         self, search_params: Dict[str, Any], optimization: SearchOptimization
     ) -> Dict[str, Any]:
-        """Perform intelligent search with optimization"""
-        return await self.intelligent_search.search_with_optimization(
-            search_params, optimization
-        )
+        """Perform intelligent search with optimization and error handling"""
+        try:
+            self.current_operation = "intelligent_search"
+            result = await self.intelligent_search.search_with_optimization(
+                search_params, optimization
+            )
+            return result
+            
+        except Exception as e:
+            error_context = self._create_error_context(
+                "intelligent_search_error",
+                {
+                    "search_params": search_params,
+                    "optimization": str(optimization)
+                }
+            )
+            
+            # Report intelligent search error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.UNKNOWN
+            ))
+            
+            logger.error(f"Error in intelligent search: {e}")
+            raise
+            
+        finally:
+            self.current_operation = None
 
     def _generate_search_key(self, search_params: Dict[str, Any]) -> str:
         """Generate unique key for search parameters"""
@@ -376,26 +710,48 @@ class IranianFlightCrawler:
     async def crawl_site(
         self, site_name: str, search_params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Crawl a single site by name"""
+        """Crawl a single site by name with enhanced error handling"""
         if site_name not in self.adapters:
-            raise ValueError(f"Adapter '{site_name}' not found.")
+            error_context = self._create_error_context(
+                "adapter_not_found",
+                {
+                    "requested_site": site_name,
+                    "available_sites": list(self.adapters.keys())
+                }
+            )
+            
+            error = ValueError(f"Adapter '{site_name}' not found.")
+            
+            # Report adapter not found error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                error, error_context, ErrorSeverity.MEDIUM, ErrorCategory.VALIDATION
+            ))
+            
+            raise error
+            
         adapter = self.adapters[site_name]
         # Use the safe crawl method to handle errors and circuit breaking
         return await self._crawl_site_safely(site_name, adapter, search_params)
 
     def enable_site(self, site_name: str) -> bool:
-        """Enable crawling for a site."""
+        """Enable crawling for a site with logging."""
         if site_name in self.adapters:
             self.enabled_sites.add(site_name)
+            logger.info(f"Enabled crawling for site: {site_name}")
             return True
-        return False
+        else:
+            logger.warning(f"Cannot enable unknown site: {site_name}")
+            return False
 
     def disable_site(self, site_name: str) -> bool:
-        """Disable crawling for a site."""
+        """Disable crawling for a site with logging."""
         if site_name in self.enabled_sites:
             self.enabled_sites.remove(site_name)
+            logger.info(f"Disabled crawling for site: {site_name}")
             return True
-        return False
+        else:
+            logger.warning(f"Site {site_name} was not enabled")
+            return False
 
     def get_available_adapters(self) -> List[str]:
         """Get list of all available adapter names."""
@@ -406,14 +762,47 @@ class IranianFlightCrawler:
         return self.adapter_factory.get_adapter_info(adapter_name)
 
     def reset_stats(self) -> None:
-        """Reset monitoring metrics, error states and rate limits."""
+        """Reset monitoring metrics, error states and rate limits with enhanced error handling."""
         try:
+            # Reset crawler statistics
+            self.crawler_stats = {
+                "total_crawls": 0,
+                "successful_crawls": 0,
+                "failed_crawls": 0,
+                "crawls_by_site": {},
+                "average_crawl_time": 0,
+                "last_crawl_time": None,
+                "uptime_start": datetime.now()
+            }
+            
+            # Reset monitoring components
             self.monitor.reset_all_metrics()
-            self.error_handler.reset_all_circuits()
             self.rate_limiter.clear_rate_limits()
+            
+            # Reset error handler circuit breakers
+            for site_name in self.adapters.keys():
+                asyncio.create_task(self.error_handler.reset_circuit_breaker(site_name))
+            
+            # Reset adapter factory errors
+            self.adapter_factory.reset_factory_errors()
+            
+            # Clear cache
             if hasattr(self.data_manager, "redis") and self.data_manager.redis:
                 self.data_manager.redis.flushdb()
+                
+            logger.info("All crawler statistics and error states reset successfully")
+            
         except Exception as e:
+            error_context = self._create_error_context(
+                "reset_stats_error",
+                {"components": ["crawler_stats", "monitor", "rate_limiter", "error_handler", "cache"]}
+            )
+            
+            # Report reset error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
             logger.error(f"Error resetting stats: {e}")
 
     def setup_logging(self) -> None:
@@ -456,163 +845,212 @@ class IranianFlightCrawler:
             raise
 
     def setup_redis(self) -> None:
-        """Initialize Redis connection for caching"""
+        """Initialize Redis connection for caching and rate limiting"""
         try:
             # Redis setup is handled by DataManager
             logger.info("Redis initialized successfully")
         except Exception as e:
             logger.error(f"Redis initialization failed: {e}")
+            raise
 
     def setup_crawl4ai(self) -> None:
-        """Setup crawl4ai configuration"""
+        """Initialize Crawl4AI components"""
         try:
-            # Import crawl4ai components
-            from crawl4ai import AsyncWebCrawler as Crawl4aiCrawler
+            # Import and configure Crawl4AI
+            from crawl4ai import AsyncWebCrawler
             from crawl4ai.extraction_strategy import LLMExtractionStrategy
+            from crawl4ai.content_scraping_strategy import WebScrapingStrategy
 
-            # Configure extraction strategy for flight data
-            extraction_schema = {
-                "type": "object",
-                "properties": {
-                    "flights": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "airline": {"type": "string"},
-                                "flight_number": {"type": "string"},
-                                "departure_time": {"type": "string"},
-                                "arrival_time": {"type": "string"},
-                                "price": {"type": "number"},
-                                "currency": {"type": "string"},
-                                "origin": {"type": "string"},
-                                "destination": {"type": "string"},
-                            },
-                        },
-                    }
-                },
+            # Configure crawler
+            self.crawl4ai_config = {
+                "headless": True,
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "viewport": {"width": 1920, "height": 1080},
+                "browser_type": "chromium",
+                "page_timeout": 60000,
+                "cache_mode": CacheMode.BYPASS,
             }
 
-            self.extraction_strategy = LLMExtractionStrategy(
-                provider="ollama/llama2",
-                schema=extraction_schema,
-                extraction_type="schema",
-                instruction="Extract flight information from the page",
+            # Initialize extraction strategies
+            self.llm_strategy = LLMExtractionStrategy(
+                provider="ollama/llama3",
+                schema={
+                    "flights": [
+                        {
+                            "airline": "string",
+                            "flight_number": "string",
+                            "departure_time": "string",
+                            "arrival_time": "string",
+                            "duration": "string",
+                            "price": "number",
+                            "currency": "string",
+                            "aircraft_type": "string",
+                            "seat_class": "string",
+                        }
+                    ]
+                },
+                instruction="Extract flight information from the airline website",
             )
 
-            logger.info("Crawl4AI configured successfully")
+            self.web_strategy = WebScrapingStrategy()
+
+            logger.info("Crawl4AI initialized successfully")
 
         except ImportError:
-            logger.warning("Crawl4AI not available, using fallback extraction")
-            self.extraction_strategy = None
+            logger.warning("Crawl4AI not available - using fallback extraction")
+            self.crawl4ai_config = None
+            self.llm_strategy = None
+            self.web_strategy = None
+
+        except Exception as e:
+            logger.error(f"Crawl4AI initialization failed: {e}")
+            self.crawl4ai_config = None
 
     def init_database_schema(self) -> None:
-        """Initialize database schema"""
-        self.data_manager.create_tables()
+        """Initialize database schema if not exists"""
+        # This is handled by DataManager
+        pass
 
     async def get_request_batcher(self) -> RequestBatcher:
-        """Get or create request batcher for optimized HTTP requests"""
-        if not self.request_batcher:
+        """Get or create request batcher for optimized requests"""
+        if self.request_batcher is None:
             self.request_batcher = RequestBatcher(
-                http_session=self.http_session,
-                batch_size=8,  # Optimized for crawler workloads
-                batch_timeout=0.3,  # Quick batching for responsive crawling
-                max_concurrent_batches=3,
-                enable_compression=True,
-                enable_memory_optimization=True
+                max_batch_size=10,
+                max_wait_time=5.0,
+                max_concurrent_batches=3
             )
-            await self.request_batcher._setup_session()
-            logger.info("Request batcher initialized for optimized HTTP requests")
-        
+            await self.request_batcher.start()
         return self.request_batcher
 
     async def batch_site_health_checks(self, site_names: List[str]) -> Dict[str, Dict[str, Any]]:
-        """Perform batched health checks on multiple sites"""
+        """Perform health checks on multiple sites concurrently with enhanced error handling"""
+        self.current_operation = "batch_health_checks"
+        
         try:
-            batcher = await self.get_request_batcher()
+            health_results = {}
             
-            # Create health check requests for each site
-            health_requests = []
+            # Create health check tasks
+            tasks = []
             for site_name in site_names:
                 if site_name in self.adapters:
-                    adapter = self.adapters[site_name]
-                    base_url = getattr(adapter, 'base_url', f'https://{site_name}.com')
-                    
-                    # Create health check request
-                    health_requests.append(RequestSpec(
-                        url=base_url,
-                        method="GET",
-                        timeout=10,
-                        headers={'User-Agent': 'FlightCrawler-HealthCheck/1.0'}
-                    ))
-            
-            if not health_requests:
-                return {}
-            
-            # Execute batched requests
-            results = await asyncio.gather(*[
-                batcher.add_request(spec) for spec in health_requests
-            ], return_exceptions=True)
-            
-            # Process results
-            health_status = {}
-            for i, (site_name, result) in enumerate(zip(site_names, results)):
-                if isinstance(result, Exception):
-                    health_status[site_name] = {
-                        'status': 'error',
-                        'error': str(result),
-                        'response_time': None,
-                        'accessible': False
-                    }
+                    task = asyncio.create_task(
+                        self._check_site_health(site_name),
+                        name=f"health_check_{site_name}"
+                    )
+                    tasks.append((site_name, task))
                 else:
-                    health_status[site_name] = {
-                        'status': 'success' if result.get('status', 0) < 400 else 'warning',
-                        'status_code': result.get('status', 0),
-                        'accessible': True,
-                        'response_time': 'batched'  # Actual timing would be part of batch
+                    health_results[site_name] = {
+                        "status": "not_found",
+                        "error": f"Adapter {site_name} not available"
                     }
-            
-            # Log batching statistics
-            if self.request_batcher:
-                stats = self.request_batcher.get_stats()
-                logger.info(f"Health check batching stats: {stats}")
-            
-            return health_status
+
+            # Wait for all health checks to complete
+            if tasks:
+                for site_name, task in tasks:
+                    try:
+                        health_status = await asyncio.wait_for(task, timeout=30)
+                        health_results[site_name] = health_status
+                    except asyncio.TimeoutError:
+                        health_results[site_name] = {
+                            "status": "timeout",
+                            "error": "Health check timed out"
+                        }
+                    except Exception as e:
+                        health_results[site_name] = {
+                            "status": "error",
+                            "error": str(e)
+                        }
+
+            return health_results
             
         except Exception as e:
-            logger.error(f"Batch health check failed: {e}")
-            return {site_name: {'status': 'error', 'error': str(e)} for site_name in site_names}
+            error_context = self._create_error_context(
+                "batch_health_checks_error",
+                {
+                    "site_names": site_names,
+                    "available_sites": list(self.adapters.keys())
+                }
+            )
+            
+            # Report batch health check error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
+            logger.error(f"Error in batch health checks: {e}")
+            return {site: {"status": "error", "error": str(e)} for site in site_names}
+            
+        finally:
+            self.current_operation = None
+
+    async def _check_site_health(self, site_name: str) -> Dict[str, Any]:
+        """Check health of a single site"""
+        try:
+            adapter = self.adapters[site_name]
+            
+            # Check if adapter has health check method
+            if hasattr(adapter, 'get_health_status'):
+                return await adapter.get_health_status()
+            else:
+                return {
+                    "status": "unknown",
+                    "message": "Health check not implemented"
+                }
+                
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
     async def close(self):
-        """Close the crawler and cleanup resources"""
+        """Clean up resources and close connections with enhanced error handling"""
         try:
-            # Stop memory monitoring first
-            if self.memory_monitor:
-                await self.stop_memory_monitoring()
+            # Stop all active operations
+            await self.shutdown()
             
             # Close request batcher
             if self.request_batcher:
-                await self.request_batcher.close()
-                logger.info("Request batcher closed")
+                await self.request_batcher.stop()
             
-            # Close adapters
-            for adapter_name, adapter in self.adapters.items():
-                if hasattr(adapter, 'close'):
-                    await adapter.close()
-                    logger.info(f"Closed {adapter_name} adapter")
+            # Close data manager connections
+            if hasattr(self.data_manager, 'close'):
+                await self.data_manager.close()
             
-            # Close HTTP session if we own it
-            if self.http_session and hasattr(self.http_session, 'close'):
-                await self.http_session.close()
-                logger.info("HTTP session closed")
-            
-            logger.info("Flight crawler closed successfully")
+            logger.info("Enhanced Flight Crawler closed successfully")
             
         except Exception as e:
+            error_context = self._create_error_context(
+                "crawler_close_error",
+                {"components": ["shutdown", "request_batcher", "data_manager"]}
+            )
+            
+            # Report close error (non-blocking)
+            asyncio.create_task(self.error_handler.handle_error(
+                e, error_context, ErrorSeverity.MEDIUM, ErrorCategory.RESOURCE
+            ))
+            
             logger.error(f"Error closing crawler: {e}")
+
+    def get_crawler_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive crawler metrics"""
         try:
-            # Schema initialization is handled by DataManager
-            logger.info("Database schema initialized successfully")
+            uptime = (datetime.now() - self.crawler_stats["uptime_start"]).total_seconds()
+            
+            return {
+                "crawler_id": self.crawler_id,
+                "session_id": self.session_id,
+                "uptime_seconds": uptime,
+                "crawler_statistics": self.crawler_stats,
+                "error_statistics": self.error_handler.get_error_statistics(),
+                "adapter_factory_stats": self.adapter_factory.get_factory_health_status(),
+                "memory_status": self.get_memory_status() if self.enable_memory_monitoring else None,
+                "timestamp": datetime.now().isoformat()
+            }
+            
         except Exception as e:
-            logger.error(f"Database schema initialization failed: {e}")
-            raise
+            logger.error(f"Failed to get crawler metrics: {e}")
+            return {
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }

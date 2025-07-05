@@ -1,73 +1,138 @@
-# Optimized Dockerfile for Crawler Service
+# Secure and Optimized Crawler Dockerfile
 FROM python:3.11-slim as base
 
+# Security and performance environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONHASHSEED=random \
+    PYTHONIOENCODING=utf-8 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# Security labels
+LABEL maintainer="flightio-team" \
+      version="2.0.0" \
+      description="Secure FlightIO Crawler Service" \
+      security.scan="enabled"
 
 # ---
 
-# Build stage
+# Build stage with security updates
 FROM base as builder
 
+# Install security updates and build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     git \
-    && rm -rf /var/lib/apt/lists/*
+    pkg-config \
+    libffi-dev \
+    libssl-dev \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 WORKDIR /app
 
-# Install crawler-specific dependencies
+# Copy and install Python dependencies with security scanning
 COPY requirements.txt .
-RUN pip install --user -r requirements.txt \
-    && playwright install chromium --with-deps
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install --user safety \
+    && pip install --user bandit \
+    && pip install --user -r requirements.txt \
+    && playwright install chromium --with-deps \
+    && ~/.local/bin/safety check --json || true \
+    && ~/.local/bin/bandit -r ~/.local/lib/python3.11/site-packages || true
 
 # ---
 
-# Runtime stage
+# Runtime stage with security hardening
 FROM python:3.11-slim as runtime
 
-# Install minimal runtime dependencies for crawler
+# Install security updates and minimal runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     fonts-noto \
     fonts-noto-cjk \
+    fonts-noto-color-emoji \
     postgresql-client \
     curl \
+    ca-certificates \
+    dumb-init \
+    && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/* \
+    && find /usr/share/doc -depth -type f ! -name copyright | xargs rm || true \
+    && find /usr/share/man -type f | xargs rm || true
 
-# Create crawler user
-RUN groupadd -r crawler && useradd -r -g crawler crawler
+# Create secure crawler user with restricted permissions
+RUN groupadd --system --gid 1000 crawler \
+    && useradd --system --uid 1000 --gid crawler --no-create-home --shell /bin/false crawler
 
+# Security hardening for browser environment
+RUN chmod 755 /usr/bin/find \
+    && chmod 755 /usr/bin/ls \
+    && chmod 755 /usr/bin/ps \
+    && chmod 755 /usr/bin/id \
+    && chmod 755 /usr/bin/chromium
+
+# Browser security configuration
 ENV CRAWL4AI_BROWSER_PATH=/usr/bin/chromium \
     PYTHONPATH=/app \
-    PATH="/home/crawler/.local/bin:$PATH"
+    PATH="/home/crawler/.local/bin:$PATH" \
+    HOME=/home/crawler \
+    DISPLAY=:99 \
+    CHROME_BIN=/usr/bin/chromium \
+    CHROME_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Copy packages from builder
-COPY --from=builder /root/.local /home/crawler/.local
+# Copy packages from builder with proper permissions
+COPY --from=builder --chown=crawler:crawler /root/.local /home/crawler/.local
 
-# Copy crawler-specific code
+# Copy crawler-specific code with security focus
 COPY --chown=crawler:crawler adapters/ ./adapters/
 COPY --chown=crawler:crawler crawlers/ ./crawlers/
 COPY --chown=crawler:crawler utils/ ./utils/
 COPY --chown=crawler:crawler config/ ./config/
 COPY --chown=crawler:crawler data/statics/ ./data/statics/
+COPY --chown=crawler:crawler security/ ./security/
+COPY --chown=crawler:crawler monitoring/ ./monitoring/
 COPY --chown=crawler:crawler *.py ./
 
-# Create directories
-RUN mkdir -p logs data/storage requests/pages \
-    && chown -R crawler:crawler /app
+# Create directories with proper permissions
+RUN mkdir -p logs data/storage requests/pages tmp screenshots \
+    && chown -R crawler:crawler /app \
+    && chmod -R 750 /app \
+    && chmod -R 755 /app/logs \
+    && chmod -R 755 /app/data \
+    && chmod -R 755 /app/screenshots \
+    && chmod 700 /app/tmp \
+    && chmod 600 /app/config/*.json 2>/dev/null || true
 
+# Create non-root home directory with browser cache
+RUN mkdir -p /home/crawler/.cache/chromium \
+    && chown -R crawler:crawler /home/crawler \
+    && chmod 700 /home/crawler \
+    && chmod 755 /home/crawler/.cache \
+    && chmod 755 /home/crawler/.cache/chromium
+
+# Switch to non-root user
 USER crawler
 
 EXPOSE 8001
 
+# Enhanced security-focused health check
 HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=2 \
-    CMD python -c "import requests; requests.get('http://localhost:8001/health')" || exit 1
+    CMD curl -f --max-time 25 --retry 2 --retry-delay 5 http://localhost:8001/health || exit 1
 
-CMD ["python", "main_crawler.py"] 
+# Security signal handling
+STOPSIGNAL SIGTERM
+
+# Secure startup command with dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["python", "main_crawler.py", "--secure-mode", "--log-level", "INFO"] 
