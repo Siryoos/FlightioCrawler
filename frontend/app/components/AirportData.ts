@@ -8,7 +8,7 @@ export interface Airport {
   passengers?: number;
 }
 
-let cache: Airport[] | null = null;
+let cache: Airport[] = [];
 
 export const POPULAR_AIRPORTS = [
   'THR','IKA','MHD','SYZ','IFN','TBZ','AWZ','KIH','RAS','KER','KSH','BND',
@@ -17,10 +17,10 @@ export const POPULAR_AIRPORTS = [
 ];
 
 export async function loadAirports(): Promise<Airport[]> {
-  if (cache) return cache;
+  if (cache.length > 0) return cache;
   const res = await fetch('/airports');
   const data = await res.json();
-  cache = data.airports || [];
+  cache = Array.isArray(data.airports) ? data.airports : [];
   return cache;
 }
 

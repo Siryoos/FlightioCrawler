@@ -56,7 +56,7 @@ export default function AirportsPage() {
   const topAirports = getTopAirportsByPassengers(airports, 10);
   const countries = Array.from(new Set(airports.map(a => a.country).filter(Boolean))).sort();
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = (type?: string) => {
     switch (type) {
       case 'بین‌المللی':
         return 'bg-blue-100 text-blue-800';

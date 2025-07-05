@@ -1,5 +1,5 @@
 # Secure and Optimized Crawler Dockerfile
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Security and performance environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -20,7 +20,7 @@ LABEL maintainer="flightio-team" \
 # ---
 
 # Build stage with security updates
-FROM base as builder
+FROM base AS builder
 
 # Install security updates and build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -49,7 +49,7 @@ RUN pip install --upgrade pip setuptools wheel \
 # ---
 
 # Runtime stage with security hardening
-FROM python:3.11-slim as runtime
+FROM python:3.11-slim AS runtime
 
 # Install security updates and minimal runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -76,7 +76,7 @@ RUN groupadd --system --gid 1000 crawler \
 # Security hardening for browser environment
 RUN chmod 755 /usr/bin/find \
     && chmod 755 /usr/bin/ls \
-    && chmod 755 /usr/bin/ps \
+    && (chmod 755 /usr/bin/ps 2>/dev/null || true) \
     && chmod 755 /usr/bin/id \
     && chmod 755 /usr/bin/chromium
 

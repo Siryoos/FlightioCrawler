@@ -1,5 +1,5 @@
 # Dockerfile for Background Worker Service
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
 # ---
 
 # Build stage
-FROM base as builder
+FROM base AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -28,7 +28,7 @@ RUN grep -E "(celery|redis|psycopg2|beautifulsoup4|pandas|numpy|scikit-learn)" r
 # ---
 
 # Runtime stage
-FROM python:3.11-slim as runtime
+FROM python:3.11-slim AS runtime
 
 # Install minimal runtime dependencies for workers
 RUN apt-get update && apt-get install -y --no-install-recommends \

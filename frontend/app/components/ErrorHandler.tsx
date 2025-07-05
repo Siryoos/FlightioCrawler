@@ -131,6 +131,10 @@ class ErrorClassifier {
     const baseDelays = {
       [ErrorType.NETWORK]: 2000,
       [ErrorType.API]: 1000,
+      [ErrorType.VALIDATION]: 500,
+      [ErrorType.AUTHENTICATION]: 2000,
+      [ErrorType.AUTHORIZATION]: 2000,
+      [ErrorType.OFFLINE]: 5000,
       [ErrorType.TIMEOUT]: 3000,
       [ErrorType.WEBSOCKET]: 1000,
       [ErrorType.CRAWLER]: 5000,
@@ -296,7 +300,7 @@ export const ErrorHandlerProvider: React.FC<ErrorHandlerProviderProps> = ({
       
       // Success - remove error
       hideError(id);
-    } catch (retryError) {
+    } catch (retryErr) {
       // Retry failed, schedule next retry
       const delay = ErrorClassifier.getRetryDelay(error.retryCount, error.type);
       

@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { useSiteStore } from '../../stores/siteStore';
+import { useSiteStore } from '../stores/siteStore';
 import LoadingSpinner from '../components/Loading';
 
 export default function SitesIndex() {

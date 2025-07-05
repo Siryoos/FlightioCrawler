@@ -4,7 +4,8 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import AirportSelector from './AirportSelector';
 import { useSearchStore } from '../stores/searchStore';
-import { getAirportByCode } from './AirportData'; // Assuming this function exists and works with the store data
+import { getAirportByCode } from './AirportData';
+import { useAirportStore } from '../stores/airportStore';
 
 const PersianDatePicker = dynamic(() => import('./PersianDatePicker'), {
   ssr: false,
@@ -27,6 +28,7 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
     setTripType,
     setPassengers,
   } = useSearchStore();
+  const { airports } = useAirportStore();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,10 +210,10 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps = {
         {origin && destination && (
           <div className="mt-4 p-4 bg-gray-50 rounded-md">
             <p className="text-sm text-gray-600 text-center">
-              <span className="font-medium">{getAirportByCode(origin)?.city || origin}</span>
+              <span className="font-medium">{getAirportByCode(airports, origin)?.city || origin}</span>
               <span className="mx-2">({origin})</span>
               <span className="mx-2">→</span>
-              <span className="font-medium">{getAirportByCode(destination)?.city || destination}</span>
+              <span className="font-medium">{getAirportByCode(airports, destination)?.city || destination}</span>
               <span className="mx-2">({destination})</span>
             </p>
             <p className="text-xs text-gray-500 text-center mt-1">
