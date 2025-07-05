@@ -1,0 +1,295 @@
+{
+  "error_handling": {
+    "global_settings": {
+      "max_retries": 3,
+      "default_timeout": 30,
+      "log_level": "INFO",
+      "enable_correlation": true,
+      "correlation_threshold": 0.8,
+      "pattern_detection_window_minutes": 30,
+      "cleanup_interval_hours": 24
+    },
+    "circuit_breaker": {
+      "failure_threshold": 5,
+      "recovery_timeout_seconds": 300,
+      "half_open_max_calls": 3,
+      "monitor_interval_seconds": 60,
+      "enabled": true
+    },
+    "severity_thresholds": {
+      "response_time_warning_ms": 5000,
+      "response_time_critical_ms": 10000,
+      "error_rate_warning_percent": 5,
+      "error_rate_critical_percent": 15,
+      "memory_usage_warning_mb": 512,
+      "memory_usage_critical_mb": 1024
+    },
+    "recovery_strategies": {
+      "retry_with_backoff": {
+        "enabled": true,
+        "max_attempts": 3,
+        "base_delay_seconds": 1.0,
+        "exponential_backoff": true,
+        "max_delay_seconds": 60,
+        "applicable_categories": ["network", "timeout", "resource"]
+      },
+      "refresh_page": {
+        "enabled": true,
+        "max_attempts": 2,
+        "delay_seconds": 2.0,
+        "applicable_categories": ["browser", "navigation", "form_filling"]
+      },
+      "clear_cache": {
+        "enabled": true,
+        "max_attempts": 1,
+        "delay_seconds": 5.0,
+        "applicable_categories": ["browser", "resource", "authentication"]
+      },
+      "change_user_agent": {
+        "enabled": true,
+        "max_attempts": 2,
+        "delay_seconds": 3.0,
+        "applicable_categories": ["authentication", "captcha", "rate_limit"]
+      },
+      "fallback_extraction": {
+        "enabled": true,
+        "max_attempts": 1,
+        "delay_seconds": 0.5,
+        "applicable_categories": ["parsing", "validation"]
+      },
+      "proxy_rotation": {
+        "enabled": false,
+        "max_attempts": 3,
+        "delay_seconds": 2.0,
+        "applicable_categories": ["network", "rate_limit", "authentication"]
+      }
+    },
+    "error_categories": {
+      "network": {
+        "severity": "high",
+        "auto_retry": true,
+        "escalation_threshold": 3,
+        "circuit_breaker_enabled": true
+      },
+      "parsing": {
+        "severity": "medium",
+        "auto_retry": true,
+        "escalation_threshold": 5,
+        "circuit_breaker_enabled": false
+      },
+      "validation": {
+        "severity": "low",
+        "auto_retry": false,
+        "escalation_threshold": 10,
+        "circuit_breaker_enabled": false
+      },
+      "timeout": {
+        "severity": "high",
+        "auto_retry": true,
+        "escalation_threshold": 2,
+        "circuit_breaker_enabled": true
+      },
+      "authentication": {
+        "severity": "critical",
+        "auto_retry": false,
+        "escalation_threshold": 1,
+        "circuit_breaker_enabled": true
+      },
+      "rate_limit": {
+        "severity": "medium",
+        "auto_retry": true,
+        "escalation_threshold": 3,
+        "circuit_breaker_enabled": true
+      },
+      "resource": {
+        "severity": "high",
+        "auto_retry": true,
+        "escalation_threshold": 3,
+        "circuit_breaker_enabled": false
+      },
+      "browser": {
+        "severity": "high",
+        "auto_retry": true,
+        "escalation_threshold": 2,
+        "circuit_breaker_enabled": true
+      },
+      "form_filling": {
+        "severity": "medium",
+        "auto_retry": true,
+        "escalation_threshold": 3,
+        "circuit_breaker_enabled": false
+      },
+      "navigation": {
+        "severity": "high",
+        "auto_retry": true,
+        "escalation_threshold": 2,
+        "circuit_breaker_enabled": true
+      },
+      "captcha": {
+        "severity": "critical",
+        "auto_retry": false,
+        "escalation_threshold": 1,
+        "circuit_breaker_enabled": true
+      }
+    },
+    "alerting": {
+      "enabled": true,
+      "channels": {
+        "log": {
+          "enabled": true,
+          "min_severity": "medium"
+        },
+        "webhook": {
+          "enabled": false,
+          "url": null,
+          "min_severity": "high"
+        },
+        "slack": {
+          "enabled": false,
+          "webhook_url": null,
+          "min_severity": "critical"
+        },
+        "email": {
+          "enabled": false,
+          "smtp_server": null,
+          "smtp_port": 587,
+          "username": null,
+          "password": null,
+          "from_email": null,
+          "to_emails": [],
+          "min_severity": "critical"
+        }
+      },
+      "rate_limiting": {
+        "enabled": true,
+        "window_minutes": 15,
+        "max_alerts_per_window": 10,
+        "burst_limit": 3
+      },
+      "escalation": {
+        "enabled": true,
+        "levels": {
+          "level1": {
+            "threshold_minutes": 5,
+            "action": "increase_severity"
+          },
+          "level2": {
+            "threshold_minutes": 15,
+            "action": "notify_admin"
+          },
+          "level3": {
+            "threshold_minutes": 30,
+            "action": "emergency_shutdown"
+          }
+        }
+      }
+    },
+    "monitoring": {
+      "metrics_collection": {
+        "enabled": true,
+        "interval_seconds": 30,
+        "retention_hours": 168
+      },
+      "pattern_detection": {
+        "enabled": true,
+        "analysis_interval_minutes": 30,
+        "pattern_threshold": 5,
+        "correlation_window_hours": 2
+      },
+      "health_checks": {
+        "enabled": true,
+        "interval_seconds": 60,
+        "timeout_seconds": 10,
+        "retry_attempts": 3
+      },
+      "performance_tracking": {
+        "enabled": true,
+        "response_time_buckets": [100, 500, 1000, 5000, 10000],
+        "memory_usage_tracking": true,
+        "cpu_usage_tracking": true
+      }
+    },
+    "adapter_specific": {
+      "iranian_airlines": {
+        "alibaba": {
+          "max_retries": 5,
+          "timeout_multiplier": 1.5,
+          "special_handling": {
+            "captcha_detection": true,
+            "proxy_rotation": false,
+            "user_agent_rotation": true
+          }
+        },
+        "flytoday": {
+          "max_retries": 3,
+          "timeout_multiplier": 1.2,
+          "special_handling": {
+            "captcha_detection": true,
+            "proxy_rotation": false,
+            "user_agent_rotation": false
+          }
+        },
+        "iran_air": {
+          "max_retries": 4,
+          "timeout_multiplier": 2.0,
+          "special_handling": {
+            "captcha_detection": false,
+            "proxy_rotation": false,
+            "user_agent_rotation": false
+          }
+        }
+      },
+      "international_airlines": {
+        "emirates": {
+          "max_retries": 3,
+          "timeout_multiplier": 1.0,
+          "special_handling": {
+            "captcha_detection": false,
+            "proxy_rotation": false,
+            "user_agent_rotation": false
+          }
+        },
+        "lufthansa": {
+          "max_retries": 3,
+          "timeout_multiplier": 1.0,
+          "special_handling": {
+            "captcha_detection": false,
+            "proxy_rotation": false,
+            "user_agent_rotation": false
+          }
+        },
+        "qatar_airways": {
+          "max_retries": 3,
+          "timeout_multiplier": 1.0,
+          "special_handling": {
+            "captcha_detection": false,
+            "proxy_rotation": false,
+            "user_agent_rotation": false
+          }
+        }
+      }
+    },
+    "fallback_options": {
+      "use_cached_data": {
+        "enabled": true,
+        "max_age_hours": 6,
+        "applicable_errors": ["network", "timeout", "rate_limit"]
+      },
+      "simplified_extraction": {
+        "enabled": true,
+        "applicable_errors": ["parsing", "validation"]
+      },
+      "alternative_endpoints": {
+        "enabled": false,
+        "endpoints": []
+      }
+    },
+    "debugging": {
+      "enabled": false,
+      "save_error_pages": false,
+      "save_screenshots": false,
+      "detailed_logging": false,
+      "error_correlation_debug": false
+    }
+  }
+} 

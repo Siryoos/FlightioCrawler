@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import ssl
+import os
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from local_crawler import AsyncWebCrawler, BrowserConfig
@@ -22,6 +24,28 @@ from playwright.async_api import async_playwright, Browser, Page
 from rate_limiter import RateLimiter
 from stealth_crawler import StealthCrawler
 
+# SSL Configuration
+def create_ssl_context(verify_ssl: bool = None) -> ssl.SSLContext:
+    """Create SSL context based on environment configuration"""
+    if verify_ssl is None:
+        verify_ssl = os.getenv("SSL_VERIFY", "false").lower() == "true"
+    
+    if verify_ssl:
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = True
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+    else:
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        try:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        except ImportError:
+            pass
+    
+    return ssl_context
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -43,6 +67,7 @@ class BaseSiteCrawler(StealthCrawler):
         self.monitor = monitor
         self.error_handler = error_handler
         self.logger = logging.getLogger(__name__)
+        self.ssl_context = create_ssl_context()
 
         # Configure browser
         self.browser_config = BrowserConfig(
@@ -56,11 +81,24 @@ class BaseSiteCrawler(StealthCrawler):
         """Fallback JSON API fetch for sites with dynamic pages."""
         api_url = getattr(self, "api_url", f"{self.base_url}/api/search")
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params, timeout=10) as resp:
+            connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+            timeout = aiohttp.ClientTimeout(total=10)
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
+            
+            async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=timeout) as session:
+                async with session.get(api_url, params=params) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         return data.get("flights", [])
+        except ssl.SSLError as e:
+            self.logger.error(f"SSL error in API fallback for {api_url}: {e}")
+        except aiohttp.ClientSSLError as e:
+            self.logger.error(f"SSL connection error in API fallback for {api_url}: {e}")
         except Exception as api_err:
             self.logger.error(f"API fallback failed: {api_err}")
         return []

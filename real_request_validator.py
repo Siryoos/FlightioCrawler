@@ -9,15 +9,18 @@ import asyncio
 import logging
 import time
 import aiohttp
+import ssl
+import os
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
 from pathlib import Path
 
-from environment_manager import env_manager
+from environment_manager import env_manager, EnvironmentManager
 
 logger = logging.getLogger(__name__)
+env_manager = EnvironmentManager()
 
 
 @dataclass
@@ -47,6 +50,29 @@ class RequestStatistics:
     anti_bot_detected: bool
 
 
+# Global SSL context configuration
+def create_ssl_context(verify_ssl: bool = None) -> ssl.SSLContext:
+    """Create SSL context based on environment configuration"""
+    if verify_ssl is None:
+        verify_ssl = os.getenv("SSL_VERIFY", "true").lower() == "true"
+    
+    if verify_ssl:
+        # Production mode - verify SSL certificates
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = True
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+    else:
+        # Development mode - bypass SSL verification
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        # Disable warnings about unverified HTTPS requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
+    return ssl_context
+
+
 class RealRequestValidator:
     """Comprehensive validator for real web requests"""
 
@@ -54,6 +80,10 @@ class RealRequestValidator:
         self.validation_history: List[ValidationResult] = []
         self.statistics_history: List[RequestStatistics] = []
         self.max_history_size = 1000
+        
+        # Configure SSL context based on environment
+        self.ssl_context = create_ssl_context()
+        logger.info(f"SSL verification: {'enabled' if self.ssl_context.verify_mode == ssl.CERT_REQUIRED else 'disabled'}")
 
     async def validate_request(
         self, 
@@ -86,8 +116,27 @@ class RealRequestValidator:
         )
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=timeout) as response:
+            # Create connector with SSL context
+            connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+            
+            # Create session with custom headers and SSL context
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            timeout_config = aiohttp.ClientTimeout(total=timeout)
+            
+            async with aiohttp.ClientSession(
+                connector=connector, 
+                headers=headers,
+                timeout=timeout_config
+            ) as session:
+                async with session.get(url) as response:
                     response_time = time.time() - start_time
                     content = await response.text()
                     
@@ -119,9 +168,18 @@ class RealRequestValidator:
         except asyncio.TimeoutError:
             validation_result.is_valid = False
             validation_result.reason = f"Request timeout after {timeout}s"
+        except ssl.SSLError as e:
+            validation_result.is_valid = False
+            validation_result.reason = f"SSL error: {str(e)}"
+            logger.warning(f"SSL error for {url}: {e}")
+        except aiohttp.ClientSSLError as e:
+            validation_result.is_valid = False
+            validation_result.reason = f"SSL connection error: {str(e)}"
+            logger.warning(f"SSL connection error for {url}: {e}")
         except Exception as e:
             validation_result.is_valid = False
             validation_result.reason = f"Validation error: {str(e)}"
+            logger.error(f"Validation error for {url}: {e}")
 
         # Store validation result
         self._store_validation_result(validation_result)

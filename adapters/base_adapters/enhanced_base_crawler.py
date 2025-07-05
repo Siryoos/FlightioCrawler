@@ -18,6 +18,8 @@ import random
 import traceback
 from enum import Enum
 import time
+import json
+from pathlib import Path
 
 # Make playwright imports optional
 try:
@@ -61,6 +63,16 @@ from .common_error_handler import (
     TimeoutError as AdapterTimeoutError,
     ErrorRecoveryStrategies,
 )
+from .enhanced_error_handler import (
+    EnhancedErrorHandler,
+    ErrorSeverity,
+    ErrorCategory,
+    ErrorAction,
+    error_handler_decorator,
+    get_global_error_handler
+)
+from ..patterns.builder_pattern import CrawlerConfigBuilder
+from monitoring.enhanced_monitoring import EnhancedMonitoring
 
 
 class ErrorCategory(Enum):
@@ -1681,3 +1693,55 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             "resource_usage": resource_usage,
             "batching_stats": batching_stats,
         }
+
+    async def get_health_status(self) -> Dict[str, Any]:
+        """Get health status of the crawler"""
+        return {
+            'adapter_name': self.__class__.__name__,
+            'is_initialized': self._is_closed,
+            'browser_active': self.browser is not None,
+            'page_active': self.page is not None,
+            'current_url': self.search_url,
+            'error_stats': self.get_error_statistics(),
+            'monitoring_stats': await self.monitoring.get_stats() if self.monitoring else None
+        }
+
+    async def reset_statistics(self) -> None:
+        """Reset all statistics"""
+        if self.monitoring:
+            await self.monitoring.reset_stats()
+
+    async def close(self) -> None:
+        """Close crawler and cleanup resources"""
+        try:
+            if self.page:
+                await self.page.close()
+            
+            if self.browser:
+                await self.browser.close()
+            
+            if self.playwright:
+                await self.playwright.stop()
+            
+            if self.monitoring:
+                await self.monitoring.stop_monitoring()
+            
+            self.logger.info(f"{self.__class__.__name__} closed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error closing {self.__class__.__name__}: {e}")
+
+    def __del__(self):
+        """Destructor to ensure cleanup"""
+        try:
+            if hasattr(self, 'browser') and self.browser:
+                # Try to close browser if still open
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        loop.create_task(self.close())
+                except:
+                    pass
+        except:
+            pass
