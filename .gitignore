@@ -339,3 +339,4 @@ production.env
 requests/pages/
 performance_reports/
 htmlcov/
+*_test_results*.json
