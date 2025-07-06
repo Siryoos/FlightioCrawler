@@ -84,7 +84,7 @@ COPY --chown=apiuser:apiuser config/ ./config/
 COPY --chown=apiuser:apiuser data/statics/ ./data/statics/
 COPY --chown=apiuser:apiuser security/ ./security/
 COPY --chown=apiuser:apiuser monitoring/ ./monitoring/
-COPY --chown=apiuser:apiuser main_v2.py ./
+COPY --chown=apiuser:apiuser main.py ./
 COPY --chown=apiuser:apiuser data_manager.py ./
 COPY --chown=apiuser:apiuser enhanced_monitoring.py ./
 
@@ -115,4 +115,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 STOPSIGNAL SIGTERM
 
 # Secure startup command with process monitoring
-CMD ["python", "-m", "uvicorn", "main_v2:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--access-log", "--proxy-headers", "--forwarded-allow-ips", "*"] 
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--access-log", "--proxy-headers", "--forwarded-allow-ips", "*"] 
