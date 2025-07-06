@@ -116,7 +116,7 @@ git clone https://github.com/your-repo/FlightioCrawler.git
 cd FlightioCrawler
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt -r api-extras.txt  # or worker/monitor extras
 
 # Install Playwright browsers
 playwright install
