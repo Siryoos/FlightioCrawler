@@ -850,6 +850,82 @@ class EnhancedErrorHandler:
         """Add custom recovery strategy"""
         self.recovery_strategies[strategy.strategy_id] = strategy
 
+    def can_make_request(self, adapter_name: str) -> bool:
+        """Check if requests are allowed for the adapter."""
+        for key, breaker in self.circuit_breakers.items():
+            if key.startswith(f"{adapter_name}:") and breaker.get("state") == CircuitState.OPEN.value:
+                return False
+        return True
+
+    async def can_make_request_async(self, adapter_name: str) -> bool:
+        """Async wrapper for compatibility."""
+        return self.can_make_request(adapter_name)
+
+    def get_last_error(self, adapter_name: str) -> Optional[str]:
+        """Get the most recent error message for an adapter."""
+        for record in reversed(self.error_timeline):
+            if record.adapter_name == adapter_name:
+                return record.error_message
+        return None
+
+    def get_error_timeline(self, adapter_name: str) -> List[Dict[str, Any]]:
+        """Return error timeline for the adapter."""
+        timeline = [
+            {
+                "error": rec.error_message,
+                "timestamp": rec.timestamp.isoformat(),
+                "severity": rec.severity.value,
+            }
+            for rec in self.error_timeline
+            if rec.adapter_name == adapter_name
+        ]
+        return sorted(timeline, key=lambda x: x["timestamp"])
+
+    def get_error_types(self, adapter_name: str) -> Dict[str, int]:
+        """Count error types for the adapter."""
+        counts: Dict[str, int] = {}
+        for rec in self.error_timeline:
+            if rec.adapter_name == adapter_name:
+                counts[rec.error_type] = counts.get(rec.error_type, 0) + 1
+        return counts
+
+    def get_error_stats(self, adapter_name: str) -> Dict[str, Any]:
+        """Basic error statistics similar to the legacy handler."""
+        return {
+            "domain": adapter_name,
+            "error_count": len([r for r in self.error_timeline if r.adapter_name == adapter_name]),
+            "circuit_open": not asyncio.run(self.can_make_request(adapter_name)),
+            "last_error": self.get_last_error(adapter_name),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    def get_all_error_stats(self) -> Dict[str, Any]:
+        """Error statistics for all adapters."""
+        adapters = {rec.adapter_name for rec in self.error_timeline}
+        return {name: self.get_error_stats(name) for name in adapters}
+
+    def reset_circuit(self, adapter_name: str) -> None:
+        """Reset circuit breaker for an adapter."""
+        for key in list(self.circuit_breakers.keys()):
+            if key.startswith(f"{adapter_name}:"):
+                del self.circuit_breakers[key]
+
+    def reset_all_circuits(self) -> None:
+        """Reset all circuit breakers."""
+        self.circuit_breakers.clear()
+
+    def clear_errors(self, adapter_name: str) -> None:
+        """Remove stored errors for an adapter."""
+        self.error_timeline = [r for r in self.error_timeline if r.adapter_name != adapter_name]
+        for key in list(self.error_records.keys()):
+            if self.error_records[key].adapter_name == adapter_name:
+                del self.error_records[key]
+
+    def clear_all_errors(self) -> None:
+        """Remove all stored errors."""
+        self.error_records.clear()
+        self.error_timeline.clear()
+
     async def reset_circuit_breaker(self, adapter_name: str, category: str = None):
         """Reset circuit breaker for adapter"""
         if category:

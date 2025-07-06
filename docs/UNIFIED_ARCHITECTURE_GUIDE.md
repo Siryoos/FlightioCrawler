@@ -355,8 +355,7 @@ await circuit_breaker.record_success("rate_limiter")
 
 ```python
 # OLD - Multiple error handler implementations
-from error_handler import ErrorHandler
-from enhanced_error_handler import EnhancedErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 
 # NEW - Single unified error handler
 from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler

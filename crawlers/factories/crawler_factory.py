@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser, Page
 from adapters.base_adapters import BaseSiteCrawler
 from monitoring import CrawlerMonitor
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 
 
 class FactoryCrawlerBase(BaseSiteCrawler):
@@ -17,8 +17,16 @@ class FactoryCrawlerBase(BaseSiteCrawler):
         rate_limiter = self._create_rate_limiter()
         parser = self._create_parser()
         monitor = CrawlerMonitor()
-        error_handler = ErrorHandler()
-        super().__init__(config.get("name", "factory_site"), config.get("base_url", ""), rate_limiter, parser, monitor, error_handler, interval=config.get("interval", 900))
+        error_handler = EnhancedErrorHandler()
+        super().__init__(
+            config.get("name", "factory_site"),
+            config.get("base_url", ""),
+            rate_limiter,
+            parser,
+            monitor,
+            error_handler,
+            interval=config.get("interval", 900),
+        )
         self.browser_config = self._create_browser_config()
         self.crawler = AsyncWebCrawler(config=self.browser_config)
     @abstractmethod

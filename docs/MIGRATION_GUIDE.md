@@ -36,7 +36,7 @@
 from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from utils.persian_text_processor import PersianTextProcessor
 from rate_limiter import RateLimiter
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 from monitoring import Monitoring
 
 class MahanAirAdapter(EnhancedPersianAdapter):
@@ -46,7 +46,7 @@ class MahanAirAdapter(EnhancedPersianAdapter):
         self.search_url = config["search_url"]
         self.persian_processor = PersianTextProcessor()
         self.rate_limiter = RateLimiter(...)
-        self.error_handler = ErrorHandler(...)
+        self.error_handler = EnhancedErrorHandler(...)
         self.monitoring = Monitoring(...)
         self.logger = logging.getLogger(__name__)
 ```
@@ -310,7 +310,7 @@ class MahanAirAdapter(EnhancedPersianAdapter):
         self.search_url = config["search_url"]
         self.persian_processor = PersianTextProcessor()
         self.rate_limiter = RateLimiter(...)
-        self.error_handler = ErrorHandler(...)
+        self.error_handler = EnhancedErrorHandler(...)
         self.monitoring = Monitoring(...)
         self.logger = logging.getLogger(__name__)
 

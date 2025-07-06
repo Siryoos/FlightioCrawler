@@ -4,7 +4,7 @@ from real_data_crawler import RealDataCrawler
 from rate_limiter import RateLimiter
 from persian_text import PersianTextProcessor
 from monitoring import CrawlerMonitor
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 
 sample_params = {
     "origin": "THR",
@@ -20,7 +20,7 @@ async def main():
     rate_limiter = RateLimiter()
     text_proc = PersianTextProcessor()
     monitor = CrawlerMonitor()
-    error_handler = ErrorHandler()
+    error_handler = EnhancedErrorHandler()
     crawler = RealDataCrawler(rate_limiter, text_proc, monitor, error_handler)
     flights = await safety.safe_crawl_with_verification(
         "flytoday", crawler, sample_params

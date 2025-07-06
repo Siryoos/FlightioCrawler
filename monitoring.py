@@ -8,7 +8,7 @@ import redis
 import asyncio
 from dataclasses import dataclass
 from config import config
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 import psutil
 import gc
 import os
@@ -68,7 +68,7 @@ class CrawlerMonitor:
         self.request_history: defaultdict[str, deque[float]] = defaultdict(
             lambda: deque(maxlen=1000)
         )
-        self.error_handler: ErrorHandler = ErrorHandler()
+        self.error_handler: EnhancedErrorHandler = EnhancedErrorHandler()
         try:
             self.redis: Optional[redis.Redis] = redis.Redis(
                 host=config.REDIS.HOST, port=config.REDIS.PORT, db=config.REDIS.DB
