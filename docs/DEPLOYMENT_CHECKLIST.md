@@ -105,7 +105,7 @@
 ## 🚀 Final Deployment Steps
 
 ### Pre-Deployment
-1. **Dependencies Install**: `pip install -r requirements.txt`
+1. **Dependencies Install**: `pip install -r requirements.txt -r api-extras.txt`
 2. **Database Migration**: run schema updates
 3. **Configuration Validation**: verify all environment variables
 4. **Security Tests**: run full security test suite

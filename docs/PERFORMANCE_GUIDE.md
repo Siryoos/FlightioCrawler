@@ -208,7 +208,7 @@ Success Rate               | 94.3%      | 97.8%   | 3.7%
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt -r worker-extras.txt
 
 # Configure environment
 export PYTHONPATH=$PWD

@@ -17,11 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install monitoring-specific dependencies with caching
-COPY requirements-monitor.txt .
+# Install monitoring dependencies using extras file
+COPY requirements.txt monitor-extras.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel \
-    && pip install --user --timeout=1000 --retries=5 -r requirements-monitor.txt
+    && pip install --user --timeout=1000 --retries=5 -r monitor-extras.txt
 
 # ---
 
