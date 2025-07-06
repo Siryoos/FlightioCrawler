@@ -405,7 +405,7 @@ services:
       context: .
       dockerfile: Dockerfile.api
     container_name: flightio-api-dev
-    command: python -m uvicorn main_v2:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
     volumes:
       - .:/app:rw
       - /app/__pycache__
@@ -476,7 +476,7 @@ services:
       context: .
       dockerfile: Dockerfile.api
     container_name: flightio-api-test
-    command: python -m uvicorn main_v2:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - DB_HOST=postgres-test
       - DB_NAME=flight_data_test

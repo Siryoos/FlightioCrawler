@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch, AsyncMock
 
 # Import the new versioned app
 try:
-    from main_v2 import app
+    from main import app
 except ImportError:
     from main import app
 from api_versioning import APIVersion, DeprecationLevel

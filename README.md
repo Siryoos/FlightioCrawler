@@ -126,6 +126,10 @@ export PYTHONPATH=$PWD
 export CRAWLER_ENV=production
 export MEMORY_MONITORING=enabled
 ```
+### Start API Server:
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
 
 ### Quick Usage:
 ```python
