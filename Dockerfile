@@ -13,7 +13,8 @@ ENV PYTHONUNBUFFERED=1 \
 FROM base as builder
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     git \
@@ -25,7 +26,8 @@ WORKDIR /app
 
 # Copy and install Python dependencies
 COPY requirements.txt .
-RUN python -m pip install --upgrade pip \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip \
     && pip install --no-cache-dir --user -r requirements.txt \
     && playwright install chromium --with-deps
 

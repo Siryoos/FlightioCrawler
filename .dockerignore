@@ -52,6 +52,8 @@ frontend/
 node_modules/
 package.json
 package-lock.json
+chromedriver.exe
+real_request_test_results_*.json
 
 # Documentation and configs
 docs/
