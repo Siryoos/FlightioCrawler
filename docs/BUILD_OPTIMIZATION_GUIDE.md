@@ -55,12 +55,13 @@ PARALLEL_BUILDS=$(nproc)  # Use all available cores
 
 ### 4. Frontend Build Optimizations
 
-#### Next.js Configuration (`frontend/next.config.optimized.js`)
+#### Next.js Configuration (`frontend/next.config.js`)
 - **Tree Shaking**: Remove unused code
 - **Code Splitting**: Optimize bundle sizes
 - **Image Optimization**: WebP/AVIF formats
 - **Security Headers**: Enhanced security
 - **Performance Monitoring**: Bundle analysis
+- **Production Flags**: Set `NEXT_OPTIMIZE_CSS=true` to enable CSS optimization
 
 #### Webpack Optimizations
 ```javascript
