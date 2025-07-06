@@ -19,7 +19,12 @@ except Exception:  # pragma: no cover - optional dependency
 from bs4 import BeautifulSoup
 from persian_text import PersianTextProcessor
 from monitoring import CrawlerMonitor
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import (
+    EnhancedErrorHandler,
+    ErrorContext,
+    ErrorSeverity,
+    ErrorCategory,
+)
 from config import config
 from playwright.async_api import async_playwright, Browser, Page
 from rate_limiter import RateLimiter
@@ -37,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 class FlytodayCrawler(BaseSiteCrawler):
     """Crawler for Flytoday.ir"""
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 2700):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler, interval: int = 2700):
         super().__init__("flytoday.ir", "https://www.flytoday.ir", rate_limiter, text_processor, monitor, error_handler, interval=interval)
         self.domain = "flytoday.ir"
         self.base_url = "https://www.flytoday.ir"
@@ -46,7 +51,7 @@ class FlytodayCrawler(BaseSiteCrawler):
         """Search flights on Flytoday by parsing the results page."""
         start_time = datetime.now()
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 return []
 
             if not await self.check_rate_limit():
@@ -121,7 +126,8 @@ class FlytodayCrawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling Flytoday: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             fallback = await self._api_fallback(search_params)
             return fallback
 
@@ -129,14 +135,14 @@ class FlytodayCrawler(BaseSiteCrawler):
 class FlightioCrawler(BaseSiteCrawler):
     """Crawler for Flightio.com"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 2700):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler, interval: int = 2700):
         super().__init__("flightio.com", "https://flightio.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on Flightio by parsing the results page."""
         start_time = datetime.now()
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 return []
 
             if not await self.check_rate_limit():
@@ -210,14 +216,15 @@ class FlightioCrawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling Flightio: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class AlibabaCrawler(BaseSiteCrawler):
     """Crawler for Alibaba.ir"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler, interval: int = 900):
         super().__init__("alibaba.ir", "https://www.alibaba.ir", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
@@ -225,7 +232,7 @@ class AlibabaCrawler(BaseSiteCrawler):
         start_time = datetime.now()
 
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
 
@@ -313,14 +320,15 @@ class AlibabaCrawler(BaseSiteCrawler):
 
         except Exception as e:
             self.logger.error(f"Error crawling Alibaba: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class SnapptripCrawler(BaseSiteCrawler):
     """Crawler for Snapptrip.com"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler, interval: int = 900):
         super().__init__("snapptrip.com", "https://www.snapptrip.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
@@ -328,7 +336,7 @@ class SnapptripCrawler(BaseSiteCrawler):
         start_time = datetime.now()
 
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
 
@@ -416,14 +424,15 @@ class SnapptripCrawler(BaseSiteCrawler):
 
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class SafarmarketCrawler(BaseSiteCrawler):
     """Crawler for Safarmarket.com"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler, interval: int = 900):
         super().__init__("safarmarket.com", "https://www.safarmarket.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def _build_api_payload(self, search_params: Dict) -> Dict:
@@ -458,7 +467,7 @@ class SafarmarketCrawler(BaseSiteCrawler):
         start_time = datetime.now()
 
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
 
@@ -518,21 +527,22 @@ class SafarmarketCrawler(BaseSiteCrawler):
 
         except Exception as e:
             self.logger.error(f"Error crawling Safarmarket: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class Mz724Crawler(BaseSiteCrawler):
     """Crawler for mz724.ir"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 1800):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler, interval: int = 1800):
         super().__init__("mz724.ir", "https://mz724.ir", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on mz724.ir and return real results."""
         start_time = datetime.now()
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
 
@@ -616,14 +626,15 @@ class Mz724Crawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class PartoCRSCrawler(BaseSiteCrawler):
     """Crawler for partocrs.com"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler):
         super().__init__("partocrs.com", "https://www.partocrs.com", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "partocrs.com"
         self.base_url = "https://www.partocrs.com"
@@ -632,7 +643,7 @@ class PartoCRSCrawler(BaseSiteCrawler):
         """Search flights on Parto CRS"""
         start_time = datetime.now()
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
             if not await self.check_rate_limit():
@@ -708,14 +719,15 @@ class PartoCRSCrawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class PartoTicketCrawler(BaseSiteCrawler):
     """Crawler for parto-ticket.ir"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler):
         super().__init__("parto-ticket.ir", "https://parto-ticket.ir", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "parto-ticket.ir"
         self.base_url = "https://parto-ticket.ir"
@@ -724,7 +736,7 @@ class PartoTicketCrawler(BaseSiteCrawler):
         """Search flights on Parto Ticket"""
         start_time = datetime.now()
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
             if not await self.check_rate_limit():
@@ -800,14 +812,15 @@ class PartoTicketCrawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class BookCharter724Crawler(BaseSiteCrawler):
     """Crawler for bookcharter724.ir"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler):
         super().__init__("bookcharter724.ir", "https://bookcharter724.ir", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "bookcharter724.ir"
         self.base_url = "https://bookcharter724.ir"
@@ -816,7 +829,7 @@ class BookCharter724Crawler(BaseSiteCrawler):
         """Search flights on BookCharter724"""
         start_time = datetime.now()
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
             if not await self.check_rate_limit():
@@ -892,14 +905,15 @@ class BookCharter724Crawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class BookCharterCrawler(BaseSiteCrawler):
     """Crawler for bookcharter.ir"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler):
         super().__init__("bookcharter.ir", "https://bookcharter.ir", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "bookcharter.ir"
         self.base_url = "https://bookcharter.ir"
@@ -908,7 +922,7 @@ class BookCharterCrawler(BaseSiteCrawler):
         """Search flights on BookCharter"""
         start_time = datetime.now()
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
             if not await self.check_rate_limit():
@@ -984,14 +998,15 @@ class BookCharterCrawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)
 
 
 class MrbilitCrawler(BaseSiteCrawler):
     """Crawler for mrbilit.com"""
 
-    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: EnhancedErrorHandler, interval: int = 900):
         super().__init__("mrbilit.com", "https://mrbilit.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
         self.domain = "mrbilit.com"
@@ -1014,7 +1029,7 @@ class MrbilitCrawler(BaseSiteCrawler):
         start_time = datetime.now()
 
         try:
-            if not await self.error_handler.can_make_request(self.domain):
+            if not await self.error_handler.can_make_request_async(self.domain):
                 self.logger.warning(f"Circuit breaker open for {self.domain}")
                 return []
 
@@ -1071,5 +1086,6 @@ class MrbilitCrawler(BaseSiteCrawler):
             return flights
         except Exception as e:
             self.logger.error(f"Error crawling {self.domain}: {e}")
-            await self.error_handler.handle_error(self.domain, e)
+            context = ErrorContext(adapter_name=self.domain, operation="search_flights")
+            await self.error_handler.handle_error(e, context)
             return await self._api_fallback(search_params)

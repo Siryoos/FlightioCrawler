@@ -12,7 +12,7 @@ from adapters.base_adapters.enhanced_international_adapter import (
     EnhancedInternationalAdapter,
 )
 from rate_limiter import RateLimiter
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 from monitoring import Monitoring
 
 
@@ -28,7 +28,7 @@ class EtihadAirwaysAdapter(EnhancedInternationalAdapter):
             burst_limit=config["rate_limiting"]["burst_limit"],
             cooldown_period=config["rate_limiting"]["cooldown_period"],
         )
-        self.error_handler = ErrorHandler(
+        self.error_handler = EnhancedErrorHandler(
             max_retries=config["error_handling"]["max_retries"],
             retry_delay=config["error_handling"]["retry_delay"],
             circuit_breaker_config=config["error_handling"]["circuit_breaker"],

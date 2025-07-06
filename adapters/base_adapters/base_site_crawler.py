@@ -9,7 +9,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from environment_manager import env_manager
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 from monitoring import CrawlerMonitor
 from persian_text import PersianTextProcessor
 from rate_limiter import RateLimiter
@@ -31,7 +31,7 @@ class BaseSiteCrawler(StealthCrawler, ABC):
         rate_limiter: RateLimiter,
         text_processor: PersianTextProcessor,
         monitor: CrawlerMonitor,
-        error_handler: ErrorHandler,
+        error_handler: EnhancedErrorHandler,
         interval: int = 900,
     ) -> None:
         super().__init__()

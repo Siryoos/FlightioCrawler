@@ -52,7 +52,7 @@ except ImportError:
     BS4_AVAILABLE = False
 
 from rate_limiter import RateLimiter
-from error_handler import ErrorHandler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
 from monitoring import Monitoring
 from utils.request_batcher import RequestBatcher, RequestSpec
 # All error handling unified in enhanced_error_handler.py
@@ -1093,9 +1093,9 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         """Create rate limiter from config with enhanced defaults."""
         return RateLimiter()
 
-    def _create_error_handler(self) -> ErrorHandler:
+    def _create_error_handler(self) -> EnhancedErrorHandler:
         """Create error handler from config with enhanced defaults."""
-        return ErrorHandler()
+        return EnhancedErrorHandler()
 
     def _create_monitoring(self) -> Monitoring:
         """Create monitoring from config."""
