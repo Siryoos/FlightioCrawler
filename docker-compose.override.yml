@@ -1,0 +1,57 @@
+version: '3.8'
+
+# Docker Compose override for development with caching
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      cache_from:
+        - flightiocrawler-1-api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile.crawler
+      cache_from:
+        - flightiocrawler-1-crawler:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      cache_from:
+        - flightiocrawler-1-worker:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+
+  ml-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      cache_from:
+        - flightiocrawler-1-ml-worker:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+
+  monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.monitor
+      cache_from:
+        - flightiocrawler-1-monitor:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      cache_from:
+        - flightiocrawler-1-frontend:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1 

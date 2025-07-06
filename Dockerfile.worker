@@ -18,12 +18,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install worker-specific dependencies
-COPY requirements.txt .
-RUN grep -E "(celery|redis|psycopg2|beautifulsoup4|pandas|numpy|scikit-learn)" requirements.txt > requirements-worker.txt \
-    && echo "aiohttp>=3.8.0" >> requirements-worker.txt \
-    && echo "aiofiles>=23.2.1" >> requirements-worker.txt \
-    && pip install --user -r requirements-worker.txt
+# Install worker-specific dependencies with caching and staged installation
+COPY requirements-worker.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel \
+    && pip install --user --timeout=1000 --retries=5 \
+        celery>=5.3.0 redis>=4.3.4 psycopg2-binary>=2.9.3 \
+    && pip install --user --timeout=1000 --retries=5 \
+        sqlalchemy>=2.0.0 aiohttp>=3.8.0 requests>=2.28.0 \
+    && pip install --user --timeout=1000 --retries=5 \
+        beautifulsoup4>=4.12.0 lxml>=4.9.0 \
+    && pip install --user --timeout=1000 --retries=5 \
+        numpy>=1.22.3,<1.25.0 pandas>=1.4.2 \
+    && pip install --user --timeout=1000 --retries=5 \
+        scikit-learn>=1.0.2 \
+    && pip install --user --timeout=1000 --retries=5 \
+        hazm>=0.7.0 persian-tools>=0.0.8 jdatetime>=3.7.0 \
+    && pip install --user --timeout=1000 --retries=5 \
+        googletrans>=4.0.2 langdetect==1.0.9 \
+    && pip install --user --timeout=1000 --retries=5 \
+        prometheus-client>=0.14.1 python-json-logger>=2.0.2 psutil>=5.9.0 \
+    && pip install --user --timeout=1000 --retries=5 \
+        aiofiles>=23.2.1 joblib==1.3.2 orjson>=3.8.0 ujson>=5.7.0 \
+    && pip install --user --timeout=1000 --retries=5 \
+        aiocache>=0.12.0 diskcache>=5.6.0 python-dotenv>=0.19.0 pyyaml>=6.0 urllib3>=1.26.0,<2.0.0
 
 # ---
 
@@ -59,7 +77,7 @@ COPY --chown=worker:worker ml_predictor.py ./
 COPY --chown=worker:worker price_monitor.py ./
 COPY --chown=worker:worker intelligent_search.py ./
 COPY --chown=worker:worker multilingual_processor.py ./
-COPY --chown=worker:worker persian_processor.py ./
+COPY --chown=worker:worker persian_text.py ./
 
 # Create directories
 RUN mkdir -p logs data/storage data/transformers \

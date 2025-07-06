@@ -1,6 +1,14 @@
-# راهنمای مهاجرت به ساختار جدید آداپترها
+# راهنمای جامع مهاجرت FlightioCrawler
 
-این راهنما نحوه مهاجرت از آداپترهای قدیمی به ساختار جدید بهبود‌یافته را توضیح می‌دهد.
+این راهنما نحوه مهاجرت از سیستم‌های قدیمی به ساختار جدید بهبود‌یافته را توضیح می‌دهد.
+
+## نوع‌های مهاجرت
+
+### 1. مهاجرت آداپترها (Adapter Migration)
+مهاجرت از آداپترهای قدیمی به ساختار جدید Enhanced Adapters
+
+### 2. مهاجرت رابط یکپارچه (Unified Interface Migration)
+مهاجرت از سیستم‌های `requests` یا `crawlers` قدیمی به رابط یکپارچه جدید
 
 ## خلاصه تغییرات
 
@@ -378,4 +386,142 @@ class MahanAirAdapter(EnhancedPersianAdapter):
 - **تست‌پذیری بالاتر**: جداسازی مسئولیت‌ها
 - **Error Handling یکپارچه**: مدیریت خطای استاندارد
 
-این ساختار جدید توسعه آداپترهای جدید را بسیار سریع‌تر و قابل اعتمادتر می‌کند. 
+این ساختار جدید توسعه آداپترهای جدید را بسیار سریع‌تر و قابل اعتمادتر می‌کند.
+
+---
+
+## بخش دوم: مهاجرت به رابط یکپارچه (Unified Interface Migration)
+
+### نمای کلی
+
+رابط یکپارچه مجموعه‌ای از کلاس‌های واحد برای rate limiting، گزارش پیشرفت، مدیریت session و اعتبارسنجی داده‌ها فراهم می‌کند. ماژول‌های موجود به لطف wrapper های سازگاری همچنان کار می‌کنند.
+
+### گام‌های مهاجرت به رابط یکپارچه
+
+#### گام 1: جایگزینی import های قدیمی
+
+```python
+# قدیمی
+from base_crawler import BaseSiteCrawler
+
+# جدید
+from adapters.unified_crawler_interface import UnifiedCrawlerInterface
+```
+
+#### گام 2: استانداردسازی داده‌های پرواز
+
+از `FlightDataStandardizer` برای تبدیل نتایج از هر سیستم به مدل `FlightData` استاندارد استفاده کنید:
+
+```python
+from flight_data_standardizer import FlightDataStandardizer
+from adapters.unified_crawler_interface import CrawlerSystemType
+
+standardizer = FlightDataStandardizer(CrawlerSystemType.REQUESTS)
+flights = standardizer.standardize(legacy_results)
+```
+
+#### گام 3: اعتبارسنجی نتایج
+
+```python
+from flight_data_validator import FlightDataValidator
+
+validator = FlightDataValidator()
+valid_flights = validator.validate([f.to_dict() for f in flights])
+```
+
+#### گام 4: مدیریت Session ها
+
+```python
+from session_manager import SessionManager
+session_manager = SessionManager()
+http_session = await session_manager.get_http_session()
+selenium = session_manager.get_selenium()
+```
+
+### مثال کامل مهاجرت به رابط یکپارچه
+
+#### قبل (سیستم قدیمی):
+```python
+# استفاده از سیستم قدیمی
+from base_crawler import BaseSiteCrawler
+from legacy_data_processor import LegacyDataProcessor
+
+class OldCrawler(BaseSiteCrawler):
+    def __init__(self):
+        super().__init__()
+        self.data_processor = LegacyDataProcessor()
+    
+    def crawl_site(self, params):
+        # منطق خزنده‌سازی قدیمی
+        results = self.perform_crawl(params)
+        processed_results = self.data_processor.process(results)
+        return processed_results
+```
+
+#### بعد (رابط یکپارچه):
+```python
+# استفاده از رابط یکپارچه
+from adapters.unified_crawler_interface import UnifiedCrawlerInterface
+from flight_data_standardizer import FlightDataStandardizer, CrawlerSystemType
+from flight_data_validator import FlightDataValidator
+from session_manager import SessionManager
+
+class NewCrawler(UnifiedCrawlerInterface):
+    def __init__(self):
+        super().__init__()
+        self.standardizer = FlightDataStandardizer(CrawlerSystemType.REQUESTS)
+        self.validator = FlightDataValidator()
+        self.session_manager = SessionManager()
+    
+    async def crawl_site(self, params):
+        # استفاده از session manager
+        http_session = await self.session_manager.get_http_session()
+        
+        # خزنده‌سازی با session مدیریت شده
+        results = await self.perform_crawl(params, http_session)
+        
+        # استانداردسازی داده‌ها
+        standardized_flights = self.standardizer.standardize(results)
+        
+        # اعتبارسنجی
+        valid_flights = self.validator.validate([f.to_dict() for f in standardized_flights])
+        
+        return valid_flights
+```
+
+### سازگاری با نسخه‌های قدیمی
+
+کلاس‌های wrapper مانند `LegacyFlightDataStandardizer` اجازه می‌دهند کد قدیمی همچنان کار کند در حالی که به تدریج مهاجرت انجام می‌شود:
+
+```python
+# Wrapper برای سازگاری
+from adapters.unified_crawler_interface import LegacyFlightDataStandardizer
+
+# این همچنان کار می‌کند
+legacy_standardizer = LegacyFlightDataStandardizer()
+results = legacy_standardizer.standardize(old_format_data)
+```
+
+### نکات مهم مهاجرت رابط یکپارچه
+
+1. **مهاجرت تدریجی**: می‌توانید بخش‌های مختلف را به تدریج مهاجرت دهید
+2. **تست کامل**: هر بخش مهاجرت شده را کاملاً تست کنید
+3. **استفاده از Wrapper ها**: در صورت نیاز از wrapper های سازگاری استفاده کنید
+4. **مستندات**: تغییرات را در مستندات پروژه ثبت کنید
+
+### مراجع
+
+- `UNIFIED_ARCHITECTURE_GUIDE.md` - نمای کلی معماری اجزای جدید
+- `PERFORMANCE_GUIDE.md` - راهنمای بهینه‌سازی عملکرد
+- `DESIGN_PATTERNS_GUIDE.md` - الگوهای طراحی استفاده شده
+
+---
+
+## نتیجه‌گیری
+
+این راهنما دو نوع مهاجرت مختلف را پوشش می‌دهد:
+
+1. **مهاجرت آداپترها**: برای بهبود و استانداردسازی آداپترهای سایت
+2. **مهاجرت رابط یکپارچه**: برای یکپارچه‌سازی سیستم‌های مختلف خزنده‌سازی
+
+هر دو نوع مهاجرت سازگاری با نسخه‌های قدیمی را حفظ می‌کنند و امکان مهاجرت تدریجی را فراهم می‌کنند. 

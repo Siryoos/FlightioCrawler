@@ -1,1 +1,0 @@
-# bookcharter Analysis\n\n- **UI/UX pattern:** TBD\n- **Persian text handling:** Site uses RTL layouts with Persian numerals.\n- **Flight search flow:** Basic search form captured.\n- **Technical notes:** Uses XHR for search results.\n- **Unique features:** None

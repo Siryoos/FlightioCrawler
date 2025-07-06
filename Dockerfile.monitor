@@ -17,13 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install monitoring-specific dependencies
-COPY requirements.txt .
-RUN grep -E "(psutil|prometheus|grafana|psycopg2|redis)" requirements.txt > requirements-monitor.txt \
-    && echo "fastapi>=0.115.0" >> requirements-monitor.txt \
-    && echo "uvicorn[standard]>=0.24.0" >> requirements-monitor.txt \
-    && echo "aiohttp>=3.8.0" >> requirements-monitor.txt \
-    && pip install --user -r requirements-monitor.txt
+# Install monitoring-specific dependencies with caching
+COPY requirements-monitor.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel \
+    && pip install --user --timeout=1000 --retries=5 -r requirements-monitor.txt
 
 # ---
 

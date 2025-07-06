@@ -515,7 +515,7 @@ monitor.alert_manager.add_handler(custom_alert_handler)
 - [Health Check Endpoints](monitoring/memory_health_endpoint.py)
 - [Configuration Schema](monitoring/monitoring_config.json)
 - [Grafana Dashboard](monitoring/grafana_memory_dashboard.json)
-- [Performance Optimization Report](PERFORMANCE_OPTIMIZATION_REPORT.md)
+- [Performance Guide](PERFORMANCE_GUIDE.md)
 
 ---
 

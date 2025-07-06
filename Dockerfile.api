@@ -35,14 +35,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy and install Python dependencies with security scanning
-COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel \
-    && pip install --user safety \
-    && pip install --user bandit \
-    && pip install --user -r requirements.txt \
-    && ~/.local/bin/safety check --json || true \
-    && ~/.local/bin/bandit -r ~/.local/lib/python3.11/site-packages || true
+# Copy and install Python dependencies (API-specific) with caching
+COPY requirements-api.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel \
+    && pip install --user --timeout=1000 --retries=5 -r requirements-api.txt
 
 # ---
 
