@@ -58,6 +58,7 @@ class IntelligentSearchRequest(BaseModel):
 
 # Import shared dependencies to eliminate circular imports
 from api.dependencies import get_crawler
+from adapters.unified_crawler_interface import UnifiedCrawlerInterface
 
 @router.post("/search", response_model=FlightSearchResponse)
 @api_versioned(APIVersion.V1)
@@ -66,7 +67,7 @@ async def search_flights(
     request: Request,
     response: Response,
     accept_language: str = Header("en"),
-    crawler: IranianFlightCrawler = Depends(get_crawler)
+    crawler: UnifiedCrawlerInterface = Depends(get_crawler)
 ):
     """
     Search for flights across all supported sites
@@ -78,16 +79,22 @@ async def search_flights(
         # Add version headers
         add_api_version_headers(response, APIVersion.V1)
         
-        # Search flights
-        flights = await crawler.crawl_all_sites(
-            {
-                "origin": request_data.origin,
-                "destination": request_data.destination,
-                "date": request_data.date,
-                "passengers": request_data.passengers,
-                "seat_class": request_data.seat_class,
-            }
+        # Create search parameters
+        from adapters.unified_crawler_interface import SearchParameters
+        search_params = SearchParameters(
+            origin=request_data.origin,
+            destination=request_data.destination,
+            departure_date=request_data.date,
+            passengers=request_data.passengers,
+            seat_class=request_data.seat_class,
+            language=accept_language
         )
+        
+        # Search flights using unified interface
+        result = await crawler.crawl_async(search_params)
+        
+        # Convert to response format
+        flights = [flight.to_dict() for flight in result.flights]
         
         # Format response
         return FlightSearchResponse(
@@ -99,7 +106,9 @@ async def search_flights(
                 "date": request_data.date,
                 "passengers": request_data.passengers,
                 "seat_class": request_data.seat_class,
-                "results_count": len(flights)
+                "results_count": len(flights),
+                "execution_time": result.execution_time,
+                "success": result.success
             }
         )
         
@@ -112,7 +121,7 @@ async def get_recent_flights(
     request: Request,
     response: Response,
     limit: int = Query(100, ge=1, le=1000),
-    crawler: IranianFlightCrawler = Depends(get_crawler)
+    crawler: UnifiedCrawlerInterface = Depends(get_crawler)
 ):
     """
     Get recently found flights
@@ -122,14 +131,18 @@ async def get_recent_flights(
     try:
         add_api_version_headers(response, APIVersion.V1)
         
-        recent_flights = await crawler.get_recent_flights(limit=limit)
+        # For unified interface, we need to implement a way to get recent flights
+        # This might require extending the interface or using metadata
+        recent_flights = []
         
+        # For now, return empty list with a message
         return {
             "flights": recent_flights,
             "count": len(recent_flights),
             "limit": limit,
             "timestamp": datetime.now().isoformat(),
-            "version": "v1"
+            "version": "v1",
+            "message": "Recent flights functionality being migrated to unified interface"
         }
         
     except Exception as e:
@@ -141,7 +154,7 @@ async def manual_crawl(
     request_data: CrawlRequest,
     request: Request,
     response: Response,
-    crawler: IranianFlightCrawler = Depends(get_crawler)
+    crawler: UnifiedCrawlerInterface = Depends(get_crawler)
 ):
     """
     Manually trigger a crawl for specific routes and dates
@@ -152,21 +165,28 @@ async def manual_crawl(
     try:
         add_api_version_headers(response, APIVersion.V1)
         
+        from adapters.unified_crawler_interface import SearchParameters
         results = []
+        
         for date in request_data.dates:
-            search_params = {
-                "origin": request_data.origin,
-                "destination": request_data.destination,
-                "date": date,
-                "passengers": request_data.passengers,
-                "seat_class": request_data.seat_class,
-            }
+            search_params = SearchParameters(
+                origin=request_data.origin,
+                destination=request_data.destination,
+                departure_date=date,
+                passengers=request_data.passengers,
+                seat_class=request_data.seat_class
+            )
             
-            flights = await crawler.crawl_all_sites(search_params)
+            # Crawl using unified interface
+            result = await crawler.crawl_async(search_params)
+            
+            flights = [flight.to_dict() for flight in result.flights]
             results.append({
                 "date": date,
                 "flights": flights,
-                "count": len(flights)
+                "count": len(flights),
+                "success": result.success,
+                "execution_time": result.execution_time
             })
         
         return {
