@@ -29,11 +29,10 @@ class ConnectingFlight:
 
 
 class IntelligentSearchEngine:
-    def __init__(self, main_crawler, db_manager, ml_predictor: Optional[Any] = None):
+    def __init__(self, main_crawler, db_manager):
         """Initialize the intelligent search engine."""
         self.main_crawler = main_crawler
         self.db_manager = db_manager
-        self.ml_predictor = ml_predictor
 
     async def optimize_search_strategy(
         self, search_params: Dict, optimization: SearchOptimization

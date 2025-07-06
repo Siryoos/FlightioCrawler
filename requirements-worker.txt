@@ -19,10 +19,7 @@ pyyaml>=6.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 
-# Machine Learning (for ML worker) - lighter versions
-scikit-learn>=1.0.2
-pandas>=1.4.2
-numpy>=1.22.3,<1.25.0
+
 
 # Persian Text Processing
 hazm>=0.7.0
@@ -41,8 +38,7 @@ psutil>=5.9.0
 # Async utilities
 aiofiles>=23.2.1
 
-# Data Processing
-joblib==1.3.2
+
 
 # Performance
 orjson>=3.8.0

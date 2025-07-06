@@ -34,7 +34,7 @@ aiofiles>=23.2.1
 jdatetime>=3.7.0
 
 # Data Processing
-joblib==1.3.2
+
 
 # Utility
 validators>=0.20.0 

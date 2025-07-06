@@ -37,10 +37,7 @@ celery_app.conf.beat_schedule = {
         "task": "tasks.crawl_all_routes",
         "schedule": crontab(minute="*/30"),  # Every 30 minutes
     },
-    "update-price-predictions": {
-        "task": "tasks.update_price_predictions",
-        "schedule": crontab(hour="*/1"),  # Every hour
-    },
+
     "cleanup-old-data": {
         "task": "tasks.cleanup_old_data",
         "schedule": crontab(hour=0, minute=0),  # Daily at midnight
@@ -97,35 +94,7 @@ async def crawl_all_routes():
         return {"error": str(e)}
 
 
-@celery_app.task
-async def update_price_predictions():
-    """Update price predictions for all routes"""
-    try:
-        crawler = IranianFlightCrawler()
-        data_manager = DataManager()
-        routes = await data_manager.get_active_routes()
 
-        for route in routes:
-            # Train model
-            await crawler.ml_predictor.train_price_model(route["id"])
-
-            # Generate predictions
-            future_dates = [
-                (datetime.now() + timedelta(days=i)).strftime("%Y-%m-%d")
-                for i in range(1, 31)  # 30 days ahead
-            ]
-            predictions = await crawler.ml_predictor.predict_future_prices(
-                route["id"], future_dates
-            )
-
-            # Store predictions
-            await data_manager.store_price_predictions(route["id"], predictions)
-
-        return {"routes_updated": len(routes), "timestamp": datetime.now().isoformat()}
-
-    except Exception as e:
-        logger.error(f"Error updating price predictions: {e}")
-        return {"error": str(e)}
 
 
 @celery_app.task
@@ -138,8 +107,7 @@ async def cleanup_old_data():
         cutoff_date = datetime.now() - timedelta(days=30)
         await data_manager.delete_old_flights(cutoff_date)
 
-        # Clean up old predictions
-        await data_manager.delete_old_predictions(cutoff_date)
+
 
         return {"cleanup_completed": True, "timestamp": datetime.now().isoformat()}
 

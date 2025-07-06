@@ -44,7 +44,6 @@ from persian_text import PersianTextProcessor
 from config import config
 from intelligent_search import IntelligentSearchEngine, SearchOptimization
 from price_monitor import PriceMonitor, WebSocketManager
-from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 from utils.request_batcher import RequestBatcher, RequestSpec
 
@@ -100,9 +99,6 @@ class IranianFlightCrawler:
             self.data_manager, self.data_manager.redis
         )
         self.price_monitor.websocket_manager = WebSocketManager()
-        self.ml_predictor: FlightPricePredictor = FlightPricePredictor(
-            self.data_manager, self.data_manager.redis
-        )
         self.multilingual: MultilingualProcessor = MultilingualProcessor()
 
         # Concurrency control

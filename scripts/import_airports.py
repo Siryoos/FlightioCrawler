@@ -1,6 +1,6 @@
 import os
 import sys
-import pandas as pd
+
 from sqlalchemy import create_engine
 
 sys.path.append(os.path.dirname(__file__) + "/..")

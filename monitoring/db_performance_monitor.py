@@ -12,7 +12,7 @@ from psycopg2.extras import RealDictCursor
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-import pandas as pd
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 from config import config

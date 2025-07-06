@@ -14,7 +14,6 @@ from main_crawler import IranianFlightCrawler
 from monitoring import CrawlerMonitor
 from intelligent_search import SearchOptimization
 from price_monitor import PriceMonitor, WebSocketManager, PriceAlert
-from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 from provider_insights import get_provider_insights
 from rate_limiter import RateLimitMiddleware, RateLimitManager, get_rate_limit_manager
@@ -401,10 +400,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         crawler.price_monitor.websocket_manager.disconnect(user_id)
 
 
-@app.post("/predict")
-async def predict_prices(route: str, dates: List[str], crawler: IranianFlightCrawler = Depends(get_crawler)):
-    predictions = await crawler.ml_predictor.predict_prices(route, dates)
-    return {"predictions": predictions}
+
 
 
 @app.post("/search/intelligent")
@@ -464,7 +460,7 @@ async def get_module_source(module_name: str):
         "intelligent_search": "intelligent_search.py",
         "price_monitor": "price_monitor.py",
         "flight_monitor": "flight_monitor.py",
-        "ml_predictor": "ml_predictor.py",
+
         "multilingual_processor": "multilingual_processor.py",
     }
     path = module_paths.get(module_name)

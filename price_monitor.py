@@ -1,5 +1,5 @@
 from fastapi import WebSocket
-import numpy as np
+import statistics
 from typing import Set, Callable, List, Dict, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -106,7 +106,7 @@ class PriceMonitor:
         anomalies = []
         for route, prices in route_prices.items():
             current_price = prices[-1]
-            expected_price = np.mean(prices[:-1])  # Simple mean as expected price
+            expected_price = statistics.mean(prices[:-1])  # Simple mean as expected price
             deviation = abs(current_price - expected_price) / expected_price * 100
             if deviation > 10:  # Threshold for anomaly
                 anomalies.append(
@@ -139,10 +139,10 @@ class PriceMonitor:
         """Calculate price statistics for a route."""
         historical_data = await self.db_manager.get_historical_prices(route)
         return {
-            "mean": np.mean(historical_data),
-            "std": np.std(historical_data),
-            "min": np.min(historical_data),
-            "max": np.max(historical_data),
+            "mean": statistics.mean(historical_data),
+            "std": statistics.stdev(historical_data) if len(historical_data) > 1 else 0,
+            "min": min(historical_data),
+            "max": max(historical_data),
         }
 
     async def _monitor_route(self, route: str, interval_minutes: int):

@@ -302,30 +302,6 @@ class ErrorConfig:
 
 
 @dataclass
-class MLConfig:
-    """Configuration for machine learning models and predictions.
-    
-    Attributes:
-        MODEL_PATH: Path to the trained ML model
-        TRAINING_DATA_PATH: Path to training data CSV
-        FEATURE_COLUMNS: List of feature columns for the model
-        TARGET_COLUMN: Target column name for predictions
-    """
-    MODEL_PATH: str = "models/flight_price_predictor.pkl"
-    TRAINING_DATA_PATH: str = "data/training_data.csv"
-    FEATURE_COLUMNS: List[str] = field(
-        default_factory=lambda: [
-            "departure_time",
-            "arrival_time",
-            "duration_minutes",
-            "airline",
-            "seat_class",
-        ]
-    )
-    TARGET_COLUMN: str = "price"
-
-
-@dataclass
 class Config:
     """Main configuration class that aggregates all other configurations.
     
@@ -338,14 +314,12 @@ class Config:
         CRAWLER: Crawler configuration
         MONITORING: Monitoring configuration
         ERROR: Error handling configuration
-        ML: Machine learning configuration
     """
     DATABASE: DatabaseConfig = field(default_factory=DatabaseConfig)
     REDIS: RedisConfig = field(default_factory=RedisConfig)
     CRAWLER: CrawlerConfig = field(default_factory=CrawlerConfig)
     MONITORING: MonitoringConfig = field(default_factory=MonitoringConfig)
     ERROR: ErrorConfig = field(default_factory=ErrorConfig)
-    ML: MLConfig = field(default_factory=MLConfig)
 
     # API Configuration
     API_VERSION: str = "v1"

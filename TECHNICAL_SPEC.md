@@ -17,7 +17,6 @@ class IranianFlightCrawler:
         # Advanced features
         self.intelligent_search = IntelligentSearchEngine()
         self.price_monitor = PriceMonitor()
-        self.ml_predictor = FlightPricePredictor()
         self.multilingual = MultilingualProcessor()
 ```
 
@@ -190,26 +189,9 @@ class CrawlerMonitor:
         self.metrics['response_time'].labels(site=site).observe(duration)
 ```
 
-### 9. Machine Learning Integration | یکپارچه‌سازی یادگیری ماشین
 
-#### Price Predictor
-```python
-class FlightPricePredictor:
-    def __init__(self, model_path: str):
-        self.model = joblib.load(model_path)
-        self.scaler = StandardScaler()
 
-    def predict_price(self, features: Dict) -> float:
-        scaled_features = self.scaler.transform([self._prepare_features(features)])
-        return self.model.predict(scaled_features)[0]
 
-    def _prepare_features(self, features: Dict) -> List[float]:
-        return [
-            features['duration_minutes'],
-            features['days_until_departure'],
-            features['is_weekend'],
-            features['season']
-        ]
 ```
 
 ### 10. Testing Strategy | استراتژی تست
