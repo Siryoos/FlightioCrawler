@@ -13,9 +13,25 @@ class FlightDataValidator:
     """Validate flight data using unified rules."""
 
     def __init__(self, config: ValidationConfig | None = None) -> None:
+        """
+        Initialize the FlightDataValidator with a given validation configuration.
+        
+        If no configuration is provided, uses the default ValidationConfig.
+        """
         self.config = config or ValidationConfig()
 
     def validate(self, flights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Validate a list of flight records, returning only those that meet required field presence and configured value ranges.
+        
+        Each flight must contain all required fields with truthy values, a price convertible to float within the configured price range, and, if present, a duration in minutes convertible to int within the configured duration range.
+        
+        Parameters:
+            flights (List[Dict[str, Any]]): List of flight data dictionaries to validate.
+        
+        Returns:
+            List[Dict[str, Any]]: Filtered list of valid flight records.
+        """
         valid: List[Dict[str, Any]] = []
         for flight in flights:
             if not all(flight.get(field) for field in self.config.required_fields):
