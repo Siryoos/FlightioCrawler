@@ -1,15 +1,6 @@
 # Secure and Optimized API Dockerfile
-FROM python:3.11-slim AS base
-
-# Security and performance environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONHASHSEED=random \
-    PYTHONIOENCODING=utf-8 \
-    LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8
+ARG BASE_IMAGE=flightio-base
+FROM ${BASE_IMAGE} AS base
 
 # Security labels
 LABEL maintainer="flightio-team" \
@@ -44,7 +35,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ---
 
 # Runtime stage with security hardening
-FROM python:3.11-slim AS runtime
+FROM ${BASE_IMAGE} AS runtime
 
 # Install security updates and minimal runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
