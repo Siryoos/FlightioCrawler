@@ -130,8 +130,10 @@ migration:
 
 # Docker commands
 docker-build:
-	@echo "Building Docker image..."
-	docker build -t flightio-crawler .
+	@echo "Building Docker image with BuildKit cache..."
+	DOCKER_BUILDKIT=1 docker build \
+	        --build-arg BUILDKIT_INLINE_CACHE=1 \
+	        -t flightio-crawler .
 
 docker-run:
 	@echo "Running Docker container..."
