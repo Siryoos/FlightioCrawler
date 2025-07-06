@@ -20,12 +20,28 @@ from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapt
 from adapters.base_adapters.enhanced_international_adapter import (
     EnhancedInternationalAdapter,
 )
-from adapters.base_adapters.common_error_handler import (
-    CommonErrorHandler,
-    error_handler,
-    safe_extract,
+from adapters.base_adapters.enhanced_error_handler import (
+    ErrorCategory,
+    ErrorSeverity,
+    ErrorAction,
+    ErrorContext,
+    EnhancedErrorHandler,
+    error_handler_decorator,
+    AdapterError,
+    NavigationError,
+    FormFillingError,
+    ExtractionError,
+    ValidationError,
+    TimeoutError,
+    AdapterTimeoutError,
+    AdapterNetworkError,
+    AdapterValidationError,
+    AdapterRateLimitError,
+    AdapterAuthenticationError,
+    AdapterResourceError,
+    AdapterParsingError,
 )
-from adapters.factories.adapter_factory import AdapterFactory
+from adapters.factories.unified_adapter_factory import get_unified_factory
 
 # Import all refactored adapters
 from adapters.site_adapters.iranian_airlines.mahan_air_adapter import MahanAirAdapter
@@ -344,12 +360,12 @@ class TestEnhancedInternationalAdapter:
         assert international_adapter._extract_international_duration("1h 45min") == 105
 
 
-class TestCommonErrorHandler:
-    """Test the common error handler functionality."""
+class TestEnhancedErrorHandler:
+    """Test enhanced error handler functionality"""
 
     @pytest.fixture
     def error_handler(self):
-        return CommonErrorHandler()
+        return EnhancedErrorHandler()
 
     def test_error_handler_decorator(self, error_handler):
         """Test the error handler decorator."""
@@ -399,7 +415,7 @@ class TestAdapterFactory:
 
     @pytest.fixture
     def factory(self):
-        return AdapterFactory()
+        return get_unified_factory()
 
     def test_create_persian_adapter(self, factory):
         """Test creating Persian adapters."""
@@ -414,14 +430,14 @@ class TestAdapterFactory:
 
     def test_list_available_adapters(self, factory):
         """Test listing available adapters."""
-        adapters = factory.list_available_adapters()
+        adapters = factory.list_adapters()
         assert "mahan_air" in adapters
         assert "lufthansa" in adapters
         assert len(adapters) > 10  # Should have many adapters
 
     def test_search_adapters(self, factory):
         """Test searching adapters."""
-        iranian_adapters = factory.search_adapters(country="iran")
+        iranian_adapters = factory.search_adapters("iran")
         assert all(
             "iran" in adapter.lower() or "persian" in adapter.lower()
             for adapter in iranian_adapters
@@ -429,7 +445,7 @@ class TestAdapterFactory:
 
     def test_get_adapter_metadata(self, factory):
         """Test getting adapter metadata."""
-        metadata = factory.get_adapter_metadata("mahan_air")
+        metadata = factory.get_adapter_info("mahan_air")
         assert metadata["type"] == "persian"
         assert metadata["currency"] == "IRR"
 
@@ -530,7 +546,7 @@ class TestIntegrationScenarios:
 
     @pytest.fixture
     def factory(self):
-        return AdapterFactory()
+        return get_unified_factory()
 
     def test_performance_monitoring_integration(self, factory):
         """Test that performance monitoring is integrated across adapters."""

@@ -20,6 +20,9 @@ from enum import Enum
 import time
 import json
 from pathlib import Path
+import uuid  # Added for UUID session management
+import re
+import warnings
 
 # Make playwright imports optional
 try:
@@ -52,39 +55,33 @@ from rate_limiter import RateLimiter
 from error_handler import ErrorHandler
 from monitoring import Monitoring
 from utils.request_batcher import RequestBatcher, RequestSpec
-from .common_error_handler import (
+# All error handling unified in enhanced_error_handler.py
+from .enhanced_error_handler import (
+    EnhancedErrorHandler,
     CommonErrorHandler,
+    ErrorSeverity,
+    ErrorCategory,
+    ErrorAction,
     ErrorContext,
     AdapterError,
     NavigationError,
     FormFillingError,
     ExtractionError,
     ValidationError,
-    TimeoutError as AdapterTimeoutError,
+    TimeoutError,
+    AdapterTimeoutError,
+    AdapterNetworkError,
     ErrorRecoveryStrategies,
-)
-from .enhanced_error_handler import (
-    EnhancedErrorHandler,
-    ErrorSeverity,
-    ErrorCategory,
-    ErrorAction,
     error_handler_decorator,
     get_global_error_handler
 )
 from ..patterns.builder_pattern import AdapterConfigBuilder
 from monitoring.enhanced_monitoring_system import EnhancedMonitoringSystem
-
-
-class ErrorCategory(Enum):
-    """Error categories for better error handling"""
-    NETWORK = "network"
-    PARSING = "parsing"
-    VALIDATION = "validation"
-    TIMEOUT = "timeout"
-    AUTHENTICATION = "authentication"
-    RATE_LIMIT = "rate_limit"
-    RESOURCE = "resource"
-    UNKNOWN = "unknown"
+from adapters.strategies.parsing_strategies import (
+    ParsingStrategyFactory,
+    ParseContext,
+    FlightParsingStrategy
+)
 
 
 @dataclass
@@ -138,6 +135,22 @@ class CrawlerConfig:
     proxy: Optional[str] = None  # e.g. "http://user:pass@host:port"
     user_agents: List[str] = field(default_factory=list)
     default_headers: Dict[str, str] = field(default_factory=dict)
+    # Added browser configuration options
+    headless: bool = True
+    slow_mo: int = 0
+    browser_timeout: int = 30000
+    page_timeout: int = 30000
+    navigation_timeout: int = 30000
+    viewport: Dict[str, int] = field(default_factory=lambda: {'width': 1920, 'height': 1080})
+    locale: str = 'en-US'
+    timezone: str = 'UTC'
+    ignore_https_errors: bool = False
+    javascript_enabled: bool = True
+    extra_headers: Optional[Dict[str, str]] = None
+    browser_args: List[str] = field(default_factory=list)
+    block_resources: bool = True
+    blocked_resources: List[str] = field(default_factory=lambda: ['image', 'stylesheet', 'font', 'media'])
+    log_requests: bool = False
 
     def __post_init__(self):
         # Set defaults if not provided
@@ -199,6 +212,9 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
     - Error categorization, retry mechanisms, and recovery strategies
     - Validation and resource cleanup
     - Template method pattern implementation
+    - Performance metrics tracking
+    - Session management with UUID correlation
+    - Browser event handling and resource optimization
     """
 
     def __init__(self, config: Dict[str, Any], http_session: Optional[aiohttp.ClientSession] = None):
@@ -209,31 +225,69 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             config: Configuration dictionary
             http_session: Optional shared aiohttp session
         """
-        self.config = CrawlerConfig(**config)
-        self.base_url = self._get_base_url()
-        self.search_url = self.config.search_url
+        # Convert dict config to CrawlerConfig object for type safety
+        if isinstance(config, dict):
+            # Preserve existing config while adding new fields
+            self.config = CrawlerConfig(**{k: v for k, v in config.items() if k in CrawlerConfig.__annotations__})
+            # Keep original config for backward compatibility
+            self.original_config = config
+        else:
+            self.config = config
+            self.original_config = config
 
-        # Browser and page management
-        self.playwright = None
-        self.browser: Optional[Browser] = None
-        self.context: Optional[BrowserContext] = None
-        self.page: Optional[Page] = None
+        # Basic properties
+        self.base_url = self.config.base_url
+        self.search_url = self.config.search_url
+        self.adapter_name = self.original_config.get("name", self.__class__.__name__)
+        
+        # UUID-based session management (added from BaseCrawler)
+        self.session_id = str(uuid.uuid4())
+        self.current_url = None
+        
+        # Error context template for consistent error reporting (added from BaseCrawler)
+        self.error_context_template = {
+            "adapter_name": self.adapter_name,
+            "session_id": self.session_id,
+            "base_url": self.base_url,
+            "search_url": self.search_url
+        }
+
+        # Initialize components
+        self.logger = self._create_logger()
+        self.rate_limiter = self._create_rate_limiter()
+        self.error_handler = self._create_error_handler()
+        self.monitoring = self._create_monitoring()
+
+        # Enhanced error handling with unified system
+        self.common_error_handler = CommonErrorHandler(self.logger)
+        self.enhanced_error_handler = get_global_error_handler()
+
+        # Resource management
         self.http_session = http_session
-        self._own_http_session = False
-        
-        # Request batching
         self.request_batcher: Optional[RequestBatcher] = None
-        self._own_request_batcher = False
-        
-        # Resource tracking
-        self._cleanup_tasks: List[asyncio.Task] = []
+        self.browser: Optional[Browser] = None
+        self.page: Optional[Page] = None
+        self.context: Optional[BrowserContext] = None
+        self.playwright = None
         self._is_closed = False
-        
-        # Memory monitoring
-        self.resource_limits = self.config.resource_limits
-        self.enable_memory_monitoring = self.resource_limits.get("enable_memory_monitoring", True)
-        
-        # Error handling enhancement
+
+        # Performance metrics tracking (added from EnhancedCrawlerBase)
+        self.start_time = None
+        self.operation_times = {}
+        self.metrics = {
+            'total_requests': 0,
+            'successful_requests': 0,
+            'failed_requests': 0,
+            'average_response_time': 0,
+            'last_success_time': None,
+            'last_failure_time': None,
+            'page_load_times': [],
+            'request_count_by_type': {},
+            'error_count_by_type': {}
+        }
+
+        # Memory and resource tracking
+        self.resource_tracker = ResourceTracker()
         self.retry_config = RetryConfig(**self.config.retry_config)
         self.error_stats = {
             "total_errors": 0,
@@ -244,23 +298,22 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             "last_error_time": None,
         }
         
-        # Register for cleanup tracking
-        if self.enable_memory_monitoring:
-            weakref.finalize(self, self._cleanup_warning)
-
-        # Automatic component initialization
-        self.rate_limiter = self._create_rate_limiter()
-        self.error_handler = self._create_error_handler()
-        self.monitoring = self._create_monitoring()
-        self.logger = self._create_logger()
-
-        # Initialize enhanced error handler
-        self.common_error_handler = CommonErrorHandler(
-            self.__class__.__name__, self.config.error_handling
-        )
-
+        # Resource limits and monitoring
+        self.resource_limits = self.config.resource_limits
+        self.enable_memory_monitoring = self.resource_limits.get("enable_memory_monitoring", True)
+        
+        # Resource tracking for cleanup
+        self._cleanup_tasks: List[asyncio.Task] = []
+        self._own_http_session = False
+        self._own_request_batcher = False
+        
         # Initialize adapter-specific components
         self._initialize_adapter()
+
+        # Register for cleanup
+        weakref.finalize(self, self._cleanup_warning)
+
+        self.logger.info(f"Enhanced {self.adapter_name} crawler initialized with session ID: {self.session_id}")
 
     def _cleanup_warning(self):
         """Warning for cleanup not being called properly"""
@@ -642,12 +695,120 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         """Get the base URL for this adapter."""
         pass
 
+    # Additional abstract methods from EnhancedCrawlerBase for standardized interface
+    @abstractmethod
+    def _get_required_fields(self) -> List[str]:
+        """Get required fields for this adapter."""
+        pass
+    
+    @abstractmethod
+    async def _validate_specific_parameters(self, search_params: Dict[str, Any]) -> None:
+        """Validate adapter-specific parameters."""
+        pass
+    
+    @abstractmethod
+    async def _handle_popups(self) -> None:
+        """Handle popups specific to this adapter."""
+        pass
+    
+    @abstractmethod
+    async def _handle_localization(self) -> None:
+        """Handle localization specific to this adapter."""
+        pass
+    
+    @abstractmethod
+    async def _submit_search(self) -> None:
+        """Submit search form."""
+        pass
+    
+    async def _parse_flight_data(self, content: str) -> List[Dict[str, Any]]:
+        """
+        Parse flight data using centralized parsing strategies.
+        
+        This method uses the strategy pattern from parsing_strategies.py
+        to provide consistent parsing across all adapters.
+        """
+        try:
+            soup = BeautifulSoup(content, 'html.parser')
+            flights = []
+            
+            # Get parsing strategy based on adapter configuration
+            parsing_strategy = self._get_parsing_strategy()
+            
+            # Get flight elements using extraction config
+            extraction_config = self.config.get("extraction_config", {})
+            results_config = extraction_config.get("results_parsing", {})
+            
+            # Find flight elements
+            flight_selector = results_config.get("flight_element_selector", ".flight-item")
+            flight_elements = soup.select(flight_selector)
+            
+            self.logger.info(f"Found {len(flight_elements)} flight elements to parse")
+            
+            for i, element in enumerate(flight_elements):
+                try:
+                    # Use centralized parsing strategy
+                    parse_result = parsing_strategy.parse_flight_element(
+                        element, ParseContext.FLIGHT_RESULTS
+                    )
+                    
+                    if parse_result.success and parse_result.data:
+                        # Add adapter metadata
+                        flight_data = parse_result.data.copy()
+                        flight_data.update({
+                            'source_adapter': self.__class__.__name__,
+                            'parsed_at': datetime.now().isoformat(),
+                            'element_index': i
+                        })
+                        
+                        # Apply adapter-specific post-processing if needed
+                        flight_data = await self._post_process_flight_data(flight_data)
+                        
+                        flights.append(flight_data)
+                        self.logger.debug(f"Successfully parsed flight {i+1}")
+                    else:
+                        if parse_result.errors:
+                            self.logger.warning(f"Parse errors for element {i}: {parse_result.errors}")
+                        if parse_result.warnings:
+                            self.logger.debug(f"Parse warnings for element {i}: {parse_result.warnings}")
+                
+                except Exception as e:
+                    self.logger.error(f"Error parsing flight element {i}: {e}")
+                    continue
+            
+            self.logger.info(f"Successfully parsed {len(flights)} flights")
+            return flights
+            
+        except Exception as e:
+            self.logger.error(f"Error parsing flight data: {e}")
+            return []
+    
+    @abstractmethod
+    async def _validate_result(self, result: Dict[str, Any]) -> bool:
+        """Validate individual result."""
+        pass
+    
+    @abstractmethod
+    async def _normalize_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize result to standard format."""
+        pass
+    
+    @abstractmethod
+    async def _initialize_adapter_specific(self) -> None:
+        """Initialize adapter-specific components."""
+        pass
+
     def _initialize_adapter(self) -> None:
         """
         Hook for adapter-specific initialization.
-        Override in subclasses if needed.
+        Calls the abstract method for adapter-specific setup.
         """
-        pass
+        try:
+            # This will call the abstract method implemented by subclasses
+            asyncio.create_task(self._initialize_adapter_specific())
+        except Exception as e:
+            self.logger.warning(f"Error in adapter-specific initialization: {e}")
+            # Continue with initialization even if adapter-specific setup fails
 
     def _get_random_user_agent(self) -> str:
         """Get a random user agent from the list"""
@@ -710,7 +871,7 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
 
     async def _setup_browser(self) -> None:
         """
-        Setup playwright browser and context with resource optimization.
+        Setup playwright browser and context with enhanced configuration.
         """
         if not PLAYWRIGHT_AVAILABLE:
             self.logger.warning("Playwright is not installed. Skipping browser setup.")
@@ -720,67 +881,59 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             self.playwright = await async_playwright().start()
             _resource_tracker.browser_count += 1
 
-            browser_args = [
-                '--disable-gpu',
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-blink-features=AutomationControlled'
-            ]
+            # Use enhanced browser configuration
+            browser_options = self._get_browser_options()
+            # Add proxy configuration if specified
+            if self.config.proxy:
+                browser_options['proxy'] = {"server": self.config.proxy}
             
-            proxy_config = {"server": self.config.proxy} if self.config.proxy else None
+            # Add stability flags
+            browser_options.update({
+                'handle_sigint': False,
+                'handle_sigterm': False,
+                'handle_sighup': False
+            })
 
-            self.browser = await self.playwright.chromium.launch(
-                headless=True,
-                args=browser_args,
-                proxy=proxy_config,
-                handle_sigint=False,
-                handle_sigterm=False,
-                handle_sighup=False
-            )
-            
+            self.browser = await self.playwright.chromium.launch(**browser_options)
             _resource_tracker.update_memory_usage()
 
-            # Create a single, reusable context
-            self.context = await self.browser.new_context(
-                user_agent=self._get_random_user_agent(),
-                java_script_enabled=True,
-                viewport={'width': 1920, 'height': 1080},
-                ignore_https_errors=True,
-            )
+            # Create context with enhanced configuration
+            context_options = self._get_context_options()
+            # Set user agent if not already set
+            if 'user_agent' not in context_options:
+                context_options['user_agent'] = self._get_random_user_agent()
             
-            # Block non-essential resources for performance
-            await self.context.route("**/*", self._route_handler)
+            self.context = await self.browser.new_context(**context_options)
+            
+            # Setup enhanced resource blocking
+            if self.config.block_resources:
+                await self.context.route("**/*", self._handle_route)
             _resource_tracker.context_count += 1
             
-            # Create a single page
+            # Create page with enhanced configuration
             self.page = await self.context.new_page()
+            self.page.set_default_timeout(self.config.page_timeout)
+            self.page.set_default_navigation_timeout(self.config.navigation_timeout)
+            
+            # Setup enhanced event handlers
+            self.page.on('pageerror', self._handle_page_error)
+            self.page.on('dialog', self._handle_dialog)
+            
+            # Optional request/response logging
+            if self.config.log_requests:
+                self.page.on('request', self._log_request)
+                self.page.on('response', self._log_response)
+            
             _resource_tracker.page_count += 1
 
-            self.logger.info("Browser and page setup complete.")
+            self.logger.info("Enhanced browser and page setup complete.")
 
         except Exception as e:
             self.logger.error(f"Failed to setup browser: {e}", exc_info=True)
             await self._cleanup_browser()
             raise
 
-    async def _route_handler(self, route):
-        """Block non-essential resources to save bandwidth and memory."""
-        if route.request.resource_type in {
-            "image",
-            "stylesheet",
-            "font",
-            "media",
-            "websocket",
-        }:
-            try:
-                await route.abort()
-            except Exception:
-                pass  # Ignore errors if the request is already handled
-        else:
-            try:
-                await route.continue_()
-            except Exception:
-                pass # Ignore errors
+
 
     async def _cleanup_browser(self) -> None:
         """Enhanced browser cleanup with memory optimization."""
@@ -984,6 +1137,9 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             List of validated flight data
         """
         start_time = datetime.now()
+        # Start timing and update metrics
+        self.start_time = time.time()
+        self.metrics['total_requests'] += 1
         validated_results = []
         
         # Check memory limits before starting
@@ -1001,11 +1157,13 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
             # Check memory usage during processing
             self._check_memory_limits()
 
-            # Record successful crawl
+            # Record successful crawl with enhanced metrics
+            self._record_success(validated_results)
             self.monitoring.record_success()
 
         except Exception as e:
-            # Error already handled by _execute_with_retry
+            # Record failure with enhanced metrics
+            self._record_failure(e)
             self.monitoring.record_error()
             raise
         finally:
@@ -1214,11 +1372,20 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
 
     def _get_required_search_fields(self) -> List[str]:
         """
-        Get required search fields with enhanced defaults.
+        Get required search fields from config and adapter.
 
-        Override in subclasses to customize.
+        Combines config-based fields with adapter-specific requirements.
         """
-        return ["origin", "destination", "departure_date"]
+        config_fields = self.config.data_validation.get("required_fields", ["origin", "destination", "departure_date"])
+        try:
+            adapter_fields = self._get_required_fields()
+        except Exception as e:
+            self.logger.warning(f"Error getting adapter-specific required fields: {e}")
+            adapter_fields = []
+        
+        # Combine and deduplicate fields
+        all_fields = set(config_fields + adapter_fields)
+        return list(all_fields)
 
     async def _navigate_to_search_page(self) -> None:
         """Navigate to search page - centralized retry logic handled by caller."""
@@ -1378,15 +1545,114 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
                 )
             ) from e
 
-    @abstractmethod
     def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
         """
-        Parse individual flight element.
-
-        Must be implemented by subclasses.
-        This is part of the Template Method pattern.
+        DEPRECATED: Parse individual flight element.
+        
+        This method is deprecated in favor of the centralized parsing strategies.
+        Use _parse_flight_data() which leverages parsing_strategies.py instead.
         """
-        pass
+        warnings.warn(
+            "_parse_flight_element is deprecated. Use centralized parsing strategies via _parse_flight_data.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
+        # Fallback implementation for backward compatibility
+        try:
+            extraction_config = self.config.get("extraction_config", {})
+            results_config = extraction_config.get("results_parsing", {})
+            
+            # Basic fallback parsing
+            flight_data = {
+                "flight_number": self._extract_text_safe(element, results_config.get("flight_number")),
+                "airline": self._extract_text_safe(element, results_config.get("airline")), 
+                "departure_time": self._extract_text_safe(element, results_config.get("departure_time")),
+                "arrival_time": self._extract_text_safe(element, results_config.get("arrival_time")),
+                "price": self._extract_price(self._extract_text_safe(element, results_config.get("price"))),
+                "currency": results_config.get("default_currency", "USD"),
+                "source_adapter": self.__class__.__name__
+            }
+            
+            # Basic validation
+            if not any([flight_data["flight_number"], flight_data["airline"], flight_data["price"]]):
+                return None
+                
+            return flight_data
+            
+        except Exception as e:
+            self.logger.error(f"Error in deprecated _parse_flight_element: {e}")
+            return None
+
+    def _extract_price(self, price_text: str) -> float:
+        """
+        DEPRECATED: Extract price from text.
+        
+        This method is deprecated in favor of centralized parsing strategies.
+        Use the parsing strategies which have more sophisticated price extraction.
+        """
+        warnings.warn(
+            "_extract_price is deprecated. Use centralized parsing strategies instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
+        if not price_text:
+            return 0.0
+        
+        try:
+            # Basic price extraction for backward compatibility
+            cleaned = re.sub(r'[^\d,.]', '', price_text)
+            cleaned = cleaned.replace(',', '')
+            return float(cleaned) if cleaned else 0.0
+        except Exception:
+            return 0.0
+
+    def _extract_duration_minutes(self, duration_text: str) -> int:
+        """
+        Enhanced duration extraction supporting multiple formats.
+
+        Args:
+            duration_text: Duration text (e.g., "2h 30m", "2:30", "150 min")
+
+        Returns:
+            Duration in minutes
+        """
+        if not duration_text:
+            return 0
+
+        try:
+            duration_text = duration_text.lower().strip()
+
+            # Pattern 1: "2h 30m" or "2 hours 30 minutes"
+            hours_match = re.search(r"(\d+)\s*(?:h|hour|hours)", duration_text)
+            minutes_match = re.search(
+                r"(\d+)\s*(?:m|min|minute|minutes)", duration_text
+            )
+
+            hours = int(hours_match.group(1)) if hours_match else 0
+            minutes = int(minutes_match.group(1)) if minutes_match else 0
+
+            if hours or minutes:
+                return hours * 60 + minutes
+
+            # Pattern 2: "2:30" format
+            time_match = re.search(r"(\d+):(\d+)", duration_text)
+            if time_match:
+                hours = int(time_match.group(1))
+                minutes = int(time_match.group(2))
+                return hours * 60 + minutes
+
+            # Pattern 3: Just minutes "150 min"
+            minutes_only = re.search(r"(\d+)", duration_text)
+            if minutes_only:
+                return int(minutes_only.group(1))
+
+            return 0
+
+        except Exception as e:
+            self.logger.debug(f"Error extracting duration from '{duration_text}': {e}")
+            return 0
 
     def _validate_flight_data(
         self, results: List[Dict[str, Any]]
@@ -1509,100 +1775,18 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
                     continue
 
             return ""
-
+            
         except Exception as e:
             self.logger.debug(f"Error extracting text with selector '{selector}': {e}")
             return ""
 
-    def _extract_price(self, price_text: str) -> float:
-        """
-        Enhanced price extraction with multiple currency support.
-
-        Override for custom price extraction logic.
-
-        Args:
-            price_text: Price text to extract from
-
-        Returns:
-            Extracted price as float
-        """
-        if not price_text:
-            return 0.0
-
+    def _extract_text_safe(self, element, selector: str) -> str:
+        """Safe wrapper around _extract_text that never raises exceptions."""
         try:
-            import re
-
-            # Remove common currency symbols and separators
-            cleaned = re.sub(r"[^\d.,]", "", price_text)
-
-            # Handle different decimal separators
-            if "," in cleaned and "." in cleaned:
-                # Assume comma is thousands separator if both present
-                cleaned = cleaned.replace(",", "")
-            elif (
-                "," in cleaned
-                and cleaned.count(",") == 1
-                and len(cleaned.split(",")[1]) <= 2
-            ):
-                # Comma as decimal separator
-                cleaned = cleaned.replace(",", ".")
-            else:
-                # Remove commas (thousands separator)
-                cleaned = cleaned.replace(",", "")
-
-            return float(cleaned) if cleaned else 0.0
-
+            return self._extract_text(element, selector)
         except Exception as e:
-            self.logger.debug(f"Error extracting price from '{price_text}': {e}")
-            return 0.0
-
-    def _extract_duration_minutes(self, duration_text: str) -> int:
-        """
-        Enhanced duration extraction supporting multiple formats.
-
-        Args:
-            duration_text: Duration text (e.g., "2h 30m", "2:30", "150 min")
-
-        Returns:
-            Duration in minutes
-        """
-        if not duration_text:
-            return 0
-
-        try:
-            import re
-
-            duration_text = duration_text.lower().strip()
-
-            # Pattern 1: "2h 30m" or "2 hours 30 minutes"
-            hours_match = re.search(r"(\d+)\s*(?:h|hour|hours)", duration_text)
-            minutes_match = re.search(
-                r"(\d+)\s*(?:m|min|minute|minutes)", duration_text
-            )
-
-            hours = int(hours_match.group(1)) if hours_match else 0
-            minutes = int(minutes_match.group(1)) if minutes_match else 0
-
-            if hours or minutes:
-                return hours * 60 + minutes
-
-            # Pattern 2: "2:30" format
-            time_match = re.search(r"(\d+):(\d+)", duration_text)
-            if time_match:
-                hours = int(time_match.group(1))
-                minutes = int(time_match.group(2))
-                return hours * 60 + minutes
-
-            # Pattern 3: Just minutes "150 min"
-            minutes_only = re.search(r"(\d+)", duration_text)
-            if minutes_only:
-                return int(minutes_only.group(1))
-
-            return 0
-
-        except Exception as e:
-            self.logger.debug(f"Error extracting duration from '{duration_text}': {e}")
-            return 0
+            self.logger.debug(f"Safe text extraction failed for selector '{selector}': {e}")
+            return ""
 
     async def batch_http_requests(self, requests: List[RequestSpec]) -> List[Any]:
         """Make batched HTTP requests using the request batcher"""
@@ -1695,15 +1879,26 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
         }
 
     async def get_health_status(self) -> Dict[str, Any]:
-        """Get health status of the crawler"""
+        """Get comprehensive health status of the crawler"""
         return {
             'adapter_name': self.__class__.__name__,
-            'is_initialized': self._is_closed,
+            'session_id': self.session_id,
+            'is_initialized': not self._is_closed,
             'browser_active': self.browser is not None,
             'page_active': self.page is not None,
-            'current_url': self.search_url,
+            'current_url': self.current_url,
+            'search_url': self.search_url,
             'error_stats': self.get_error_statistics(),
-            'monitoring_stats': await self.monitoring.get_stats() if self.monitoring else None
+            'performance_metrics': self.metrics,
+            'resource_usage': self.get_resource_usage(),
+            'batching_stats': self.get_batching_stats(),
+            'monitoring_stats': await self.monitoring.get_stats() if self.monitoring else None,
+            'has_http_session': self.http_session is not None,
+            'has_request_batcher': self.request_batcher is not None,
+            'memory_monitoring_enabled': self.enable_memory_monitoring,
+            'proxy_configured': self.config.proxy is not None,
+            'resource_blocking_enabled': self.config.block_resources,
+            'request_logging_enabled': self.config.log_requests
         }
 
     async def reset_statistics(self) -> None:
@@ -1745,3 +1940,184 @@ class EnhancedBaseCrawler(ABC, Generic[T]):
                     pass
         except:
             pass
+
+    def _create_error_context(
+        self, 
+        operation: str, 
+        additional_info: Optional[Dict[str, Any]] = None
+    ) -> ErrorContext:
+        """Create error context for current operation (added from BaseCrawler)"""
+        context = ErrorContext(
+            adapter_name=self.adapter_name,
+            operation=operation,
+            session_id=self.session_id,
+            url=self.current_url,
+            additional_info={**self.error_context_template, **(additional_info or {})}
+        )
+        return context
+
+    def _get_browser_options(self) -> Dict[str, Any]:
+        """Get browser configuration options (added from EnhancedCrawlerBase)"""
+        return {
+            'headless': self.config.headless,
+            'slow_mo': self.config.slow_mo,
+            'timeout': self.config.browser_timeout,
+            'args': [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
+            ] + self.config.browser_args
+        }
+
+    def _get_context_options(self) -> Dict[str, Any]:
+        """Get browser context configuration (added from EnhancedCrawlerBase)"""
+        options = {
+            'viewport': self.config.viewport,
+            'user_agent': self.config.extra_headers.get('User-Agent') if self.config.extra_headers else None,
+            'locale': self.config.locale,
+            'timezone_id': self.config.timezone,
+            'ignore_https_errors': self.config.ignore_https_errors,
+            'java_script_enabled': self.config.javascript_enabled
+        }
+        
+        # Add extra headers if specified
+        if self.config.extra_headers:
+            options['extra_http_headers'] = self.config.extra_headers
+        
+        # Remove None values
+        return {k: v for k, v in options.items() if v is not None}
+
+    async def _handle_route(self, route, request):
+        """Handle routing for resource optimization (added from EnhancedCrawlerBase)"""
+        try:
+            resource_type = request.resource_type
+            
+            # Track request types for metrics
+            if resource_type not in self.metrics['request_count_by_type']:
+                self.metrics['request_count_by_type'][resource_type] = 0
+            self.metrics['request_count_by_type'][resource_type] += 1
+            
+            if resource_type in self.config.blocked_resources:
+                await route.abort()
+            else:
+                await route.continue_()
+                
+        except Exception as e:
+            self.logger.debug(f"Route handling error: {e}")
+            await route.continue_()
+
+    def _handle_page_error(self, error):
+        """Handle page JavaScript errors (added from EnhancedCrawlerBase)"""
+        self.logger.warning(f"Page JavaScript error: {error}")
+        # Track JavaScript errors
+        error_type = "javascript_error"
+        if error_type not in self.metrics['error_count_by_type']:
+            self.metrics['error_count_by_type'][error_type] = 0
+        self.metrics['error_count_by_type'][error_type] += 1
+
+    async def _handle_dialog(self, dialog):
+        """Handle browser dialogs (added from EnhancedCrawlerBase)"""
+        try:
+            self.logger.info(f"Dialog detected: {dialog.type} - {dialog.message}")
+            await dialog.accept()
+        except Exception as e:
+            self.logger.warning(f"Dialog handling failed: {e}")
+
+    def _log_request(self, request):
+        """Log HTTP requests (added from EnhancedCrawlerBase)"""
+        self.logger.debug(f"→ {request.method} {request.url}")
+
+    def _log_response(self, response):
+        """Log HTTP responses (added from EnhancedCrawlerBase)"""
+        self.logger.debug(f"← {response.status} {response.url}")
+
+    def _record_success(self, results: List[Dict[str, Any]]) -> None:
+        """Record successful crawl operation (added from EnhancedCrawlerBase)"""
+        self.metrics['successful_requests'] += 1
+        self.metrics['last_success_time'] = datetime.now()
+        
+        if self.start_time:
+            operation_time = time.time() - self.start_time
+            self.operation_times[self.session_id] = operation_time
+            
+            # Update average response time
+            total_time = sum(self.operation_times.values())
+            self.metrics['average_response_time'] = total_time / len(self.operation_times)
+        
+        self.logger.info(f"Crawl successful: {len(results)} results retrieved")
+
+    def _record_failure(self, error: Exception) -> None:
+        """Record failed crawl operation (added from EnhancedCrawlerBase)"""
+        self.metrics['failed_requests'] += 1
+        self.metrics['last_failure_time'] = datetime.now()
+        
+        error_type = type(error).__name__
+        if error_type not in self.metrics['error_count_by_type']:
+            self.metrics['error_count_by_type'][error_type] = 0
+        self.metrics['error_count_by_type'][error_type] += 1
+        
+        self.logger.error(f"Crawl failed: {error}")
+
+    async def _clear_browser_state(self) -> None:
+        """Clear browser state for clean retry (added from EnhancedCrawlerBase)"""
+        if self.page and not self.page.is_closed():
+            try:
+                # Clear cookies
+                await self.page.context.clear_cookies()
+                
+                # Clear local storage
+                await self.page.evaluate("localStorage.clear()")
+                
+                # Clear session storage
+                await self.page.evaluate("sessionStorage.clear()")
+                
+                self.logger.debug("Browser state cleared successfully")
+            except Exception as e:
+                self.logger.warning(f"Failed to clear browser state: {e}")
+
+    async def _cleanup_session(self) -> None:
+        """Clean up session resources (added from EnhancedCrawlerBase)"""
+        try:
+            if self.page and not self.page.is_closed():
+                await self.page.close()
+                self.page = None
+                
+            if self.context:
+                await self.context.close()
+                self.context = None
+                
+            self.logger.debug("Session cleanup completed")
+        except Exception as e:
+            self.logger.warning(f"Session cleanup failed: {e}")
+
+    def _get_parsing_strategy(self) -> FlightParsingStrategy:
+        """
+        Get the appropriate parsing strategy for this adapter.
+        
+        Subclasses can override this to specify their strategy type,
+        or it will be auto-detected based on configuration.
+        """
+        try:
+            # Try to auto-detect strategy from config
+            strategy = ParsingStrategyFactory.auto_detect_strategy(self.config)
+            self.logger.debug(f"Auto-detected parsing strategy: {strategy.__class__.__name__}")
+            return strategy
+        except Exception as e:
+            self.logger.warning(f"Failed to auto-detect strategy, using international: {e}")
+            return ParsingStrategyFactory.create_strategy("international", self.config)
+    
+    async def _post_process_flight_data(self, flight_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply adapter-specific post-processing to flight data.
+        
+        This method can be overridden by subclasses to add adapter-specific
+        processing while still using the centralized parsing strategies.
+        """
+        # Default implementation - no additional processing
+        return flight_data

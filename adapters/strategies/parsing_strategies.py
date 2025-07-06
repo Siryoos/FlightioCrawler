@@ -16,33 +16,8 @@ import logging
 import re
 from bs4 import BeautifulSoup
 
-# Import text processors
-try:
-    from data.transformers.persian_text_processor import PersianTextProcessor
-except ImportError:
-    try:
-        from utils.persian_text_processor import PersianTextProcessor
-    except ImportError:
-        # Fallback processor
-        class PersianTextProcessor:
-            def process_text(self, text):
-                return text
-
-            def process_date(self, date):
-                return date
-
-            def process_price(self, price):
-                return price
-
-            def extract_number(self, text):
-                return text
-
-            def convert_persian_numbers(self, text):
-                return text
-
-            def normalize_airline_name(self, text):
-                return text
-
+# Import the unified Persian text processor
+from persian_text import PersianTextProcessor
 
 logger = logging.getLogger(__name__)
 

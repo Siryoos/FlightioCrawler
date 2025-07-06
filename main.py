@@ -18,6 +18,7 @@ from ml_predictor import FlightPricePredictor
 from multilingual_processor import MultilingualProcessor
 from provider_insights import get_provider_insights
 from rate_limiter import RateLimitMiddleware, RateLimitManager, get_rate_limit_manager
+from api.dependencies import initialize_dependencies, shutdown_dependencies, get_crawler, get_monitor
 import aiohttp
 from fastapi.security import APIKeyHeader
 
@@ -64,6 +65,14 @@ async def startup_event():
     app.state.crawler = IranianFlightCrawler(http_session=app.state.http_session)
     app.state.monitor = CrawlerMonitor()
     
+    # Initialize dependency provider to eliminate circular imports
+    initialize_dependencies(
+        crawler=app.state.crawler,
+        monitor=app.state.monitor,
+        rate_limit_manager=get_rate_limit_manager(),
+        http_session=app.state.http_session
+    )
+    
     # Start background tasks
     asyncio.create_task(app.state.monitor.log_memory_usage_periodically(interval_seconds=60))
     
@@ -73,6 +82,10 @@ async def startup_event():
 async def shutdown_event():
     """Application shutdown event."""
     logger.info("Application shutting down...")
+    
+    # Shutdown dependency provider
+    shutdown_dependencies()
+    
     # Gracefully close the crawler's active tasks
     if hasattr(app.state, 'crawler') and app.state.crawler:
         await app.state.crawler.shutdown()
@@ -96,16 +109,7 @@ app.add_middleware(
 # Mount UI static files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 
-# Dependency to get the crawler instance
-async def get_crawler() -> IranianFlightCrawler:
-    if not hasattr(app.state, 'crawler') or not app.state.crawler:
-        raise HTTPException(status_code=503, detail="Crawler is not available")
-    return app.state.crawler
-
-async def get_monitor() -> CrawlerMonitor:
-    if not hasattr(app.state, 'monitor') or not app.state.monitor:
-        raise HTTPException(status_code=503, detail="Monitor is not available")
-    return app.state.monitor
+# Dependencies are now provided by api.dependencies module to eliminate circular imports
 
 # Request models
 class SearchRequest(BaseModel):

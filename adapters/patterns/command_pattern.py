@@ -186,11 +186,11 @@ class CrawlSiteCommand(Command):
 
         try:
             # Import adapter factory (avoid circular imports)
-            from adapters.factories.enhanced_adapter_factory import (
-                get_enhanced_adapter_factory,
+            from adapters.factories.unified_adapter_factory import (
+                get_unified_factory,
             )
 
-            factory = get_enhanced_adapter_factory()
+            factory = get_unified_factory()
             adapter = factory.create_adapter(self.adapter_name)
 
             if not adapter:

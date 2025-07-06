@@ -1,0 +1,167 @@
+{
+  "passed": 27,
+  "failed": 4,
+  "errors": [
+    "Module Imports: duplicate base class TimeoutError",
+    "Base Crawler Consolidation: duplicate base class TimeoutError",
+    "Factory Create Crawler: Expected behavior: RateLimiter.__init__() takes 1 positional argument but 2 were given",
+    "Backward Compatibility: duplicate base class TimeoutError"
+  ],
+  "details": {
+    "Module Imports": {
+      "success": false,
+      "details": "duplicate base class TimeoutError",
+      "timestamp": "2025-07-05T23:30:27.685945"
+    },
+    "Enhanced Error Handler Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.686235"
+    },
+    "Common Error Handler Wrapper Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.686260"
+    },
+    "Error Context Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.686289"
+    },
+    "Common Error Handler Functionality": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.686550"
+    },
+    "Base Crawler Consolidation": {
+      "success": false,
+      "details": "duplicate base class TimeoutError",
+      "timestamp": "2025-07-05T23:30:27.688182"
+    },
+    "Unified Factory Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.689592"
+    },
+    "Factory Has Create Method": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.689597"
+    },
+    "Factory Create Crawler": {
+      "success": false,
+      "details": "Expected behavior: RateLimiter.__init__() takes 1 positional argument but 2 were given",
+      "timestamp": "2025-07-05T23:30:27.689608"
+    },
+    "Unified Persian Text Processor Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.690731"
+    },
+    "Compatibility Wrappers Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.690752"
+    },
+    "Persian Text Processing Functionality": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.690759"
+    },
+    "Wrapper Delegation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.690763"
+    },
+    "Unified Rate Limiter Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.691034"
+    },
+    "Unified Rate Limit Manager Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.691045"
+    },
+    "Rate Limiter Circuit Breaker Integration": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.691049"
+    },
+    "Manager Get Limiter": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.691144"
+    },
+    "Parsing Strategies Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.691242"
+    },
+    "Parsing Strategies Have Parse Methods": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.691249"
+    },
+    "Persian Strategy Functionality": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692010"
+    },
+    "Circuit Breaker Config Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692033"
+    },
+    "Integrated Circuit Breaker Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692082"
+    },
+    "Circuit Breaker Status Check": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692146"
+    },
+    "Circuit Breaker Failure Recording": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692162"
+    },
+    "Circuit Breaker Success Recording": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692174"
+    },
+    "End-to-End Component Creation": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692506"
+    },
+    "End-to-End Rate Limiting": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692523"
+    },
+    "End-to-End Text Processing": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692528"
+    },
+    "End-to-End Error Context": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692568"
+    },
+    "End-to-End Success Recording": {
+      "success": true,
+      "details": "",
+      "timestamp": "2025-07-05T23:30:27.692585"
+    },
+    "Backward Compatibility": {
+      "success": false,
+      "details": "duplicate base class TimeoutError",
+      "timestamp": "2025-07-05T23:30:27.694811"
+    }
+  }
+}

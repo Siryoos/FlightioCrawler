@@ -7,10 +7,10 @@ from typing import Dict, List, Optional, Any
 import logging
 from playwright.async_api import Page
 
-from .base_crawler import BaseCrawler
+from .enhanced_base_crawler import EnhancedBaseCrawler
 
 
-class AirlineCrawler(BaseCrawler):
+class AirlineCrawler(EnhancedBaseCrawler):
     """
     Base class for international airline crawlers.
 
@@ -178,3 +178,123 @@ class AirlineCrawler(BaseCrawler):
             return found_element.text.strip() if found_element else ""
         except Exception:
             return ""
+
+    # Implementation of new abstract methods from EnhancedBaseCrawler
+    def _get_base_url(self) -> str:
+        """Get the base URL for this adapter."""
+        return self.base_url
+
+    def _get_required_fields(self) -> List[str]:
+        """Get required fields for this adapter."""
+        return ["origin", "destination", "departure_date"]
+    
+    async def _validate_specific_parameters(self, search_params: Dict[str, Any]) -> None:
+        """Validate adapter-specific parameters."""
+        # International airline specific validation
+        if "cabin_class" in search_params:
+            valid_classes = ["economy", "business", "first"]
+            if search_params["cabin_class"].lower() not in valid_classes:
+                raise ValueError(f"Invalid cabin class. Must be one of: {valid_classes}")
+    
+    async def _handle_popups(self) -> None:
+        """Handle popups specific to this adapter."""
+        # Handle common international airline popups
+        try:
+            popup_selectors = [
+                ".popup-close",
+                ".modal-close",
+                ".overlay-close",
+                '[data-testid="close-popup"]'
+            ]
+            for selector in popup_selectors:
+                try:
+                    await self.page.click(selector, timeout=1000)
+                    break
+                except:
+                    continue
+        except Exception:
+            pass  # Popups are optional
+    
+    async def _handle_localization(self) -> None:
+        """Handle localization specific to this adapter."""
+        # Set to English for international airlines
+        try:
+            language_selectors = [
+                'select[name="language"]',
+                '.language-selector',
+                '[data-lang="en"]'
+            ]
+            for selector in language_selectors:
+                try:
+                    await self.page.click(selector, timeout=1000)
+                    break
+                except:
+                    continue
+        except Exception:
+            pass  # Language selection is optional
+    
+    async def _submit_search(self) -> None:
+        """Submit search form."""
+        try:
+            submit_selectors = [
+                'button[type="submit"]',
+                '.search-button',
+                '#search-submit',
+                '.btn-search'
+            ]
+            for selector in submit_selectors:
+                try:
+                    await self.page.click(selector)
+                    break
+                except:
+                    continue
+        except Exception as e:
+            raise ValueError(f"Failed to submit search form: {e}")
+    
+    async def _parse_flight_data(self, content: str) -> List[Dict[str, Any]]:
+        """Parse flight data from content."""
+        # This will be called by the extraction process
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(content, "html.parser")
+        
+        parsing_config = self.config["extraction_config"]["results_parsing"]
+        container_selector = parsing_config.get("container")
+        
+        flight_elements = soup.select(container_selector)
+        results = []
+        
+        for element in flight_elements:
+            flight_data = self._parse_flight_element(element)
+            if flight_data:
+                results.append(flight_data)
+        
+        return results
+    
+    async def _validate_result(self, result: Dict[str, Any]) -> bool:
+        """Validate individual result."""
+        required_fields = ["airline", "price", "departure_time", "arrival_time"]
+        return all(field in result and result[field] for field in required_fields)
+    
+    async def _normalize_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize result to standard format."""
+        # Ensure consistent field names and formats
+        normalized = result.copy()
+        
+        # Normalize price to float
+        if "price" in normalized:
+            normalized["price"] = self._extract_price(str(normalized["price"]))
+        
+        # Add metadata
+        normalized.update({
+            "source": "international_airline",
+            "adapter_type": "AirlineCrawler",
+            "extracted_at": self.config.get("extracted_at"),
+        })
+        
+        return normalized
+    
+    async def _initialize_adapter_specific(self) -> None:
+        """Initialize adapter-specific components."""
+        # Initialize international airline specific components
+        self.logger.info("Initializing international airline adapter components")
+        # Add any airline-specific initialization here

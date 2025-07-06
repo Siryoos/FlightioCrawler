@@ -5,44 +5,8 @@ Enhanced Persian airline adapter with minimal code duplication.
 from typing import Dict, List, Optional, Any
 from .enhanced_base_crawler import EnhancedBaseCrawler
 
-# Fix import path
-try:
-    from data.transformers.persian_text_processor import PersianTextProcessor
-except ImportError:
-    try:
-        from utils.persian_text_processor import PersianTextProcessor
-    except ImportError:
-        # Fallback - create a dummy processor
-        class PersianTextProcessor:
-            def process_text(self, text):
-                return text
-
-            def process_date(self, date):
-                return date
-
-            def process_price(self, price):
-                return price
-
-            def extract_number(self, text):
-                return text
-
-            def convert_persian_numbers(self, text):
-                return text
-
-            def normalize_airline_name(self, text):
-                return text
-
-            def clean_flight_number(self, text):
-                return text
-
-            def parse_time(self, text):
-                return text
-
-            def normalize_seat_class(self, text):
-                return text
-
-            def extract_duration(self, text):
-                return 0
+# Import the unified Persian text processor
+from persian_text import PersianTextProcessor
 
 
 class EnhancedPersianAdapter(EnhancedBaseCrawler):

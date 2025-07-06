@@ -35,13 +35,8 @@ class StopMonitorRequest(BaseModel):
     """Stop monitor request model"""
     routes: Optional[List[str]] = None
 
-# Dependency functions
-async def get_crawler() -> IranianFlightCrawler:
-    """Get crawler instance"""
-    from main import app
-    if not hasattr(app.state, 'crawler') or not app.state.crawler:
-        raise HTTPException(status_code=503, detail="Crawler is not available")
-    return app.state.crawler
+# Import shared dependencies to eliminate circular imports
+from api.dependencies import get_crawler
 
 @router.post("/alerts")
 @api_versioned(APIVersion.V1)
@@ -280,8 +275,11 @@ async def websocket_price_alerts(websocket: WebSocket, user_id: str):
     
     # Get WebSocket manager from the crawler
     try:
-        from main import app
-        if hasattr(app.state, 'crawler') and app.state.crawler:
+        from api.dependencies import get_dependency_provider
+        provider = get_dependency_provider()
+        
+        if provider.is_initialized():
+            crawler = provider.get_crawler()
             websocket_manager = WebSocketManager()
             await websocket_manager.connect(websocket, user_id)
             
@@ -310,11 +308,13 @@ async def websocket_dashboard_updates(websocket: WebSocket):
     await websocket.accept()
     
     try:
+        from api.dependencies import get_dependency_provider
+        provider = get_dependency_provider()
+        
         while websocket.client_state == WebSocketState.CONNECTED:
             # Send periodic dashboard updates
-            from main import app
-            if hasattr(app.state, 'crawler') and app.state.crawler:
-                crawler = app.state.crawler
+            if provider.is_initialized():
+                crawler = provider.get_crawler()
                 
                 # Get dashboard data
                 dashboard_data = {
@@ -326,6 +326,13 @@ async def websocket_dashboard_updates(websocket: WebSocket):
                 }
                 
                 await websocket.send_json(dashboard_data)
+            else:
+                # Send service unavailable message
+                await websocket.send_json({
+                    "error": "Service unavailable",
+                    "timestamp": datetime.now().isoformat(),
+                    "version": "v1"
+                })
             
             # Wait before next update
             import asyncio

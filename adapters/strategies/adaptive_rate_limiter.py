@@ -1,10 +1,16 @@
 """
-Adaptive Rate Limiting System for FlightIO Crawler
+DEPRECATED: Adaptive Rate Limiting System for FlightIO Crawler
+
+This module is deprecated. Use the UnifiedRateLimiter from rate_limiter.py instead.
+The unified implementation combines all features from this module with better performance.
+
+Original description:
 Dynamically adjusts rate limits based on server response, error rates, and system performance
 """
 
 import asyncio
 import logging
+import warnings
 import time
 import math
 from datetime import datetime, timedelta
@@ -88,9 +94,20 @@ class AdaptiveConfig:
 
 
 class AdaptiveRateLimiter:
-    """Adaptive rate limiter with dynamic adjustment based on performance metrics"""
+    """
+    DEPRECATED: Adaptive rate limiter with dynamic adjustment based on performance metrics.
+    
+    Use UnifiedRateLimiter from rate_limiter.py instead for better performance and more features.
+    This class is kept for backward compatibility only.
+    """
     
     def __init__(self, site_id: str, config: AdaptiveConfig = None, redis_client=None):
+        warnings.warn(
+            "AdaptiveRateLimiter is deprecated. Use UnifiedRateLimiter from rate_limiter.py instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         self.site_id = site_id
         self.config = config or AdaptiveConfig()
         self.redis_client = redis_client

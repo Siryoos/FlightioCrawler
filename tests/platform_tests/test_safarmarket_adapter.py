@@ -3,7 +3,7 @@ from datetime import datetime
 from adapters.site_adapters.iranian_airlines.safarmarket_adapter import (
     SafarmarketAdapter,
 )
-from utils.persian_text_processor import PersianTextProcessor
+from persian_text import PersianTextProcessor
 
 
 @pytest.fixture

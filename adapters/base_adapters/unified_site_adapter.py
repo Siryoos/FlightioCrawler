@@ -11,7 +11,7 @@ from abc import abstractmethod
 from pathlib import Path
 import json
 
-from .enhanced_crawler_base import EnhancedCrawlerBase
+from .enhanced_base_crawler import EnhancedBaseCrawler
 from .enhanced_error_handler import (
     EnhancedErrorHandler,
     ErrorSeverity,
@@ -25,10 +25,10 @@ from ..patterns.builder_pattern import AdapterConfigBuilder
 from monitoring.enhanced_monitoring_system import EnhancedMonitoringSystem
 from security.data_encryption import DataEncryptionSystem, DataClassification
 from security.authorization_system import AuthorizationSystem, ResourceType, Action
-from enhanced_rate_limiter import EnhancedRateLimiter
+from rate_limiter import UnifiedRateLimiter
 
 
-class UnifiedSiteAdapter(EnhancedCrawlerBase):
+class UnifiedSiteAdapter(EnhancedBaseCrawler):
     """
     Unified base class for all site adapters with standardized features:
     
@@ -55,7 +55,7 @@ class UnifiedSiteAdapter(EnhancedCrawlerBase):
         self.monitoring_system: Optional[EnhancedMonitoringSystem] = None
         self.encryption_system: Optional[DataEncryptionSystem] = None
         self.authorization_system: Optional[AuthorizationSystem] = None
-        self.rate_limiter: Optional[EnhancedRateLimiter] = None
+        self.rate_limiter: Optional[UnifiedRateLimiter] = None
         
         # Site-specific configuration
         self.site_config = config
@@ -98,7 +98,7 @@ class UnifiedSiteAdapter(EnhancedCrawlerBase):
             self.authorization_system = get_authorization_system()
             
             # Initialize rate limiter
-            self.rate_limiter = EnhancedRateLimiter()
+            self.rate_limiter = UnifiedRateLimiter(self.site_name)
             
             # Register with monitoring
             if self.monitoring_system:
@@ -146,6 +146,11 @@ class UnifiedSiteAdapter(EnhancedCrawlerBase):
             # Update performance metrics
             await self._update_performance_metrics(start_time, len(processed_results), True)
             
+            # Record successful request with rate limiter
+            if self.rate_limiter:
+                response_time_ms = (datetime.now() - start_time).total_seconds() * 1000
+                await self.rate_limiter.record_request(response_time_ms, True)
+            
             # Log successful operation
             self.logger.info(
                 f"Successfully crawled {len(processed_results)} flights from {self.site_name} "
@@ -157,6 +162,11 @@ class UnifiedSiteAdapter(EnhancedCrawlerBase):
         except Exception as e:
             # Update failure metrics
             await self._update_performance_metrics(start_time, 0, False)
+            
+            # Record failed request with rate limiter
+            if self.rate_limiter:
+                response_time_ms = (datetime.now() - start_time).total_seconds() * 1000
+                await self.rate_limiter.record_request(response_time_ms, False, type(e).__name__)
             
             # Enhanced error context
             error_context = ErrorContext(
@@ -214,16 +224,11 @@ class UnifiedSiteAdapter(EnhancedCrawlerBase):
             if not self.rate_limiter:
                 return
             
-            site_id = self.rate_limiter.get_site_id_from_url(self.base_url)
-            can_proceed, reason = self.rate_limiter.can_make_request(site_id)
+            can_proceed, reason, wait_time = await self.rate_limiter.can_make_request()
             
             if not can_proceed:
-                wait_time = self.rate_limiter.wait_for_rate_limit(site_id)
-                self.logger.info(f"Rate limit applied for {self.site_name}: waiting {wait_time}s")
+                self.logger.info(f"Rate limit applied for {self.site_name}: {reason}, waiting {wait_time}s")
                 await asyncio.sleep(wait_time)
-            
-            # Record the request
-            self.rate_limiter.record_request(site_id, True)
             
         except Exception as e:
             self.logger.error(f"Rate limiting failed: {e}")
@@ -647,6 +652,108 @@ class UnifiedSiteAdapter(EnhancedCrawlerBase):
             
         except Exception as e:
             self.logger.error(f"Cleanup failed: {e}")
+
+    # Implementation of new abstract methods from EnhancedBaseCrawler
+    def _get_base_url(self) -> str:
+        """Get the base URL for this adapter."""
+        return self.base_url
+
+    def _get_required_fields(self) -> List[str]:
+        """Get required fields for this adapter."""
+        return self._get_required_search_fields()
+    
+    async def _validate_specific_parameters(self, search_params: Dict[str, Any]) -> None:
+        """Validate adapter-specific parameters."""
+        # Delegate to site-specific validation
+        await self._validate_site_specific_params(search_params)
+    
+    async def _handle_popups(self) -> None:
+        """Handle popups specific to this adapter."""
+        # Generic popup handling for unified adapters
+        try:
+            popup_selectors = [
+                ".popup-close",
+                ".modal-close",
+                ".overlay-close",
+                '[data-testid="close-popup"]',
+                '.close-btn',
+                '.btn-close'
+            ]
+            for selector in popup_selectors:
+                try:
+                    await self.page.click(selector, timeout=1000)
+                    break
+                except:
+                    continue
+        except Exception:
+            pass  # Popups are optional
+    
+    async def _handle_localization(self) -> None:
+        """Handle localization specific to this adapter."""
+        # Generic localization handling
+        try:
+            # Check if site has language preferences
+            locale = self.config.get('locale', 'en')
+            language_selectors = [
+                f'[data-lang="{locale}"]',
+                f'select[name="language"] option[value="{locale}"]',
+                f'.language-{locale}'
+            ]
+            for selector in language_selectors:
+                try:
+                    await self.page.click(selector, timeout=1000)
+                    break
+                except:
+                    continue
+        except Exception:
+            pass  # Language selection is optional
+    
+    async def _submit_search(self) -> None:
+        """Submit search form."""
+        try:
+            submit_selectors = [
+                'button[type="submit"]',
+                '.search-button',
+                '#search-submit',
+                '.btn-search',
+                'input[type="submit"]',
+                '[data-action="search"]'
+            ]
+            for selector in submit_selectors:
+                try:
+                    await self.page.click(selector)
+                    break
+                except:
+                    continue
+        except Exception as e:
+            raise ValueError(f"Failed to submit search form: {e}")
+    
+    async def _parse_flight_data(self, content: str) -> List[Dict[str, Any]]:
+        """Parse flight data from content."""
+        # This method should be overridden by site-specific implementations
+        raise NotImplementedError("Site-specific adapters must implement _parse_flight_data")
+    
+    async def _validate_result(self, result: Dict[str, Any]) -> bool:
+        """Validate individual result."""
+        return self._validate_flight_data(result)
+    
+    async def _normalize_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize result to standard format."""
+        # Use the existing standardization logic
+        standardized = await self._standardize_flight_data(result)
+        
+        # Apply site-specific standardization
+        await self._apply_site_specific_standardization(standardized, result)
+        
+        return standardized
+    
+    async def _initialize_adapter_specific(self) -> None:
+        """Initialize adapter-specific components."""
+        # Initialize unified adapter components
+        self.logger.info(f"Initializing unified adapter components for {self.site_name}")
+        
+        # Initialize enhanced components
+        self._initialize_enhanced_components()
 
 
 # Factory function for creating unified adapters

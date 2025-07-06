@@ -4,6 +4,10 @@ Enhanced international airline adapter with minimal code duplication.
 
 from typing import Dict, List, Optional, Any
 from .enhanced_base_crawler import EnhancedBaseCrawler
+from adapters.strategies.parsing_strategies import (
+    ParsingStrategyFactory,
+    FlightParsingStrategy
+)
 
 
 class EnhancedInternationalAdapter(EnhancedBaseCrawler):
@@ -354,233 +358,87 @@ class EnhancedInternationalAdapter(EnhancedBaseCrawler):
             self.logger.error(f"Error submitting search form: {e}")
             raise
 
+    def _get_parsing_strategy(self) -> FlightParsingStrategy:
+        """
+        Get international parsing strategy for this adapter.
+        
+        Override the base class to force international strategy.
+        """
+        try:
+            return ParsingStrategyFactory.create_strategy("international", self.config)
+        except Exception as e:
+            self.logger.warning(f"Failed to create international strategy, using auto-detection: {e}")
+            return super()._get_parsing_strategy()
+
     def _parse_flight_element(self, element) -> Optional[Dict[str, Any]]:
         """
-        Parse flight element for international airlines with enhanced extraction.
-
-        Standard implementation that extracts common fields.
-        Override to add airline-specific fields.
+        DEPRECATED: Parse international flight element.
+        
+        This method is deprecated in favor of centralized parsing strategies.
+        Use _parse_flight_data() which uses InternationalParsingStrategy from parsing_strategies.py.
         """
-        try:
-            config = self.config.get("extraction_config", {}).get("results_parsing", {})
+        import warnings
+        warnings.warn(
+            "International adapter _parse_flight_element is deprecated. Use centralized InternationalParsingStrategy.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
+        # Call parent's deprecated method for backward compatibility
+        return super()._parse_flight_element(element)
 
-            if not config:
-                raise ValueError("No results parsing configuration found")
-
-            # Extract basic fields with enhanced error handling
-            flight_data = {}
-
-            # Core flight information
-            core_fields = {
-                "airline": "airline",
-                "flight_number": "flight_number",
-                "departure_time": "departure_time",
-                "arrival_time": "arrival_time",
-                "duration": "duration",
-                "price": "price",
-                "cabin_class": "cabin_class",
-            }
-
-            for field, selector_key in core_fields.items():
-                if selector_key in config:
-                    value = self._extract_text(element, config[selector_key])
-                    if field == "price":
-                        flight_data[field] = self._extract_price(value)
-                    elif field == "duration":
-                        flight_data[field] = value
-                        flight_data["duration_minutes"] = (
-                            self._extract_duration_minutes(value)
-                        )
-                    else:
-                        flight_data[field] = value
-
-            # Currency extraction
-            flight_data["currency"] = self._extract_currency(element, config)
-
-            # Extract optional fields
-            self._extract_optional_fields_international(element, flight_data, config)
-
-            # Add flight type classification
-            flight_data["flight_type"] = self._classify_flight_type(flight_data)
-
-            return flight_data if flight_data.get("airline") else None
-
-        except Exception as e:
-            self.logger.error(f"Error parsing flight element: {str(e)}")
-            return None
-
-    def _extract_currency(self, element, config: Dict[str, Any]) -> str:
+    async def _post_process_flight_data(self, flight_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extract currency from element with enhanced detection.
-
-        Override for specific currency extraction logic.
+        Apply international-specific post-processing to flight data.
+        
+        This adds international airline specific metadata and validation.
         """
-        try:
-            # Strategy 1: Use configured currency selector
-            if "currency" in config:
-                currency_text = self._extract_text(element, config["currency"])
-                if currency_text:
-                    detected_currency = self._detect_currency(currency_text)
-                    if detected_currency:
-                        return detected_currency
-
-            # Strategy 2: Extract from price text
-            price_text = self._extract_text(element, config.get("price", ""))
-            if price_text:
-                detected_currency = self._detect_currency(price_text)
-                if detected_currency:
-                    return detected_currency
-
-            # Strategy 3: Use default currency
-            return self.default_currency
-
-        except Exception:
-            return self.default_currency
-
-    def _detect_currency(self, text: str) -> Optional[str]:
-        """Detect currency from text using symbol mapping."""
-        if not text:
-            return None
-
-        text_upper = text.upper()
-
-        for currency, symbols in self.currency_symbols.items():
-            for symbol in symbols:
-                if symbol.upper() in text_upper:
-                    return currency
-
-        return None
-
-    def _extract_optional_fields_international(
-        self, element, flight_data: Dict[str, Any], config: Dict[str, Any]
-    ) -> None:
-        """Extract optional fields for international flights."""
-        optional_fields = [
-            "fare_conditions",
-            "available_seats",
-            "aircraft_type",
-            "baggage_allowance",
-            "meal_service",
-            "special_services",
-            "refund_policy",
-            "change_policy",
-            "fare_rules",
-            "booking_class",
-            "fare_basis",
-            "ticket_validity",
-            "miles_earned",
-            "miles_required",
-            "promotion_code",
-            "special_offers",
-            "layovers",
-            "total_duration",
-            "departure_airport",
-            "arrival_airport",
-            "departure_terminal",
-            "arrival_terminal",
-            "operating_airline",
-            "codeshare_info",
-        ]
-
-        for field in optional_fields:
-            if field in config:
-                value = self._extract_text(element, config[field])
-                if value:
-                    # Special processing for specific fields
-                    if field == "layovers":
-                        flight_data[field] = self._parse_layovers(value)
-                    elif field == "baggage_allowance":
-                        flight_data[field] = self._parse_baggage_info(value)
-                    elif field in ["miles_earned", "miles_required"]:
-                        flight_data[field] = self._extract_miles(value)
-                    else:
-                        flight_data[field] = value
-
-    def _parse_layovers(self, layover_text: str) -> Dict[str, Any]:
-        """Parse layover information."""
-        try:
-            if "direct" in layover_text.lower() or "nonstop" in layover_text.lower():
-                return {"type": "direct", "count": 0, "airports": []}
-
-            # Extract number of stops
-            import re
-
-            stops_match = re.search(r"(\d+)\s*stop", layover_text.lower())
-            stop_count = int(stops_match.group(1)) if stops_match else 1
-
-            # Extract airport codes
-            airport_codes = re.findall(r"\b[A-Z]{3}\b", layover_text)
-
-            return {
-                "type": "connecting",
-                "count": stop_count,
-                "airports": airport_codes,
-                "raw_text": layover_text,
+        # Apply base post-processing first
+        flight_data = await super()._post_process_flight_data(flight_data)
+        
+        # Add international-specific metadata
+        flight_data.update({
+            'adapter_type': 'international',
+            'currency': flight_data.get('currency', 'USD'),
+            'country': 'international',
+            'language': 'english'
+        })
+        
+        # International-specific validation
+        if 'price' in flight_data and flight_data['price']:
+            try:
+                price = float(flight_data['price'])
+                currency = flight_data.get('currency', 'USD')
+                
+                # Currency-specific price validation
+                if currency == 'USD' and (price < 50 or price > 10000):
+                    flight_data['price_warning'] = f'Price {price} {currency} seems unusual for international flight'
+                elif currency == 'EUR' and (price < 45 or price > 9000):
+                    flight_data['price_warning'] = f'Price {price} {currency} seems unusual for international flight'
+                elif currency == 'GBP' and (price < 40 or price > 8000):
+                    flight_data['price_warning'] = f'Price {price} {currency} seems unusual for international flight'
+            except (ValueError, TypeError):
+                pass
+        
+        # Normalize airline codes
+        if 'airline' in flight_data and flight_data['airline']:
+            airline_name = flight_data['airline']
+            # Common airline code mappings
+            airline_code_mappings = {
+                'Emirates': 'EK',
+                'Lufthansa': 'LH', 
+                'British Airways': 'BA',
+                'Air France': 'AF',
+                'KLM': 'KL',
+                'Turkish Airlines': 'TK',
+                'Qatar Airways': 'QR',
+                'Etihad Airways': 'EY'
             }
-
-        except Exception:
-            return {"type": "unknown", "raw_text": layover_text}
-
-    def _parse_baggage_info(self, baggage_text: str) -> Dict[str, Any]:
-        """Parse baggage allowance information."""
-        try:
-            import re
-
-            # Extract weight limits
-            weight_match = re.search(r"(\d+)\s*kg", baggage_text.lower())
-            weight_limit = int(weight_match.group(1)) if weight_match else None
-
-            # Extract piece limits
-            piece_match = re.search(r"(\d+)\s*(?:piece|bag)", baggage_text.lower())
-            piece_limit = int(piece_match.group(1)) if piece_match else None
-
-            return {
-                "weight_limit_kg": weight_limit,
-                "piece_limit": piece_limit,
-                "raw_text": baggage_text,
-            }
-
-        except Exception:
-            return {"raw_text": baggage_text}
-
-    def _extract_miles(self, miles_text: str) -> int:
-        """Extract miles/points from text."""
-        try:
-            import re
-
-            miles_match = re.search(r"(\d+(?:,\d+)*)", miles_text.replace(",", ""))
-            return int(miles_match.group(1)) if miles_match else 0
-        except Exception:
-            return 0
-
-    def _classify_flight_type(self, flight_data: Dict[str, Any]) -> str:
-        """Classify flight type based on available information."""
-        try:
-            # Check for layovers
-            if "layovers" in flight_data:
-                layover_info = flight_data["layovers"]
-                if (
-                    isinstance(layover_info, dict)
-                    and layover_info.get("type") == "direct"
-                ):
-                    return "direct"
-                else:
-                    return "connecting"
-
-            # Check duration (rough estimate)
-            if "duration_minutes" in flight_data:
-                duration = flight_data["duration_minutes"]
-                if duration > 12 * 60:  # More than 12 hours likely long-haul
-                    return "long_haul"
-                elif duration > 4 * 60:  # More than 4 hours likely medium-haul
-                    return "medium_haul"
-                else:
-                    return "short_haul"
-
-            return "unknown"
-
-        except Exception:
-            return "unknown"
+            
+            if airline_name in airline_code_mappings:
+                flight_data['airline_code'] = airline_code_mappings[airline_name]
+        
+        return flight_data
 
     def _get_required_search_fields(self) -> List[str]:
         """Required fields for international flights with enhanced defaults."""

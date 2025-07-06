@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import TimeoutError
 
 from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
-from adapters.base_adapters.common_error_handler import error_handler, safe_extract
+from adapters.base_adapters.enhanced_error_handler import error_handler_decorator as error_handler, safe_extract
 
 
 class MahanAirAdapter(EnhancedPersianAdapter):

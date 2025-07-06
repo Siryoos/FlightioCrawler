@@ -16,12 +16,12 @@ from typing import List, Dict, Any
 import json
 
 # Import new enhanced classes
-from adapters.factories.adapter_factory import (
+from adapters.factories.unified_adapter_factory import (
     create_adapter,
     list_adapters,
     search_adapters,
     get_adapter_info,
-    get_factory,
+    get_unified_factory,
 )
 from adapters.base_adapters import AdapterUtils
 

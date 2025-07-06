@@ -9,11 +9,13 @@ from .monitoring import router as monitoring_router
 from .sites import router as sites_router
 from .rate_limits import router as rate_limits_router
 from .system import router as system_router
+from .websocket import router as websocket_router
 
 __all__ = [
     "flights_router",
     "monitoring_router", 
     "sites_router",
     "rate_limits_router",
-    "system_router"
+    "system_router",
+    "websocket_router"
 ] 

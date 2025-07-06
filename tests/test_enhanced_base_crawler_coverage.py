@@ -12,13 +12,26 @@ from adapters.base_adapters.enhanced_base_crawler import (
     EnhancedBaseCrawler,
     ErrorCategory,
 )
-from adapters.base_adapters.common_error_handler import (
-    AdapterError,
-    ValidationError,
-    AdapterNetworkError,
-    AdapterTimeoutError,
-    AdapterRateLimitError,
+from adapters.base_adapters.enhanced_error_handler import (
+    ErrorCategory,
+    ErrorSeverity,
+    ErrorAction,
     ErrorContext,
+    EnhancedErrorHandler,
+    error_handler_decorator,
+    AdapterError,
+    NavigationError,
+    FormFillingError,
+    ExtractionError,
+    ValidationError,
+    TimeoutError,
+    AdapterTimeoutError,
+    AdapterNetworkError,
+    AdapterValidationError,
+    AdapterRateLimitError,
+    AdapterAuthenticationError,
+    AdapterResourceError,
+    AdapterParsingError,
 )
 
 

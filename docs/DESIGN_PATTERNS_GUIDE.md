@@ -21,28 +21,19 @@
 الگوی Factory برای ایجاد انواع مختلف آداپترها بدون اینکه کد مصرف‌کننده نیاز به دانستن جزئیات ایجاد داشته باشد استفاده می‌شود.
 
 ### فایل‌های مرتبط
-- `adapters/factories/enhanced_adapter_factory.py`
+- `adapters/factories/unified_adapter_factory.py`
 
 ### استفاده اساسی
 
 ```python
-from adapters.factories.enhanced_adapter_factory import get_enhanced_adapter_factory
+from adapters.factories.unified_adapter_factory import get_unified_factory
 
-# ایجاد factory
-factory = get_enhanced_adapter_factory()
+# Get the unified factory
+factory = get_unified_factory()
 
-# ایجاد آداپتر فارسی
-persian_adapter = factory.create_adapter("alibaba")
-
-# ایجاد آداپتر بین‌المللی
-international_adapter = factory.create_adapter("lufthansa")
-
-# ایجاد آداپتر با تنظیمات خاص
-config = {
-    'base_url': 'https://example.com',
-    'rate_limiting': {'requests_per_second': 1.0}
-}
-custom_adapter = factory.create_adapter_with_config("custom_site", config)
+# Create adapters
+alibaba_adapter = factory.create_adapter("alibaba")
+parto_adapter = factory.create_adapter("parto")
 ```
 
 ### استفاده پیشرفته
@@ -555,7 +546,7 @@ class CustomCrawlCommand(Command):
 ### ترکیب Factory + Strategy + Observer
 
 ```python
-from adapters.factories.enhanced_adapter_factory import get_enhanced_adapter_factory
+from adapters.factories.unified_adapter_factory import get_unified_factory
 from adapters.strategies.parsing_strategies import ParsingStrategyFactory
 from adapters.patterns.observer_pattern import CrawlerEventSystem, LoggingObserver
 
@@ -564,7 +555,7 @@ event_system = CrawlerEventSystem()
 event_system.add_observer(LoggingObserver())
 
 # ایجاد آداپتر
-factory = get_enhanced_adapter_factory()
+factory = get_unified_factory()
 adapter = factory.create_adapter("alibaba")
 
 # تنظیم استراتژی تجزیه
@@ -663,7 +654,7 @@ except Exception as e:
 ```python
 # تست Factory Pattern
 def test_adapter_creation():
-    factory = get_enhanced_adapter_factory()
+    factory = get_unified_factory()
     adapter = factory.create_adapter("test_adapter")
     assert adapter is not None
 
@@ -765,7 +756,7 @@ def debug_workflow():
 برای شروع، پیشنهاد می‌شود ابتدا از Factory Pattern استفاده کرده و سپس تدریجاً سایر الگوها را به سیستم اضافه کنید. همیشه اصول SOLID را رعایت کرده و تست‌های مناسب برای هر بخش بنویسید.
 
 ### منابع اضافی
-- [Factory Pattern Implementation](../adapters/factories/enhanced_adapter_factory.py)
+- [Factory Pattern Implementation](../adapters/factories/unified_adapter_factory.py)
 - [Observer Pattern Implementation](../adapters/patterns/observer_pattern.py)
 - [Command Pattern Implementation](../adapters/patterns/command_pattern.py)
 - [Builder Pattern Implementation](../adapters/patterns/builder_pattern.py)

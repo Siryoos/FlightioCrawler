@@ -16,9 +16,19 @@ from datetime import datetime, timedelta
 from adapters.base_adapters.enhanced_base_crawler import EnhancedBaseCrawler
 from adapters.base_adapters.enhanced_persian_adapter import EnhancedPersianAdapter
 from adapters.base_adapters.enhanced_international_adapter import EnhancedInternationalAdapter
-from adapters.base_adapters.common_error_handler import (
+from adapters.base_adapters.enhanced_error_handler import (
     ErrorCategory,
+    ErrorSeverity,
+    ErrorAction,
     ErrorContext,
+    EnhancedErrorHandler,
+    error_handler_decorator,
+    AdapterError,
+    NavigationError,
+    FormFillingError,
+    ExtractionError,
+    ValidationError,
+    TimeoutError,
     AdapterTimeoutError,
     AdapterNetworkError,
     AdapterValidationError,

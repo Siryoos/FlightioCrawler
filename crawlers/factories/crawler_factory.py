@@ -29,7 +29,7 @@ class BaseSiteCrawler(ABC):
 
     def _create_parser(self):
         """Create parser based on config"""
-        from data.transformers.persian_text_processor import PersianTextProcessor
+        from persian_text import PersianTextProcessor
 
         return PersianTextProcessor()
 

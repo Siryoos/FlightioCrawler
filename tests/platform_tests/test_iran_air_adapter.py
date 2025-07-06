@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from bs4 import BeautifulSoup
 from adapters.site_adapters.iranian_airlines.iran_air_adapter import IranAirAdapter
-from data.transformers.persian_text_processor import PersianTextProcessor
+from persian_text import PersianTextProcessor
 
 
 @pytest.fixture

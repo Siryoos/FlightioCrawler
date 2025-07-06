@@ -1,12 +1,16 @@
 import asyncio
 import random
 import time
-from typing import Dict, List, Optional, Union, Callable
+import math
+import threading
+from typing import Dict, List, Optional, Union, Callable, Tuple, Any
 from collections import defaultdict, deque
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from enum import Enum
 import requests
 from urllib.robotparser import RobotFileParser
 import redis
-from datetime import datetime, timedelta
 import logging
 import json
 from redis import Redis
@@ -15,11 +19,607 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 import ipaddress
+import statistics
 
 from config import config
 
+# Import integrated circuit breaker
+try:
+    from adapters.strategies.circuit_breaker_integration import (
+        get_integrated_circuit_breaker,
+        IntegratedCircuitBreakerConfig,
+        IntegrationFailureType,
+        record_rate_limiter_failure,
+        record_success as cb_record_success,
+        can_make_request as cb_can_make_request
+    )
+    CIRCUIT_BREAKER_AVAILABLE = True
+except ImportError:
+    CIRCUIT_BREAKER_AVAILABLE = False
+
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# UNIFIED RATE LIMITER - Single Source of Truth
+# ============================================================================
+
+class RateLimitStrategy(Enum):
+    """Rate limiting strategies"""
+    FIXED = "fixed"
+    ADAPTIVE = "adaptive"
+    EXPONENTIAL_BACKOFF = "exponential_backoff"
+    CIRCUIT_BREAKER = "circuit_breaker"
+    PERFORMANCE_BASED = "performance_based"
+
+
+class SystemState(Enum):
+    """System performance states"""
+    OPTIMAL = "optimal"
+    GOOD = "good"
+    DEGRADED = "degraded"
+    OVERLOADED = "overloaded"
+    CRITICAL = "critical"
+
+
+@dataclass
+class UnifiedRateConfig:
+    """Unified rate limiting configuration"""
+    # Basic rate limits
+    requests_per_second: float = 1.0
+    requests_per_minute: int = 60
+    requests_per_hour: int = 3600
+    burst_limit: int = 5
+    
+    # Adaptive features
+    strategy: RateLimitStrategy = RateLimitStrategy.ADAPTIVE
+    target_response_time_ms: float = 1000.0
+    max_error_rate_percent: float = 5.0
+    min_rate_per_second: float = 0.1
+    max_rate_per_second: float = 10.0
+    
+    # Backoff and recovery
+    backoff_factor: float = 2.0
+    max_backoff_seconds: float = 300.0
+    recovery_factor: float = 0.05
+    cooldown_seconds: int = 300
+    
+    # Circuit breaker
+    circuit_breaker_threshold: int = 5
+    circuit_breaker_timeout: int = 60
+    
+    # Advanced features
+    use_jitter: bool = True
+    use_penalties: bool = True
+    store_metrics: bool = True
+    
+    # Database integration
+    load_from_db: bool = False
+    site_id: Optional[str] = None
+
+
+@dataclass
+class RateMetrics:
+    """Comprehensive rate limiting metrics"""
+    # Request tracking
+    total_requests: int = 0
+    successful_requests: int = 0
+    failed_requests: int = 0
+    blocked_requests: int = 0
+    
+    # Performance metrics
+    response_times: deque = field(default_factory=lambda: deque(maxlen=100))
+    error_rates: deque = field(default_factory=lambda: deque(maxlen=50))
+    consecutive_errors: int = 0
+    consecutive_successes: int = 0
+    
+    # Rate adjustment history
+    current_rate: float = 1.0
+    adjustment_history: deque = field(default_factory=lambda: deque(maxlen=50))
+    last_adjustment: datetime = field(default_factory=datetime.now)
+    
+    # System state
+    system_state: SystemState = SystemState.OPTIMAL
+    circuit_open: bool = False
+    circuit_open_time: Optional[datetime] = None
+    penalty_until: Optional[datetime] = None
+    
+    # Timestamps
+    request_timestamps: deque = field(default_factory=lambda: deque(maxlen=1000))
+    last_request_time: Optional[datetime] = None
+    created_at: datetime = field(default_factory=datetime.now)
+
+
+class UnifiedRateLimiter:
+    """
+    Unified rate limiter combining features from all previous implementations.
+    
+    Features:
+    - Adaptive rate adjustment based on performance
+    - Circuit breaker functionality
+    - Database-backed configuration
+    - Platform-specific rules
+    - Penalty systems with recovery
+    - Comprehensive metrics and monitoring
+    - Redis support for distributed limiting
+    """
+    
+    def __init__(self, 
+                 site_id: str,
+                 config: UnifiedRateConfig = None,
+                 redis_client: Optional[Redis] = None,
+                 db_conn=None):
+        self.site_id = site_id
+        self.config = config or UnifiedRateConfig()
+        self.redis_client = redis_client
+        self.db_conn = db_conn
+        self.logger = logging.getLogger(f"{__name__}.{site_id}")
+        
+        # Initialize metrics
+        self.metrics = RateMetrics()
+        self.metrics.current_rate = self.config.requests_per_second
+        
+        # Thread safety
+        self._lock = threading.RLock()
+        
+        # Initialize integrated circuit breaker
+        self._init_circuit_breaker()
+        
+        # Load configuration from database if enabled
+        if self.config.load_from_db and self.db_conn:
+            self._load_config_from_db()
+        
+        self.logger.info(f"Unified rate limiter initialized for {site_id}")
+    
+    def _load_config_from_db(self):
+        """Load configuration from database"""
+        try:
+            import psycopg2.extras
+            with self.db_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute("""
+                    SELECT rate_limit_config 
+                    FROM crawler.platforms 
+                    WHERE platform_code = %s AND is_active = true
+                """, (self.site_id,))
+                
+                result = cursor.fetchone()
+                if result and result['rate_limit_config']:
+                    db_config = result['rate_limit_config']
+                    
+                    # Update config with database values
+                    self.config.requests_per_second = db_config.get('requests_per_second', self.config.requests_per_second)
+                    self.config.requests_per_minute = db_config.get('requests_per_minute', self.config.requests_per_minute)
+                    self.config.burst_limit = db_config.get('burst_limit', self.config.burst_limit)
+                    self.config.backoff_factor = db_config.get('backoff_factor', self.config.backoff_factor)
+                    
+                    self.logger.info(f"Loaded configuration from database for {self.site_id}")
+        except Exception as e:
+            self.logger.error(f"Failed to load config from database: {e}")
+    
+    def _init_circuit_breaker(self):
+        """Initialize integrated circuit breaker"""
+        if CIRCUIT_BREAKER_AVAILABLE:
+            try:
+                # Create circuit breaker configuration
+                cb_config = IntegratedCircuitBreakerConfig(
+                    rate_limiter_failure_threshold=self.config.circuit_breaker_threshold,
+                    rate_limiter_recovery_timeout=float(self.config.circuit_breaker_timeout),
+                    enable_adaptive_thresholds=True
+                )
+                
+                # Get integrated circuit breaker
+                self.circuit_breaker = get_integrated_circuit_breaker(
+                    self.site_id, 
+                    cb_config,
+                    rate_limiter_callback=self._health_check
+                )
+                self.logger.info(f"Integrated circuit breaker initialized for {self.site_id}")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize circuit breaker: {e}")
+                self.circuit_breaker = None
+        else:
+            self.circuit_breaker = None
+            self.logger.warning("Circuit breaker integration not available")
+    
+    async def _health_check(self) -> bool:
+        """Health check callback for circuit breaker"""
+        try:
+            # Check if rate limiter is healthy
+            with self._lock:
+                # Basic health checks
+                if self.metrics.penalty_until and datetime.now() < self.metrics.penalty_until:
+                    return False
+                
+                # Check error rate
+                if self.metrics.total_requests > 10:
+                    error_rate = (self.metrics.failed_requests / self.metrics.total_requests) * 100
+                    if error_rate > self.config.max_error_rate_percent:
+                        return False
+                
+                return True
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return False
+    
+    def _map_error_to_failure_type(self, error_type: str) -> 'IntegrationFailureType':
+        """Map error type to integration failure type"""
+        if not CIRCUIT_BREAKER_AVAILABLE:
+            return None
+        
+        mapping = {
+            "rate_limit": IntegrationFailureType.RATE_LIMIT_EXCEEDED,
+            "timeout": IntegrationFailureType.TIMEOUT,
+            "network": IntegrationFailureType.NETWORK_ERROR,
+            "validation": IntegrationFailureType.VALIDATION_ERROR,
+            "adapter": IntegrationFailureType.ADAPTER_FAILURE,
+            "error_handler": IntegrationFailureType.ERROR_HANDLER_FAILURE
+        }
+        
+        return mapping.get(error_type, IntegrationFailureType.RATE_LIMIT_EXCEEDED)
+    
+    async def can_make_request(self) -> Tuple[bool, str, float]:
+        """
+        Check if a request can be made.
+        Returns: (can_proceed, reason, wait_time_seconds)
+        """
+        current_time = time.time()
+        
+        with self._lock:
+            # Check if in penalty period
+            if self.metrics.penalty_until and datetime.now() < self.metrics.penalty_until:
+                remaining = (self.metrics.penalty_until - datetime.now()).total_seconds()
+                return False, "penalty_period", remaining
+            
+            # Check integrated circuit breaker
+            if self.circuit_breaker and CIRCUIT_BREAKER_AVAILABLE:
+                try:
+                    can_proceed = await self.circuit_breaker.can_make_request("rate_limiter")
+                    if not can_proceed:
+                        return False, "circuit_breaker_open", 30.0  # Default wait time
+                except Exception as e:
+                    self.logger.error(f"Circuit breaker check failed: {e}")
+                    # Fall back to legacy circuit breaker logic
+                    if self.metrics.circuit_open:
+                        if self._should_attempt_recovery(current_time):
+                            self.metrics.circuit_open = False
+                            self.logger.info(f"Circuit breaker reset for {self.site_id}")
+                        else:
+                            remaining = self.config.circuit_breaker_timeout - (current_time - self.metrics.circuit_open_time.timestamp())
+                            return False, "circuit_breaker_open", max(0, remaining)
+            else:
+                # Legacy circuit breaker logic
+                if self.metrics.circuit_open:
+                    if self._should_attempt_recovery(current_time):
+                        self.metrics.circuit_open = False
+                        self.logger.info(f"Circuit breaker reset for {self.site_id}")
+                    else:
+                        remaining = self.config.circuit_breaker_timeout - (current_time - self.metrics.circuit_open_time.timestamp())
+                        return False, "circuit_breaker_open", max(0, remaining)
+            
+            # Check rate limits
+            if not self._check_rate_limits(current_time):
+                wait_time = self._calculate_wait_time(current_time)
+                return False, "rate_limit_exceeded", wait_time
+            
+            return True, "allowed", 0.0
+    
+    def _check_rate_limits(self, current_time: float) -> bool:
+        """Check current rate against limits"""
+        # Clean old timestamps
+        cutoff_time = current_time - 1.0
+        while self.metrics.request_timestamps and self.metrics.request_timestamps[0] < cutoff_time:
+            self.metrics.request_timestamps.popleft()
+        
+        # Use adaptive rate if available
+        current_rate = self.metrics.current_rate if self.config.strategy == RateLimitStrategy.ADAPTIVE else self.config.requests_per_second
+        
+        # Check requests per second
+        if len(self.metrics.request_timestamps) >= current_rate:
+            return False
+        
+        # Check burst limit
+        burst_window = current_time - 10.0
+        burst_requests = sum(1 for ts in self.metrics.request_timestamps if ts > burst_window)
+        if burst_requests >= self.config.burst_limit:
+            return False
+        
+        return True
+    
+    def _calculate_wait_time(self, current_time: float) -> float:
+        """Calculate wait time before next request"""
+        if not self.metrics.request_timestamps:
+            return 0.0
+        
+        base_delay = 1.0 / self.metrics.current_rate
+        
+        # Add jitter if enabled
+        if self.config.use_jitter:
+            jitter_factor = random.uniform(0.8, 1.2)
+            base_delay *= jitter_factor
+        
+        return base_delay
+    
+    async def record_request(self, response_time_ms: float, success: bool, error_type: str = None):
+        """Record request metrics and adjust rate limits"""
+        current_time = time.time()
+        
+        with self._lock:
+            # Record basic metrics
+            self.metrics.total_requests += 1
+            self.metrics.request_timestamps.append(current_time)
+            self.metrics.last_request_time = datetime.now()
+            
+            if success:
+                self.metrics.successful_requests += 1
+                self.metrics.consecutive_successes += 1
+                self.metrics.consecutive_errors = 0
+                
+                # Handle success for penalty reduction
+                if self.config.use_penalties:
+                    await self._handle_success()
+            else:
+                self.metrics.failed_requests += 1
+                self.metrics.consecutive_errors += 1
+                self.metrics.consecutive_successes = 0
+                
+                # Handle failure
+                if self.config.use_penalties:
+                    await self._handle_failure(error_type)
+            
+            # Record performance metrics
+            if response_time_ms > 0:
+                self.metrics.response_times.append(response_time_ms)
+            
+            # Update error rate
+            total_recent = self.metrics.successful_requests + self.metrics.failed_requests
+            if total_recent > 0:
+                error_rate = (self.metrics.failed_requests / total_recent) * 100
+                self.metrics.error_rates.append(error_rate)
+            
+            # Adaptive rate adjustment
+            if self.config.strategy == RateLimitStrategy.ADAPTIVE:
+                await self._adjust_rate_adaptively()
+            
+            # Circuit breaker integration
+            if self.circuit_breaker and CIRCUIT_BREAKER_AVAILABLE:
+                try:
+                    if success:
+                        await self.circuit_breaker.record_success("rate_limiter")
+                    else:
+                        # Map error type to integration failure type
+                        failure_type = self._map_error_to_failure_type(error_type)
+                        await self.circuit_breaker.record_rate_limiter_failure(
+                            failure_type, 
+                            f"Rate limiter failure: {error_type or 'unknown'}"
+                        )
+                except Exception as e:
+                    self.logger.error(f"Circuit breaker recording failed: {e}")
+                    # Fall back to legacy circuit breaker logic
+                    if (self.metrics.consecutive_errors >= self.config.circuit_breaker_threshold and 
+                        not self.metrics.circuit_open):
+                        self._open_circuit_breaker()
+            else:
+                # Legacy circuit breaker logic
+                if (self.metrics.consecutive_errors >= self.config.circuit_breaker_threshold and 
+                    not self.metrics.circuit_open):
+                    self._open_circuit_breaker()
+            
+            # Store metrics in Redis if available
+            if self.redis_client and self.config.store_metrics:
+                await self._store_metrics_in_redis()
+    
+    async def _handle_success(self):
+        """Handle successful request - reduce penalties"""
+        if self.metrics.penalty_until:
+            # Gradually reduce penalty
+            remaining = (self.metrics.penalty_until - datetime.now()).total_seconds()
+            if remaining > 60:
+                new_remaining = max(remaining * 0.9, 60)
+                self.metrics.penalty_until = datetime.now() + timedelta(seconds=new_remaining)
+                self.logger.debug(f"Reduced penalty for {self.site_id}")
+    
+    async def _handle_failure(self, error_type: str = None):
+        """Handle failed request - apply penalties"""
+        if error_type == "rate_limit" or self.metrics.consecutive_errors >= 3:
+            # Apply exponential backoff penalty
+            current_penalty = 0
+            if self.metrics.penalty_until and self.metrics.penalty_until > datetime.now():
+                current_penalty = (self.metrics.penalty_until - datetime.now()).total_seconds()
+            
+            new_penalty = min(
+                max(60, current_penalty * self.config.backoff_factor),
+                self.config.max_backoff_seconds
+            )
+            
+            self.metrics.penalty_until = datetime.now() + timedelta(seconds=new_penalty)
+            self.logger.warning(f"Applied penalty to {self.site_id}: {new_penalty}s")
+    
+    async def _adjust_rate_adaptively(self):
+        """Adjust rate based on performance metrics"""
+        if len(self.metrics.response_times) < 10:
+            return  # Need sufficient data
+        
+        current_time = datetime.now()
+        if (current_time - self.metrics.last_adjustment).total_seconds() < 30:
+            return  # Don't adjust too frequently
+        
+        # Calculate performance indicators
+        avg_response_time = statistics.mean(self.metrics.response_times)
+        recent_error_rate = statistics.mean(list(self.metrics.error_rates)[-10:]) if self.metrics.error_rates else 0
+        
+        # Determine adjustment direction
+        adjustment_factor = 1.0
+        
+        if avg_response_time > self.config.target_response_time_ms * 1.5:
+            # Response time too high - decrease rate
+            adjustment_factor = 0.8
+        elif recent_error_rate > self.config.max_error_rate_percent:
+            # Error rate too high - decrease rate
+            adjustment_factor = 0.7
+        elif (avg_response_time < self.config.target_response_time_ms * 0.8 and 
+              recent_error_rate < self.config.max_error_rate_percent * 0.5):
+            # Performance good - increase rate
+            adjustment_factor = 1.2
+        
+        # Apply adjustment
+        if adjustment_factor != 1.0:
+            old_rate = self.metrics.current_rate
+            new_rate = max(
+                self.config.min_rate_per_second,
+                min(self.config.max_rate_per_second, old_rate * adjustment_factor)
+            )
+            
+            if abs(new_rate - old_rate) > 0.1:  # Only adjust if significant change
+                self.metrics.current_rate = new_rate
+                self.metrics.adjustment_history.append({
+                    'timestamp': current_time,
+                    'old_rate': old_rate,
+                    'new_rate': new_rate,
+                    'reason': f'response_time={avg_response_time:.1f}ms, error_rate={recent_error_rate:.1f}%'
+                })
+                self.metrics.last_adjustment = current_time
+                
+                self.logger.info(f"Adjusted rate for {self.site_id}: {old_rate:.2f} -> {new_rate:.2f} req/s")
+    
+    def _open_circuit_breaker(self):
+        """Open circuit breaker due to consecutive failures"""
+        self.metrics.circuit_open = True
+        self.metrics.circuit_open_time = datetime.now()
+        self.logger.warning(f"Circuit breaker opened for {self.site_id}")
+    
+    def _should_attempt_recovery(self, current_time: float) -> bool:
+        """Check if circuit breaker should attempt recovery"""
+        if not self.metrics.circuit_open_time:
+            return False
+        
+        elapsed = current_time - self.metrics.circuit_open_time.timestamp()
+        return elapsed >= self.config.circuit_breaker_timeout
+    
+    async def _store_metrics_in_redis(self):
+        """Store metrics in Redis for monitoring"""
+        if not self.redis_client:
+            return
+        
+        try:
+            metrics_key = f"rate_limiter:metrics:{self.site_id}"
+            metrics_data = {
+                'total_requests': self.metrics.total_requests,
+                'successful_requests': self.metrics.successful_requests,
+                'failed_requests': self.metrics.failed_requests,
+                'current_rate': self.metrics.current_rate,
+                'system_state': self.metrics.system_state.value,
+                'circuit_open': self.metrics.circuit_open,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            await self.redis_client.hset(metrics_key, mapping=metrics_data)
+            await self.redis_client.expire(metrics_key, 3600)  # Expire after 1 hour
+        except Exception as e:
+            self.logger.error(f"Failed to store metrics in Redis: {e}")
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get comprehensive status information"""
+        avg_response_time = statistics.mean(self.metrics.response_times) if self.metrics.response_times else 0
+        error_rate = 0
+        if self.metrics.total_requests > 0:
+            error_rate = (self.metrics.failed_requests / self.metrics.total_requests) * 100
+        
+        return {
+            'site_id': self.site_id,
+            'current_rate': self.metrics.current_rate,
+            'configured_rate': self.config.requests_per_second,
+            'total_requests': self.metrics.total_requests,
+            'successful_requests': self.metrics.successful_requests,
+            'failed_requests': self.metrics.failed_requests,
+            'blocked_requests': self.metrics.blocked_requests,
+            'error_rate_percent': error_rate,
+            'avg_response_time_ms': avg_response_time,
+            'consecutive_errors': self.metrics.consecutive_errors,
+            'consecutive_successes': self.metrics.consecutive_successes,
+            'system_state': self.metrics.system_state.value,
+            'circuit_open': self.metrics.circuit_open,
+            'in_penalty': self.metrics.penalty_until > datetime.now() if self.metrics.penalty_until else False,
+            'strategy': self.config.strategy.value,
+            'last_request': self.metrics.last_request_time.isoformat() if self.metrics.last_request_time else None,
+            'created_at': self.metrics.created_at.isoformat()
+        }
+    
+    def reset_metrics(self):
+        """Reset all metrics"""
+        with self._lock:
+            self.metrics = RateMetrics()
+            self.metrics.current_rate = self.config.requests_per_second
+            self.logger.info(f"Reset metrics for {self.site_id}")
+
+
+class UnifiedRateLimitManager:
+    """Manager for multiple unified rate limiters"""
+    
+    def __init__(self, redis_client: Optional[Redis] = None, db_conn=None):
+        self.limiters: Dict[str, UnifiedRateLimiter] = {}
+        self.redis_client = redis_client
+        self.db_conn = db_conn
+        self.logger = logging.getLogger(__name__)
+        self._lock = threading.Lock()
+    
+    def get_limiter(self, site_id: str, config: UnifiedRateConfig = None) -> UnifiedRateLimiter:
+        """Get or create rate limiter for site"""
+        with self._lock:
+            if site_id not in self.limiters:
+                if not config:
+                    config = UnifiedRateConfig(site_id=site_id, load_from_db=bool(self.db_conn))
+                
+                self.limiters[site_id] = UnifiedRateLimiter(
+                    site_id=site_id,
+                    config=config,
+                    redis_client=self.redis_client,
+                    db_conn=self.db_conn
+                )
+            
+            return self.limiters[site_id]
+    
+    async def can_make_request(self, site_id: str) -> Tuple[bool, str, float]:
+        """Check if request can be made for site"""
+        limiter = self.get_limiter(site_id)
+        return await limiter.can_make_request()
+    
+    async def record_request(self, site_id: str, response_time_ms: float, 
+                           success: bool, error_type: str = None):
+        """Record request for site"""
+        limiter = self.get_limiter(site_id)
+        await limiter.record_request(response_time_ms, success, error_type)
+    
+    def get_all_status(self) -> Dict[str, Any]:
+        """Get status for all rate limiters"""
+        return {
+            site_id: limiter.get_status() 
+            for site_id, limiter in self.limiters.items()
+        }
+    
+    def reset_all_metrics(self):
+        """Reset metrics for all limiters"""
+        for limiter in self.limiters.values():
+            limiter.reset_metrics()
+        self.logger.info("All rate limiter metrics reset")
+
+
+# Global manager instance
+_global_manager: Optional[UnifiedRateLimitManager] = None
+
+def get_unified_rate_limiter(redis_client: Optional[Redis] = None, db_conn=None) -> UnifiedRateLimitManager:
+    """Get the global unified rate limiter manager"""
+    global _global_manager
+    if _global_manager is None:
+        _global_manager = UnifiedRateLimitManager(redis_client, db_conn)
+    return _global_manager
+
+
+# ============================================================================
+# LEGACY IMPLEMENTATIONS - DEPRECATED - Use UnifiedRateLimiter instead
+# ============================================================================
+
+import warnings
 
 # Rate limit configurations for different endpoint types
 RATE_LIMIT_CONFIGS = {
@@ -525,9 +1125,20 @@ class ProxyRotator:
 
 
 class RateLimiter:
-    """Rate limiter for crawler requests"""
+    """
+    DEPRECATED: Rate limiter for crawler requests.
+    
+    Use UnifiedRateLimiter instead for better performance and more features.
+    This class is kept for backward compatibility only.
+    """
 
     def __init__(self):
+        warnings.warn(
+            "RateLimiter is deprecated. Use get_unified_rate_limiter() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         # Initialize Redis
         redis_cfg = config.REDIS
         redis_url = f"redis://{redis_cfg.HOST}:{redis_cfg.PORT}/{redis_cfg.DB}"
@@ -710,9 +1321,20 @@ class RateLimiter:
 
 
 class AdvancedRateLimiter:
-    """Advanced rate limiter with adaptive delays and platform-specific configurations"""
+    """
+    DEPRECATED: Advanced rate limiter with adaptive delays and platform-specific configurations.
+    
+    Use UnifiedRateLimiter instead for better performance and more features.
+    This class is kept for backward compatibility only.
+    """
 
     def __init__(self, redis_client: Redis):
+        warnings.warn(
+            "AdvancedRateLimiter is deprecated. Use get_unified_rate_limiter() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         self.redis = redis_client
         self.platform_configs = {}
         self.logger = logging.getLogger(__name__)

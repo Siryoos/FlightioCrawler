@@ -42,20 +42,8 @@ class CacheClearRequest(BaseModel):
     """Cache clear request model"""
     pattern: str = "*"
 
-# Dependency functions
-async def get_crawler() -> IranianFlightCrawler:
-    """Get crawler instance"""
-    from main import app
-    if not hasattr(app.state, 'crawler') or not app.state.crawler:
-        raise HTTPException(status_code=503, detail="Crawler is not available")
-    return app.state.crawler
-
-async def get_monitor() -> CrawlerMonitor:
-    """Get monitor instance"""
-    from main import app
-    if not hasattr(app.state, 'monitor') or not app.state.monitor:
-        raise HTTPException(status_code=503, detail="Monitor is not available")
-    return app.state.monitor
+# Import shared dependencies to eliminate circular imports
+from api.dependencies import get_crawler, get_monitor
 
 @router.get("/health", response_model=HealthResponse)
 @api_versioned(APIVersion.V1)

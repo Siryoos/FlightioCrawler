@@ -32,7 +32,7 @@ from api_versioning import (
 # Import v1 routers
 from api.v1 import (
     flights_router, monitoring_router, sites_router, 
-    rate_limits_router, system_router
+    rate_limits_router, system_router, websocket_router
 )
 from api.v1.health import router as health_router
 
@@ -175,6 +175,7 @@ app.include_router(monitoring_router)
 app.include_router(sites_router)
 app.include_router(rate_limits_router)
 app.include_router(system_router)
+app.include_router(websocket_router)
 app.include_router(health_router)
 
 # Legacy request models (for backward compatibility)

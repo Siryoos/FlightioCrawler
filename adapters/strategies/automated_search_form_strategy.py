@@ -24,7 +24,7 @@ try:
 except ImportError:
     raise ImportError("Required dependencies missing. Install with: pip install playwright beautifulsoup4")
 
-from utils.persian_text_processor import PersianTextProcessor
+from persian_text import PersianTextProcessor
 from adapters.base_adapters.enhanced_error_handler import ErrorCategory, ErrorSeverity, error_handler_decorator
 
 

@@ -19,6 +19,21 @@ import uuid
 import psutil
 import threading
 from pathlib import Path
+import math
+import statistics
+
+try:
+    from ..strategies.circuit_breaker_integration import (
+        get_integrated_circuit_breaker,
+        IntegratedCircuitBreakerConfig,
+        IntegrationFailureType,
+        record_error_handler_failure,
+        record_success as cb_record_success,
+        can_make_request as cb_can_make_request
+    )
+    CIRCUIT_BREAKER_INTEGRATION_AVAILABLE = True
+except ImportError:
+    CIRCUIT_BREAKER_INTEGRATION_AVAILABLE = False
 
 
 class ErrorSeverity(Enum):
@@ -62,6 +77,76 @@ class CircuitState(Enum):
     HALF_OPEN = "half_open"
 
 
+# Unified Exception Classes
+class AdapterError(Exception):
+    """Base exception for all adapter errors"""
+    
+    def __init__(self, message: str, context: Optional['ErrorContext'] = None):
+        super().__init__(message)
+        self.context = context
+        self.timestamp = datetime.now()
+
+
+class NavigationError(AdapterError):
+    """Exception for navigation-related errors"""
+    pass
+
+
+class FormFillingError(AdapterError):
+    """Exception for form filling errors"""
+    pass
+
+
+class ExtractionError(AdapterError):
+    """Exception for data extraction errors"""
+    pass
+
+
+class ValidationError(AdapterError):
+    """Exception for data validation errors"""
+    pass
+
+
+class TimeoutError(AdapterError):
+    """Exception for timeout errors"""
+    pass
+
+
+class AdapterTimeoutError(TimeoutError):
+    """Specific timeout error for adapters"""
+    pass
+
+
+class AdapterNetworkError(AdapterError):
+    """Exception for network-related errors"""
+    pass
+
+
+class AdapterValidationError(ValidationError):
+    """Specific validation error for adapters"""
+    pass
+
+
+class AdapterRateLimitError(AdapterError):
+    """Exception for rate limit errors"""
+    pass
+
+
+class AdapterAuthenticationError(AdapterError):
+    """Exception for authentication errors"""
+    pass
+
+
+class AdapterResourceError(AdapterError):
+    """Exception for resource errors"""
+    pass
+
+
+class AdapterParsingError(AdapterError):
+    """Exception for parsing errors"""
+    pass
+
+
 @dataclass
 class ErrorContext:
     """Comprehensive error context information"""
@@ -82,6 +167,7 @@ class ErrorContext:
     browser_info: Optional[Dict[str, Any]] = None
     system_info: Optional[Dict[str, Any]] = None
     correlation_id: Optional[str] = None
+    element_index: Optional[int] = None  # For backward compatibility
 
 
 @dataclass
@@ -143,43 +229,40 @@ class EnhancedErrorHandler:
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
         
-        # Error storage and tracking
+        # Error storage
         self.error_records: Dict[str, ErrorRecord] = {}
         self.error_patterns: Dict[str, ErrorPattern] = {}
-        self.error_timeline: deque = deque(maxlen=10000)
-        self.correlation_map: Dict[str, List[str]] = defaultdict(list)
-        
-        # Circuit breaker management
         self.circuit_breakers: Dict[str, Dict[str, Any]] = {}
+        
+        # Configuration
         self.circuit_config = self._load_circuit_config()
+        self.max_records = self.config.get('max_records', 10000)
+        self.correlation_threshold = self.config.get('correlation_threshold', 0.8)
         
         # Recovery strategies
         self.recovery_strategies: Dict[str, RecoveryStrategy] = {}
         self._initialize_recovery_strategies()
         
-        # Monitoring and alerts
-        self.alert_callbacks: List[Callable] = []
-        self.metrics = {
-            'total_errors': 0,
-            'errors_by_severity': defaultdict(int),
-            'errors_by_category': defaultdict(int),
-            'errors_by_adapter': defaultdict(int),
-            'recovery_attempts': 0,
-            'recovery_successes': 0,
-            'circuit_breaker_trips': 0,
-            'patterns_detected': 0
-        }
+        # Metrics
+        self.metrics = defaultdict(int)
         
-        # Error correlation and pattern detection
-        self.correlation_threshold = 0.8
-        self.pattern_detection_window = timedelta(minutes=30)
+        # Alert callbacks
+        self.alert_callbacks: List[Callable] = []
         
         # Background tasks
         self._cleanup_task = None
         self._pattern_detection_task = None
+        
+        # Thread safety
+        self._lock = threading.RLock()
+        
+        # Initialize integrated circuit breaker
+        self._init_integrated_circuit_breaker()
+        
+        # Start background tasks
         self._start_background_tasks()
         
-        self.logger.info("Enhanced Error Handler initialized")
+        self.logger.info("Enhanced error handler initialized")
 
     def _load_circuit_config(self) -> Dict[str, Any]:
         """Load circuit breaker configuration"""
@@ -289,6 +372,12 @@ class EnhancedErrorHandler:
                     self.logger.info(
                         f"Recovery successful for {context.adapter_name} using {recovery_strategy.name}"
                     )
+                    # Record success in integrated circuit breaker if error was handled successfully
+                    if self.integrated_circuit_breaker and CIRCUIT_BREAKER_INTEGRATION_AVAILABLE:
+                        try:
+                            await self.integrated_circuit_breaker.record_success("error_handler")
+                        except Exception as e:
+                            self.logger.error(f"Failed to record success in integrated circuit breaker: {e}")
                     return True, recovery_strategy.strategy_id
                 else:
                     self.logger.warning(
@@ -453,6 +542,62 @@ class EnhancedErrorHandler:
         self, adapter_name: str, error_record: ErrorRecord
     ) -> str:
         """Check and update circuit breaker state"""
+        # Use integrated circuit breaker if available
+        if self.integrated_circuit_breaker and CIRCUIT_BREAKER_INTEGRATION_AVAILABLE:
+            try:
+                # Check if requests are allowed
+                can_proceed = await self.integrated_circuit_breaker.can_make_request("error_handler")
+                
+                if not can_proceed:
+                    self.metrics['circuit_breaker_trips'] += 1
+                    self.logger.warning(f"Integrated circuit breaker blocking requests for {adapter_name}")
+                    return "block"
+                
+                # Record the error in the integrated circuit breaker
+                failure_type = self._map_error_category_to_failure_type(error_record.category)
+                await self.integrated_circuit_breaker.record_error_handler_failure(
+                    failure_type, 
+                    f"Error in {adapter_name}: {error_record.error_message}"
+                )
+                
+                return "allow"
+                
+            except Exception as e:
+                self.logger.error(f"Integrated circuit breaker check failed: {e}")
+                # Fall back to legacy circuit breaker logic
+                return await self._legacy_circuit_breaker_check(adapter_name, error_record)
+        else:
+            # Use legacy circuit breaker logic
+            return await self._legacy_circuit_breaker_check(adapter_name, error_record)
+    
+    def _map_error_category_to_failure_type(self, category: ErrorCategory) -> 'IntegrationFailureType':
+        """Map error category to integration failure type"""
+        if not CIRCUIT_BREAKER_INTEGRATION_AVAILABLE:
+            return None
+        
+        # Map using category values to avoid import circular dependencies
+        category_value = category.value if hasattr(category, 'value') else str(category)
+        
+        mapping = {
+            "rate_limit": IntegrationFailureType.RATE_LIMIT_EXCEEDED,
+            "timeout": IntegrationFailureType.TIMEOUT,
+            "network": IntegrationFailureType.NETWORK_ERROR,
+            "validation": IntegrationFailureType.VALIDATION_ERROR,
+            "authentication": IntegrationFailureType.ERROR_HANDLER_FAILURE,
+            "parsing": IntegrationFailureType.ERROR_HANDLER_FAILURE,
+            "browser": IntegrationFailureType.ADAPTER_FAILURE,
+            "form_filling": IntegrationFailureType.ADAPTER_FAILURE,
+            "navigation": IntegrationFailureType.ADAPTER_FAILURE,
+            "captcha": IntegrationFailureType.ADAPTER_FAILURE,
+            "resource": IntegrationFailureType.ERROR_HANDLER_FAILURE
+        }
+        
+        return mapping.get(category_value, IntegrationFailureType.ERROR_HANDLER_FAILURE)
+    
+    async def _legacy_circuit_breaker_check(
+        self, adapter_name: str, error_record: ErrorRecord
+    ) -> str:
+        """Legacy circuit breaker check logic"""
         circuit_key = f"{adapter_name}:{error_record.category.value}"
         
         if circuit_key not in self.circuit_breakers:
@@ -728,6 +873,232 @@ class EnhancedErrorHandler:
         
         self.logger.info("Enhanced Error Handler closed")
 
+    def _init_integrated_circuit_breaker(self):
+        """Initialize integrated circuit breaker"""
+        if CIRCUIT_BREAKER_INTEGRATION_AVAILABLE:
+            try:
+                # Create circuit breaker configuration
+                cb_config = IntegratedCircuitBreakerConfig(
+                    error_handler_failure_threshold=self.circuit_config.get('failure_threshold', 5),
+                    error_handler_recovery_timeout=float(self.circuit_config.get('recovery_timeout', 300)),
+                    enable_adaptive_thresholds=True
+                )
+                
+                # Get integrated circuit breaker
+                self.integrated_circuit_breaker = get_integrated_circuit_breaker(
+                    "error_handler", 
+                    cb_config,
+                    error_handler_callback=self._health_check
+                )
+                self.logger.info("Integrated circuit breaker initialized for error handler")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize integrated circuit breaker: {e}")
+                self.integrated_circuit_breaker = None
+        else:
+            self.integrated_circuit_breaker = None
+            self.logger.warning("Circuit breaker integration not available")
+    
+    async def _health_check(self) -> bool:
+        """Health check callback for integrated circuit breaker"""
+        try:
+            with self._lock:
+                # Check if error handler is healthy
+                current_time = datetime.now()
+                recent_errors = [
+                    error for error in self.error_records.values()
+                    if (current_time - error.timestamp).total_seconds() < 300  # Last 5 minutes
+                ]
+                
+                # Check error rate
+                if len(recent_errors) > 20:  # Too many errors in 5 minutes
+                    return False
+                
+                # Check for critical errors
+                critical_errors = [
+                    error for error in recent_errors
+                    if error.severity in [ErrorSeverity.CRITICAL, ErrorSeverity.EMERGENCY]
+                ]
+                
+                if len(critical_errors) > 3:  # Too many critical errors
+                    return False
+                
+                return True
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return False
+
+
+class CommonErrorHandler:
+    """
+    Legacy compatibility wrapper for CommonErrorHandler.
+    
+    This wrapper provides backward compatibility for existing code
+    that depends on the old CommonErrorHandler interface.
+    """
+    
+    def __init__(self, adapter_name: str, config: Dict[str, Any] = None):
+        self.adapter_name = adapter_name
+        self.config = config or {}
+        self.enhanced_handler = get_global_error_handler()
+        self.logger = logging.getLogger(f"{adapter_name}_errors")
+        
+        # Legacy error statistics - maintained for compatibility
+        self.error_stats = {
+            "total_errors": 0,
+            "navigation_errors": 0,
+            "form_errors": 0,
+            "extraction_errors": 0,
+            "validation_errors": 0,
+            "timeout_errors": 0,
+            "last_error_time": None,
+        }
+    
+    def handle_error(
+        self, error: Exception, context: ErrorContext, should_retry: bool = True
+    ) -> bool:
+        """
+        Handle error with appropriate logging and recovery (legacy interface).
+        
+        Args:
+            error: Exception that occurred
+            context: Error context information
+            should_retry: Whether to attempt retry
+            
+        Returns:
+            True if operation should be retried, False otherwise
+        """
+        # Update legacy error statistics
+        self._update_error_stats(error)
+        
+        # Map legacy context to enhanced context if needed
+        if not hasattr(context, 'error_id'):
+            enhanced_context = ErrorContext(
+                adapter_name=context.adapter_name,
+                operation=context.operation,
+                url=context.url,
+                search_params=context.search_params,
+                retry_count=context.retry_count,
+                additional_info=context.additional_info,
+                element_index=getattr(context, 'element_index', None)
+            )
+        else:
+            enhanced_context = context
+        
+        # Determine severity and category
+        severity = self._determine_severity(error)
+        category = self._categorize_error(error)
+        
+        # Use enhanced error handler
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            should_retry_enhanced, strategy_id = loop.run_until_complete(
+                self.enhanced_handler.handle_error(
+                    error, enhanced_context, severity, category
+                )
+            )
+            return should_retry_enhanced and should_retry
+        except Exception as e:
+            # Fallback to simple logging if enhanced handler fails
+            self.logger.error(f"Error handling failed: {e}")
+            self._log_error_simple(error, enhanced_context)
+            return should_retry and isinstance(error, (NavigationError, TimeoutError, AdapterNetworkError))
+    
+    def _update_error_stats(self, error: Exception) -> None:
+        """Update legacy error statistics."""
+        self.error_stats["total_errors"] += 1
+        self.error_stats["last_error_time"] = datetime.now()
+        
+        # Update specific error type counters
+        if isinstance(error, NavigationError):
+            self.error_stats["navigation_errors"] += 1
+        elif isinstance(error, FormFillingError):
+            self.error_stats["form_errors"] += 1
+        elif isinstance(error, ExtractionError):
+            self.error_stats["extraction_errors"] += 1
+        elif isinstance(error, ValidationError):
+            self.error_stats["validation_errors"] += 1
+        elif isinstance(error, TimeoutError):
+            self.error_stats["timeout_errors"] += 1
+    
+    def _determine_severity(self, error: Exception) -> ErrorSeverity:
+        """Determine error severity based on exception type."""
+        if isinstance(error, (AdapterTimeoutError, AdapterNetworkError)):
+            return ErrorSeverity.HIGH
+        elif isinstance(error, (NavigationError, FormFillingError)):
+            return ErrorSeverity.MEDIUM
+        elif isinstance(error, (ExtractionError, ValidationError)):
+            return ErrorSeverity.LOW
+        else:
+            return ErrorSeverity.MEDIUM
+    
+    def _categorize_error(self, error: Exception) -> ErrorCategory:
+        """Categorize error for enhanced handling."""
+        if isinstance(error, AdapterNetworkError):
+            return ErrorCategory.NETWORK
+        elif isinstance(error, AdapterTimeoutError):
+            return ErrorCategory.TIMEOUT
+        elif isinstance(error, NavigationError):
+            return ErrorCategory.NAVIGATION
+        elif isinstance(error, FormFillingError):
+            return ErrorCategory.FORM_FILLING
+        elif isinstance(error, ExtractionError):
+            return ErrorCategory.PARSING
+        elif isinstance(error, ValidationError):
+            return ErrorCategory.VALIDATION
+        elif isinstance(error, AdapterRateLimitError):
+            return ErrorCategory.RATE_LIMIT
+        elif isinstance(error, AdapterAuthenticationError):
+            return ErrorCategory.AUTHENTICATION
+        elif isinstance(error, AdapterResourceError):
+            return ErrorCategory.RESOURCE
+        else:
+            return ErrorCategory.UNKNOWN
+    
+    def _log_error_simple(self, error: Exception, context: ErrorContext):
+        """Simple error logging fallback."""
+        self.logger.error(
+            f"[{context.operation}] {type(error).__name__}: {str(error)}"
+        )
+    
+    def get_error_statistics(self) -> Dict[str, Any]:
+        """Get legacy error statistics."""
+        return self.error_stats.copy()
+    
+    def reset_error_statistics(self) -> None:
+        """Reset legacy error statistics."""
+        self.error_stats = {
+            "total_errors": 0,
+            "navigation_errors": 0,
+            "form_errors": 0,
+            "extraction_errors": 0,
+            "validation_errors": 0,
+            "timeout_errors": 0,
+            "last_error_time": None,
+        }
+    
+    async def retry_with_backoff(
+        self, operation: Callable, context: ErrorContext, *args, **kwargs
+    ) -> Any:
+        """Legacy retry with backoff method."""
+        max_retries = context.max_retries
+        base_delay = 1.0
+        
+        for attempt in range(max_retries + 1):
+            try:
+                context.retry_count = attempt
+                return await operation(*args, **kwargs)
+            except Exception as e:
+                if attempt >= max_retries:
+                    raise
+                
+                # Use exponential backoff
+                delay = base_delay * (2 ** attempt)
+                await asyncio.sleep(delay)
+                
+                # Log retry attempt
+                self.logger.info(f"Retrying {context.operation} after {delay}s (attempt {attempt + 1})")
+
 
 def error_handler_decorator(
     operation_name: str,
@@ -786,4 +1157,104 @@ def initialize_global_error_handler(config: Dict[str, Any]) -> EnhancedErrorHand
     """Initialize global error handler with configuration"""
     global _global_error_handler
     _global_error_handler = EnhancedErrorHandler(config)
-    return _global_error_handler 
+    return _global_error_handler
+
+
+# Legacy compatibility decorator
+def error_handler(operation_name: str):
+    """
+    Legacy decorator for automatic error handling (DEPRECATED).
+    
+    Use error_handler_decorator instead for enhanced functionality.
+    
+    Args:
+        operation_name: Name of the operation for error context
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            # Get error handler from adapter instance
+            if not hasattr(self, "error_handler"):
+                # Fallback to basic error handling
+                return await func(self, *args, **kwargs)
+            
+            # Create error context
+            context = ErrorContext(
+                adapter_name=getattr(self, "adapter_name", self.__class__.__name__),
+                operation=operation_name,
+                search_params=kwargs.get("search_params"),
+                url=getattr(self, "current_url", None),
+            )
+            
+            # Execute with retry logic using enhanced handler if available
+            if hasattr(self.error_handler, 'retry_with_backoff'):
+                return await self.error_handler.retry_with_backoff(
+                    func, context, self, *args, **kwargs
+                )
+            else:
+                # Fallback to basic execution
+                return await func(self, *args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
+# Safe extraction decorator for backward compatibility
+def safe_extract(default_value: Any = None):
+    """
+    Decorator for safe data extraction.
+    
+    Args:
+        default_value: Value to return if extraction fails
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                # Log extraction error
+                if len(args) > 0 and hasattr(args[0], "logger"):
+                    args[0].logger.debug(f"Extraction failed in {func.__name__}: {e}")
+                return default_value
+        return wrapper
+    return decorator
+
+
+# Recovery strategies for backward compatibility
+class ErrorRecoveryStrategies:
+    """
+    Common error recovery strategies (for backward compatibility).
+    """
+    
+    @staticmethod
+    async def refresh_page(page) -> None:
+        """Refresh page as recovery strategy."""
+        try:
+            await page.reload()
+            await page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception as e:
+            raise NavigationError(f"Failed to refresh page: {e}")
+    
+    @staticmethod
+    async def clear_cookies_and_retry(page) -> None:
+        """Clear cookies and retry as recovery strategy."""
+        try:
+            await page.context.clear_cookies()
+            await page.reload()
+            await page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception as e:
+            raise NavigationError(f"Failed to clear cookies and retry: {e}")
+    
+    @staticmethod
+    async def wait_and_retry(delay: float = 5.0) -> None:
+        """Wait for specified time before retry."""
+        await asyncio.sleep(delay)
+    
+    @staticmethod
+    async def switch_user_agent(page, user_agent: str) -> None:
+        """Switch user agent as recovery strategy."""
+        try:
+            await page.set_extra_http_headers({"User-Agent": user_agent})
+        except Exception as e:
+            raise NavigationError(f"Failed to switch user agent: {e}") 

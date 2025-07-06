@@ -16,8 +16,8 @@ from monitoring.production_memory_monitor import ProductionMemoryMonitor
 from monitoring.memory_health_endpoint import MemoryHealthServer
 from data_manager import DataManager
 
-# Use AdapterFactory instead of manual imports
-from adapters.factories.adapter_factory import AdapterFactory
+# Use unified factory instead of manual imports
+from adapters.factories.unified_adapter_factory import get_unified_factory
 
 # Enhanced Error Handler Integration
 from adapters.base_adapters.enhanced_error_handler import (
@@ -89,8 +89,8 @@ class IranianFlightCrawler:
         self.session_id = str(uuid.uuid4())
         self.current_operation = None
 
-        # Initialize adapter factory
-        self.adapter_factory: AdapterFactory = AdapterFactory(http_session=self.http_session)
+        # Initialize unified adapter factory
+        self.adapter_factory = get_unified_factory()
 
         # Initialize advanced features
         self.intelligent_search: IntelligentSearchEngine = IntelligentSearchEngine(

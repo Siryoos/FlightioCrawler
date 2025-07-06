@@ -56,13 +56,8 @@ class IntelligentSearchRequest(BaseModel):
     passengers: int = 1
     seat_class: str = "economy"
 
-# Dependency functions
-async def get_crawler() -> IranianFlightCrawler:
-    """Get crawler instance"""
-    from main import app
-    if not hasattr(app.state, 'crawler') or not app.state.crawler:
-        raise HTTPException(status_code=503, detail="Crawler is not available")
-    return app.state.crawler
+# Import shared dependencies to eliminate circular imports
+from api.dependencies import get_crawler
 
 @router.post("/search", response_model=FlightSearchResponse)
 @api_versioned(APIVersion.V1)

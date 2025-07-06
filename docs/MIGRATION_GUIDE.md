@@ -46,7 +46,7 @@ class MahanAirAdapter(EnhancedPersianAdapter):
 #### بعد (آداپتر جدید):
 ```python
 from adapters.base_adapters import EnhancedPersianAdapter, AdapterUtils
-from adapters.base_adapters.common_error_handler import error_handler, safe_extract
+from adapters.base_adapters.enhanced_error_handler import error_handler_decorator as error_handler, safe_extract
 
 class MahanAirAdapter(EnhancedPersianAdapter):
     # همه‌ی initialization خودکار انجام می‌شود!
@@ -148,11 +148,11 @@ def _extract_mahan_air_specific_fields(self, element, config: Dict[str, Any]) ->
 
 #### قبل:
 ```python
-# در کد اصلی
-from adapters.site_adapters.iranian_airlines.mahan_air_adapter import MahanAirAdapter
+# OLD - Using deprecated factory
+from adapters.factories.unified_adapter_factory import create_adapter
 
-config = load_config("mahan_air")
-adapter = MahanAirAdapter(config)
+# Use the unified factory
+adapter = create_adapter("alibaba")
 ```
 
 #### بعد:
@@ -251,6 +251,8 @@ class AlibabaAdapter(EnhancedPersianAdapter):
 ### مدیریت خطا
 ```python
 # استفاده از decorator برای error handling خودکار
+from adapters.base_adapters.enhanced_error_handler import error_handler_decorator as error_handler, safe_extract
+
 @error_handler("operation_name")
 async def my_method(self, params):
     # کد شما - خطاها خودکار مدیریت می‌شوند
@@ -280,9 +282,9 @@ flight_id = AdapterUtils.create_flight_id(flight_data)
 ### Configuration Management
 ```python
 # بارگذاری config از factory
-from adapters.factories.adapter_factory import get_factory
+from adapters.factories.unified_adapter_factory import get_unified_factory
 
-factory = get_factory()
+factory = get_unified_factory()
 config = factory.config_manager.load_config("adapter_name")
 
 # ذخیره config جدید

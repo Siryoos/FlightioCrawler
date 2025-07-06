@@ -1,4 +1,53 @@
-# FlightioCrawler Architecture | معماری خزنده پروازهای ایران
+# FlightioCrawler Architecture Documentation
+
+## 🎉 NEW: Unified Architecture (2024)
+
+**FlightioCrawler has undergone a comprehensive consolidation effort!**
+
+**Status**: ✅ **COMPLETE** - All 7 major consolidation tasks completed with 87.1% test success rate
+
+### Quick Start with Unified Components
+
+```python
+# Error Handling - Use the unified error handler
+from adapters.base_adapters.enhanced_error_handler import EnhancedErrorHandler
+
+# Rate Limiting - Use the unified rate limiter with circuit breaker
+from rate_limiter import UnifiedRateLimiter
+
+# Persian Text Processing - Use the unified processor
+from persian_text import PersianTextProcessor
+
+# Parsing Strategies - Use the unified parsing strategies
+from adapters.strategies.parsing_strategies import PersianParsingStrategy
+```
+
+### 📋 Consolidation Achievements
+
+1. ✅ **Error Handling Consolidation** - Single `EnhancedErrorHandler` with circuit breaker integration
+2. ✅ **Base Crawler Consolidation** - Unified `EnhancedBaseCrawler` for all adapters
+3. ✅ **Factory Consolidation** - Single `SiteCrawlerFactory` for all crawler types
+4. ✅ **Persian Text Processing** - Unified `PersianTextProcessor` with compatibility wrappers
+5. ✅ **Rate Limiter Consolidation** - `UnifiedRateLimiter` with circuit breaker integration
+6. ✅ **Parsing Strategies** - Centralized parsing with strategy pattern
+7. ✅ **Circuit Breaker Integration** - Comprehensive failure protection across all components
+
+### 🔗 Detailed Documentation
+
+**For comprehensive information about the unified architecture, see:**
+👉 **[Unified Architecture Guide](docs/UNIFIED_ARCHITECTURE_GUIDE.md)**
+
+This guide includes:
+- Complete usage examples for all unified components
+- Migration guide from legacy code
+- Performance benefits and best practices
+- Integration test results (87.1% success rate)
+
+---
+
+## Legacy Architecture Documentation
+
+*The following documentation describes the original architecture before consolidation. For new development, please use the unified architecture described above.*
 
 ## System Overview | مرور سیستم
 

@@ -30,9 +30,9 @@ from adapters.site_adapters.iranian_airlines.flytoday_adapter import FlytodayAda
 
 # Import factories and utilities
 try:
-    from adapters.factories.enhanced_adapter_factory import get_enhanced_factory
+    from adapters.factories.unified_adapter_factory import get_unified_factory
 except ImportError:
-    get_enhanced_factory = None
+    get_unified_factory = None
 
 try:
     from adapters.patterns.observer_pattern import CrawlerEventSystem, MetricsObserver
@@ -399,10 +399,10 @@ class TestIntegrationEnhanced:
     @pytest.mark.integration
     async def test_factory_integration(self, enhanced_config, sample_search_params):
         """Test adapter creation through factory."""
-        if get_enhanced_factory is None:
-            pytest.skip("Enhanced factory not available")
+        if get_unified_factory is None:
+            pytest.skip("Unified factory not available")
             
-        factory = get_enhanced_factory()
+        factory = get_unified_factory()
         
         # Test creating different types of adapters
         adapter_names = ["alibaba", "mahan_air", "emirates", "lufthansa", "flytoday"]
@@ -547,20 +547,19 @@ class TestIntegrationEnhanced:
     @pytest.mark.integration
     def test_adapter_metadata_consistency(self):
         """Test adapter metadata consistency."""
-        factory = get_enhanced_factory()
+        factory = get_unified_factory()
         
         # Test metadata for all adapters
-        all_adapters = factory.list_all_adapters()
+        all_adapters = factory.list_adapters()
         
-        for adapter_type, adapter_names in all_adapters.items():
-            for adapter_name in adapter_names:
-                metadata = factory.get_adapter_info(adapter_name)
-                assert metadata is not None
-                assert metadata.name == adapter_name
-                assert metadata.adapter_type == adapter_type
-                assert metadata.base_url.startswith(("http://", "https://"))
-                assert len(metadata.currency) == 3  # ISO currency code
-                assert len(metadata.airline_name) > 0
+        for adapter_name in all_adapters:
+            metadata = factory.get_adapter_info(adapter_name)
+            assert metadata is not None
+            assert metadata["name"] == adapter_name
+            assert "type" in metadata
+            assert metadata["base_url"].startswith(("http://", "https://"))
+            assert len(metadata["currency"]) == 3  # ISO currency code
+            assert len(metadata["airline_name"]) > 0
 
     @pytest.mark.integration
     def test_adapter_inheritance_hierarchy(self):
