@@ -166,6 +166,8 @@ results = asyncio.run(search_flights())
 print(f"Found {len(results)} flights with optimized performance!")
 ```
 
+Additional usage demonstrations are available in the `examples/` directory.
+
 ## 🎯 Supported Sites
 
 ### 🇮🇷 Iranian Sites:

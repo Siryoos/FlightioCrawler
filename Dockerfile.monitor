@@ -49,7 +49,6 @@ COPY --chown=monitor:monitor monitoring/ ./monitoring/
 COPY --chown=monitor:monitor utils/ ./utils/
 COPY --chown=monitor:monitor config/ ./config/
 COPY --chown=monitor:monitor enhanced_monitoring.py ./
-COPY --chown=monitor:monitor production_monitoring.py ./
 COPY --chown=monitor:monitor flight_monitor.py ./
 COPY --chown=monitor:monitor price_monitor.py ./
 COPY --chown=monitor:monitor data_manager.py ./

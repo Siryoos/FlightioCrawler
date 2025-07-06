@@ -82,7 +82,8 @@ The FlightioCrawler has achieved significant performance improvements:
 When contributing to documentation:
 
 1. **Clear Structure**: Use consistent headings and formatting
-2. **Code Examples**: Include practical, working examples
+2. **Code Examples**: Include practical, working examples located in the
+   `examples/` directory
 3. **Persian Support**: Document Persian text handling where relevant
 4. **Performance Notes**: Include performance implications
 5. **Security Considerations**: Note security implications

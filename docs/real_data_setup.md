@@ -4,11 +4,11 @@ This document summarizes how to run the crawler against live Iranian travel webs
 
 1. **Validate Target Websites**
    
-   Run the `production_url_validator` module to check connectivity, response times,
-   robots.txt rules and potential anti-bot blocks for each configured site:
-   ```bash
-   python -m production_url_validator
-   ```
+Run the `production_url_validator` example to check connectivity, response times,
+robots.txt rules and potential anti-bot blocks for each configured site:
+```bash
+python examples/production_url_validator.py
+```
    Review the output and disable any site that fails validation.
 
 2. **Configure Production Endpoints**
@@ -53,8 +53,8 @@ prices and times are realistic before storing them.
    flights = await crawler.extract_real_flight_data(params)
    ```
 
-   Always validate each target by running `python -m production_url_validator`
-   before enabling real crawling.
+Always validate each target by running `python examples/production_url_validator.py`
+before enabling real crawling.
 
 7. **Replay Saved Requests**
 
