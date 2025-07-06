@@ -1,7 +1,7 @@
 from typing import List, Dict
 import logging
 from datetime import datetime
-from site_crawlers import BaseSiteCrawler
+from adapters.base_adapters import BaseSiteCrawler
 
 
 class RealDataCrawler(BaseSiteCrawler):

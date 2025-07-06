@@ -7,6 +7,7 @@ from .enhanced_base_crawler import EnhancedBaseCrawler
 from .enhanced_international_adapter import EnhancedInternationalAdapter
 from .enhanced_persian_adapter import EnhancedPersianAdapter
 from .unified_site_adapter import UnifiedSiteAdapter
+from .base_site_crawler import BaseSiteCrawler
 
 # Common utilities and helper functions
 from typing import Dict, List, Optional, Any, Union
@@ -525,6 +526,7 @@ __all__ = [
     "EnhancedBaseCrawler",
     "EnhancedInternationalAdapter",
     "EnhancedPersianAdapter",
+    "BaseSiteCrawler",
     "UnifiedSiteAdapter",
     "AdapterUtils",
     "ConfigurationHelper",
