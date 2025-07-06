@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Docker Compose override for development with caching
 services:
   api:
