@@ -4,18 +4,23 @@ import json
 from local_crawler import AsyncWebCrawler, BrowserConfig
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser, Page
+from adapters.base_adapters import BaseSiteCrawler
+from monitoring import CrawlerMonitor
+from error_handler import ErrorHandler
 
 
-class BaseSiteCrawler(ABC):
+class FactoryCrawlerBase(BaseSiteCrawler):
     """Abstract base class for all site crawlers"""
 
     def __init__(self, config: dict):
         self.config = config
-        self.rate_limiter = self._create_rate_limiter()
-        self.parser = self._create_parser()
+        rate_limiter = self._create_rate_limiter()
+        parser = self._create_parser()
+        monitor = CrawlerMonitor()
+        error_handler = ErrorHandler()
+        super().__init__(config.get("name", "factory_site"), config.get("base_url", ""), rate_limiter, parser, monitor, error_handler, interval=config.get("interval", 900))
         self.browser_config = self._create_browser_config()
         self.crawler = AsyncWebCrawler(config=self.browser_config)
-
     @abstractmethod
     async def crawl(self, search_params: dict) -> list:
         """Main crawl method to be implemented by subclasses"""
@@ -43,7 +48,7 @@ class BaseSiteCrawler(ABC):
         )
 
 
-class JavaScriptCrawler(BaseSiteCrawler):
+class JavaScriptCrawler(FactoryCrawlerBase):
     """Crawler for JavaScript-heavy sites"""
 
     async def crawl(self, search_params: dict) -> list:
@@ -67,7 +72,7 @@ class JavaScriptCrawler(BaseSiteCrawler):
             return []
 
 
-class APICrawler(BaseSiteCrawler):
+class APICrawler(FactoryCrawlerBase):
     """Crawler for sites with API access"""
 
     async def crawl(self, search_params: dict) -> list:
@@ -85,7 +90,7 @@ class APICrawler(BaseSiteCrawler):
             return []
 
 
-class FormCrawler(BaseSiteCrawler):
+class FormCrawler(FactoryCrawlerBase):
     """Crawler for traditional form-based sites"""
 
     async def crawl(self, search_params: dict) -> list:
@@ -107,7 +112,7 @@ class FormCrawler(BaseSiteCrawler):
             return []
 
 
-class PersianAirlineCrawler(BaseSiteCrawler):
+class PersianAirlineCrawler(FactoryCrawlerBase):
     """Specialized crawler for Persian airlines"""
 
     async def crawl(self, search_params: dict) -> list:
@@ -129,7 +134,7 @@ class PersianAirlineCrawler(BaseSiteCrawler):
             return []
 
 
-class InternationalAggregatorCrawler(BaseSiteCrawler):
+class InternationalAggregatorCrawler(FactoryCrawlerBase):
     """Crawler for international flight aggregators"""
 
     async def crawl(self, search_params: dict) -> list:
@@ -152,7 +157,7 @@ class SiteCrawlerFactory:
     """Factory for creating appropriate crawler instances"""
 
     @staticmethod
-    def create_crawler(site_config: dict) -> BaseSiteCrawler:
+    def create_crawler(site_config: dict) -> FactoryCrawlerBase:
         """Create crawler instance based on site configuration"""
         crawler_type = site_config.get("crawler_type", "default")
 

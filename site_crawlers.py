@@ -24,6 +24,7 @@ from config import config
 from playwright.async_api import async_playwright, Browser, Page
 from rate_limiter import RateLimiter
 from stealth_crawler import StealthCrawler
+from adapters.base_adapters import BaseSiteCrawler
 
 # SSL Configuration
 from security.ssl_manager import get_ssl_manager
@@ -32,111 +33,12 @@ from security.ssl_manager import get_ssl_manager
 logger = logging.getLogger(__name__)
 
 
-class BaseSiteCrawler(StealthCrawler):
-    """Base class for site-specific crawlers"""
-
-    def __init__(
-        self,
-        rate_limiter,
-        text_processor: PersianTextProcessor,
-        monitor: CrawlerMonitor,
-        error_handler: ErrorHandler,
-        interval: int = 900,
-    ):
-        super().__init__()
-        self.rate_limiter = rate_limiter
-        self.text_processor = text_processor
-        self.monitor = monitor
-        self.error_handler = error_handler
-        self.logger = logging.getLogger(__name__)
-        self.ssl_manager = get_ssl_manager()
-
-        # Configure browser
-        self.browser_config = BrowserConfig(
-            headless=True, viewport_width=1920, viewport_height=1080
-        )
-
-        self.crawler = AsyncWebCrawler(config=self.browser_config)
-        self.interval = interval
-
-    async def _api_fallback(self, params: Dict) -> List[Dict]:
-        """Fallback JSON API fetch for sites with dynamic pages."""
-        api_url = getattr(self, "api_url", f"{self.base_url}/api/search")
-        try:
-            connector = self.ssl_manager.create_aiohttp_connector()
-            timeout = aiohttp.ClientTimeout(total=10)
-            
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json, text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-            }
-            
-            async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=timeout) as session:
-                async with session.get(api_url, params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data.get("flights", [])
-        except ssl.SSLError as e:
-            self.logger.error(f"SSL error in API fallback for {api_url}: {e}")
-        except aiohttp.ClientSSLError as e:
-            self.logger.error(f"SSL connection error in API fallback for {api_url}: {e}")
-        except Exception as api_err:
-            self.logger.error(f"API fallback failed: {api_err}")
-        return []
-
-    async def _execute_js(self, script: str, *args) -> Any:
-        """Execute JavaScript with error handling"""
-        try:
-            return await self.crawler.execute_js(script, *args)
-        except Exception as e:
-            self.logger.error(f"JavaScript execution error: {e}")
-            raise
-
-    async def _wait_for_element(self, selector: str, timeout: int = 10) -> bool:
-        """Wait for element to be present"""
-        try:
-            return await self.crawler.wait_for_selector(selector, timeout=timeout)
-        except Exception as e:
-            self.logger.error(f"Wait for element error: {e}")
-            return False
-
-    async def _take_screenshot(self, name: str) -> None:
-        """Take screenshot for debugging"""
-        try:
-            await self.crawler.screenshot(path=f"debug_{self.domain}_{name}.png")
-        except Exception as e:
-            self.logger.error(f"Screenshot error: {e}")
-
-    async def check_rate_limit(self) -> bool:
-        """Check rate limit for the site"""
-        return self.rate_limiter.check_rate_limit(self.domain)
-
-    async def get_wait_time(self) -> Optional[int]:
-        """Get time to wait before next request"""
-        return self.rate_limiter.get_wait_time(self.domain)
-
-    def process_text(self, text: str) -> str:
-        """Process Persian text"""
-        return self.text_processor.process(text)
-
-    async def search_flights(self, search_params: Dict) -> List[Dict]:
-        """Search flights on the site"""
-        raise NotImplementedError("Subclasses must implement search_flights")
-
-    async def continuous_monitoring(self, routes: List[Dict]) -> None:
-        """Continuously search flights for the provided routes."""
-        while True:
-            for params in routes:
-                await self.search_flights(params)
-            await asyncio.sleep(self.interval)
 
 
 class FlytodayCrawler(BaseSiteCrawler):
     """Crawler for Flytoday.ir"""
-
-    def __init__(self, *args, interval: int = 2700, **kwargs):
-        super().__init__(*args, interval=interval, **kwargs)
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 2700):
+        super().__init__("flytoday.ir", "https://www.flytoday.ir", rate_limiter, text_processor, monitor, error_handler, interval=interval)
         self.domain = "flytoday.ir"
         self.base_url = "https://www.flytoday.ir"
 
@@ -227,10 +129,8 @@ class FlytodayCrawler(BaseSiteCrawler):
 class FlightioCrawler(BaseSiteCrawler):
     """Crawler for Flightio.com"""
 
-    def __init__(self, *args, interval: int = 2700, **kwargs):
-        super().__init__(*args, interval=interval, **kwargs)
-        self.domain = "flightio.com"
-        self.base_url = "https://flightio.com"
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 2700):
+        super().__init__("flightio.com", "https://flightio.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on Flightio by parsing the results page."""
@@ -317,10 +217,8 @@ class FlightioCrawler(BaseSiteCrawler):
 class AlibabaCrawler(BaseSiteCrawler):
     """Crawler for Alibaba.ir"""
 
-    def __init__(self, *args, interval: int = 900, **kwargs):
-        super().__init__(*args, interval=interval, **kwargs)
-        self.domain = "alibaba.ir"
-        self.base_url = "https://www.alibaba.ir"
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+        super().__init__("alibaba.ir", "https://www.alibaba.ir", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on Alibaba"""
@@ -422,10 +320,8 @@ class AlibabaCrawler(BaseSiteCrawler):
 class SnapptripCrawler(BaseSiteCrawler):
     """Crawler for Snapptrip.com"""
 
-    def __init__(self, *args, interval: int = 900, **kwargs):
-        super().__init__(*args, interval=interval, **kwargs)
-        self.domain = "snapptrip.com"
-        self.base_url = "https://www.snapptrip.com"
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+        super().__init__("snapptrip.com", "https://www.snapptrip.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on Snapptrip"""
@@ -527,10 +423,8 @@ class SnapptripCrawler(BaseSiteCrawler):
 class SafarmarketCrawler(BaseSiteCrawler):
     """Crawler for Safarmarket.com"""
 
-    def __init__(self, *args, interval: int = 900, **kwargs):
-        super().__init__(*args, interval=interval, **kwargs)
-        self.domain = "safarmarket.com"
-        self.base_url = "https://www.safarmarket.com"
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+        super().__init__("safarmarket.com", "https://www.safarmarket.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def _build_api_payload(self, search_params: Dict) -> Dict:
         """Construct request payload for the Safarmarket search API."""
@@ -631,10 +525,8 @@ class SafarmarketCrawler(BaseSiteCrawler):
 class Mz724Crawler(BaseSiteCrawler):
     """Crawler for mz724.ir"""
 
-    def __init__(self, *args, interval: int = 1800, **kwargs):
-        super().__init__(*args, interval=interval, **kwargs)
-        self.domain = "mz724.ir"
-        self.base_url = "https://mz724.ir"
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 1800):
+        super().__init__("mz724.ir", "https://mz724.ir", rate_limiter, text_processor, monitor, error_handler, interval=interval)
 
     async def search_flights(self, search_params: Dict) -> List[Dict]:
         """Search flights on mz724.ir and return real results."""
@@ -731,8 +623,8 @@ class Mz724Crawler(BaseSiteCrawler):
 class PartoCRSCrawler(BaseSiteCrawler):
     """Crawler for partocrs.com"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+        super().__init__("partocrs.com", "https://www.partocrs.com", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "partocrs.com"
         self.base_url = "https://www.partocrs.com"
 
@@ -823,8 +715,8 @@ class PartoCRSCrawler(BaseSiteCrawler):
 class PartoTicketCrawler(BaseSiteCrawler):
     """Crawler for parto-ticket.ir"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+        super().__init__("parto-ticket.ir", "https://parto-ticket.ir", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "parto-ticket.ir"
         self.base_url = "https://parto-ticket.ir"
 
@@ -915,8 +807,8 @@ class PartoTicketCrawler(BaseSiteCrawler):
 class BookCharter724Crawler(BaseSiteCrawler):
     """Crawler for bookcharter724.ir"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+        super().__init__("bookcharter724.ir", "https://bookcharter724.ir", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "bookcharter724.ir"
         self.base_url = "https://bookcharter724.ir"
 
@@ -1007,8 +899,8 @@ class BookCharter724Crawler(BaseSiteCrawler):
 class BookCharterCrawler(BaseSiteCrawler):
     """Crawler for bookcharter.ir"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler):
+        super().__init__("bookcharter.ir", "https://bookcharter.ir", rate_limiter, text_processor, monitor, error_handler)
         self.domain = "bookcharter.ir"
         self.base_url = "https://bookcharter.ir"
 
@@ -1099,11 +991,11 @@ class BookCharterCrawler(BaseSiteCrawler):
 class MrbilitCrawler(BaseSiteCrawler):
     """Crawler for mrbilit.com"""
 
-    def __init__(self, *args, interval: int = 900, **kwargs):
-        super().__init__(*args, interval=interval, **kwargs)
+    def __init__(self, rate_limiter, text_processor: PersianTextProcessor, monitor: CrawlerMonitor, error_handler: ErrorHandler, interval: int = 900):
+        super().__init__("mrbilit.com", "https://mrbilit.com", rate_limiter, text_processor, monitor, error_handler, interval=interval)
+
         self.domain = "mrbilit.com"
         self.base_url = "https://mrbilit.com"
-
     async def _build_api_payload(self, search_params: Dict) -> Dict:
         return {
             "sourceAirportCode": search_params.get("origin"),

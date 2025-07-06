@@ -15,8 +15,8 @@ from site_crawlers import (
     BookCharter724Crawler,
     BookCharterCrawler,
     MrbilitCrawler,
-    BaseSiteCrawler,
 )
+from adapters.base_adapters import BaseSiteCrawler
 
 
 def test_crawler_classes_exist():

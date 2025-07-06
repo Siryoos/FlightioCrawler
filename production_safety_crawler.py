@@ -6,9 +6,8 @@ from datetime import datetime, timedelta
 import time
 
 from rate_limiter import RateLimiter
-from error_handler import ErrorHandler
+from adapters.base_adapters import BaseSiteCrawler
 from monitoring import CrawlerMonitor
-from site_crawlers import BaseSiteCrawler
 from production_url_validator import ProductionURLValidator
 
 logger = logging.getLogger(__name__)
