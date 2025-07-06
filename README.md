@@ -248,7 +248,13 @@ pytest --cov=. --cov-report=html
 # Coverage: 94.3% (target: >90%)
 ```
 
+
 ## 📈 Monitoring and Production
 
 ### Memory Monitoring:
+```bash
+python monitoring/production_memory_monitor.py
 ```
+
+See [Continuous Monitoring Guide](docs/CONTINUOUS_MONITORING_GUIDE.md) for more details.
+
