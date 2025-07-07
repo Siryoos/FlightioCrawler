@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Manual Crawl</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        label { display: block; margin-top: 10px; }
+        input { padding: 4px; margin-top: 4px; }
+        button { margin-top: 10px; padding: 6px 12px; }
+        pre { background:#f3f3f3; padding:10px; }
+    </style>
+</head>
+<body>
+    <h1>Manual Crawl</h1>
+    <form id="crawl-form">
+        <label>Origin
+            <input id="origin" type="text" placeholder="THR" />
+        </label>
+        <label>Destination
+            <input id="destination" type="text" placeholder="MHD" />
+        </label>
+        <label>Start Date
+            <input id="start-date" type="date" />
+        </label>
+        <label>End Date
+            <input id="end-date" type="date" />
+        </label>
+        <button type="submit">Start Crawl</button>
+    </form>
+    <pre id="crawl-result"></pre>
+    <button onclick="location.href='index.html'">Back to Dashboard</button>
+
+    <script>
+    document.getElementById('crawl-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const origin = document.getElementById('origin').value;
+        const destination = document.getElementById('destination').value;
+        const start = document.getElementById('start-date').value;
+        const end = document.getElementById('end-date').value;
+        if (!origin || !destination || !start || !end) {
+            alert('Please fill all fields');
+            return;
+        }
+        const dates = [];
+        for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
+            dates.push(d.toISOString().split('T')[0]);
+        }
+        const r = await fetch('/crawl', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ origin, destination, dates })
+        });
+        const data = await r.json();
+        document.getElementById('crawl-result').textContent = JSON.stringify(data, null, 2);
+    });
+    </script>
+</body>
+</html>

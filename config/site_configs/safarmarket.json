@@ -1,0 +1,93 @@
+{
+    "site_id": "safarmarket",
+    "name": "سفارمارکت",
+    "search_url": "https://www.safarmarket.com/flight-search",
+    "persian_processing": {
+        "rtl_support": true,
+        "jalali_calendar": true,
+        "persian_numerals": true
+    },
+    "extraction_config": {
+        "search_form": {
+            "origin_field": "input[name=\"origin\"]",
+            "destination_field": "input[name=\"destination\"]",
+            "date_field": "input[name=\"departure_date\"]",
+            "passengers_field": "select[name=\"passengers\"]",
+            "class_field": "select[name=\"cabin_class\"]",
+            "trip_type_field": "select[name=\"trip_type\"]"
+        },
+        "results_parsing": {
+            "container": ".flight-result",
+            "price": ".price",
+            "airline": ".airline-name",
+            "duration": ".duration",
+            "departure_time": ".departure-time",
+            "arrival_time": ".arrival-time",
+            "flight_number": ".flight-number",
+            "seat_class": ".seat-class",
+            "fare_conditions": ".fare-conditions",
+            "available_seats": ".available-seats",
+            "aircraft_type": ".aircraft-type",
+            "baggage_allowance": ".baggage-allowance",
+            "meal_service": ".meal-service",
+            "special_services": ".special-services",
+            "refund_policy": ".refund-policy",
+            "change_policy": ".change-policy",
+            "fare_rules": ".fare-rules",
+            "booking_class": ".booking-class",
+            "fare_basis": ".fare-basis",
+            "ticket_validity": ".ticket-validity"
+        }
+    },
+    "data_validation": {
+        "required_fields": [
+            "airline",
+            "flight_number",
+            "departure_time",
+            "arrival_time",
+            "price",
+            "currency",
+            "seat_class",
+            "duration_minutes",
+            "baggage_allowance",
+            "refund_policy",
+            "change_policy",
+            "booking_class",
+            "fare_basis",
+            "ticket_validity"
+        ],
+        "price_range": {
+            "min": 1000000,
+            "max": 100000000
+        },
+        "duration_range": {
+            "min": 30,
+            "max": 1440
+        }
+    },
+    "rate_limiting": {
+        "requests_per_second": 2,
+        "burst_limit": 5,
+        "cooldown_period": 60
+    },
+    "error_handling": {
+        "max_retries": 3,
+        "retry_delay": 5,
+        "circuit_breaker": {
+            "failure_threshold": 5,
+            "reset_timeout": 300
+        }
+    },
+    "monitoring": {
+        "metrics": [
+            "request_success_rate",
+            "average_response_time",
+            "error_rate",
+            "data_quality_score"
+        ],
+        "alert_thresholds": {
+            "error_rate": 0.1,
+            "response_time": 5000
+        }
+    }
+} 

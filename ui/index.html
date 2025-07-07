@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FlightioCrawler Advanced Dashboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .dashboard { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px; 
+            padding: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .card { 
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px; 
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .card h3 { 
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        .site-status { 
+            display: flex; 
+            align-items: center; 
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .status-indicator { 
+            width: 12px; 
+            height: 12px; 
+            border-radius: 50%;
+            margin-right: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+        .status-active { background: #27ae60; }
+        .status-error { background: #e74c3c; }
+        .status-warning { background: #f39c12; }
+        .button { 
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 2px;
+            transition: all 0.3s ease;
+        }
+        .button:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        .log-viewer { 
+            height: 300px; 
+            overflow-y: auto;
+            background: #1e1e1e;
+            color: #f8f8f2;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .test-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+        }
+        .full-width { grid-column: 1 / -1; }
+        .error-log { color: #e74c3c; }
+        .warning-log { color: #f39c12; }
+        .info-log { color: #3498db; }
+        .success-log { color: #27ae60; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- System Overview -->
+        <div class="card">
+            <h3>🚀 System Overview</h3>
+            <div id="system-metrics">
+                <div class="metric">
+                    <div class="metric-value" id="active-crawlers">0</div>
+                    <div class="metric-label">Active Crawlers</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="total-errors">0</div>
+                    <div class="metric-label">Errors (Last Hour)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="avg-response-time">0ms</div>
+                    <div class="metric-label">Avg Response Time</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manual Crawl -->
+        <div class="card">
+            <h3>✈️ Manual Crawl</h3>
+            <button class="button" onclick="location.href='manual_crawl.html'">Open Manual Crawl</button>
+        </div>
+
+        <!-- Route Configuration -->
+        <div class="card">
+            <h3>🗺️ Route Configuration</h3>
+            <button class="button" onclick="location.href='route_config.html'">Manage Routes</button>
+        </div>
+
+        <!-- Finance -->
+        <div class="card">
+            <h3>💰 امور مالی</h3>
+            <button class="button" onclick="location.href='/finance/wallet/transactions'">تاریخچه تراکنش‌ها</button>
+        </div>
+
+        <!-- Modules Overview -->
+        <div class="card">
+            <h3>📚 Modules</h3>
+            <ul>
+                <li><a href="modules/main_crawler.html">main_crawler.py</a></li>
+                <li><a href="modules/site_crawlers.html">site_crawlers.py</a></li>
+                <li><a href="modules/monitoring.html">monitoring</a></li>
+                <li><a href="modules/data_manager.html">data_manager.py</a></li>
+                <li><a href="modules/intelligent_search.html">intelligent_search.py</a></li>
+                <li><a href="modules/price_monitor.html">price_monitor.py</a></li>
+                <li><a href="modules/flight_monitor.html">flight_monitor.py</a></li>
+                <li><a href="modules/ml_predictor.html">ml_predictor.py</a></li>
+                <li><a href="modules/multilingual_processor.html">multilingual_processor.py</a></li>
+            </ul>
+        </div>
+
+        <!-- Site Status Monitor -->
+        <div class="card">
+            <h3>🌐 Site Status Monitor</h3>
+            <div id="sites-status"></div>
+            <button class="button" onclick="refreshSiteStatus()">Refresh All</button>
+        </div>
+
+        <!-- Individual Site Tester -->
+        <div class="card">
+            <h3>🔧 Site Tester</h3>
+            <div class="test-panel">
+                <div class="input-group">
+                    <label>Site:</label>
+                    <select id="test-site">
+                        <option value="flytoday.ir">Flytoday</option>
+                        <option value="alibaba.ir">Alibaba</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Origin:</label>
+                    <input type="text" id="test-origin" value="THR" placeholder="THR">
+                </div>
+                <div class="input-group">
+                    <label>Destination:</label>
+                    <input type="text" id="test-destination" value="ISF" placeholder="ISF">
+                </div>
+                <div class="input-group">
+                    <label>Date:</label>
+                    <input type="date" id="test-date">
+                </div>
+                <button class="button" onclick="testSite()">Test Site</button>
+                <div id="test-results"></div>
+            </div>
+        </div>
+
+        <!-- Real-time Logs -->
+        <div class="card full-width">
+            <h3>📋 Real-time System Logs</h3>
+            <div>
+                <button class="button" onclick="clearLogs()">Clear Logs</button>
+                <button class="button" onclick="toggleAutoScroll()">Toggle Auto-scroll</button>
+                <select id="log-level-filter">
+                    <option value="all">All Levels</option>
+                    <option value="ERROR">Errors Only</option>
+                    <option value="WARNING">Warnings</option>
+                    <option value="INFO">Info</option>
+                </select>
+            </div>
+            <div class="log-viewer" id="log-viewer"></div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="card full-width">
+            <h3>📊 Performance Analytics</h3>
+            <canvas id="performance-chart" width="400" height="200"></canvas>
+        </div>
+
+        <!-- Recent Crawled Flights -->
+        <div class="card full-width">
+            <h3>🛫 Recent Crawled Flights</h3>
+            <table style="width:100%;border-collapse:collapse;" id="recent-flights-table">
+                <thead>
+                    <tr>
+                        <th class="border p-1">Flight #</th>
+                        <th class="border p-1">Origin</th>
+                        <th class="border p-1">Destination</th>
+                        <th class="border p-1">Departure</th>
+                        <th class="border p-1">Price</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-flights-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connections
+        let dashboardWS = null;
+        let logWS = null;
+        let autoScroll = true;
+        let performanceChart = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            setupWebSockets();
+            setupPerformanceChart();
+            setDefaultDate();
+            refreshSiteStatus();
+            loadRecentFlights();
+            document.getElementById('test-site').addEventListener('change', connectLogWS);
+        });
+
+        function setupWebSockets() {
+            // Dashboard updates WebSocket
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            dashboardWS = new WebSocket(`${proto}://${window.location.host}/ws/dashboard`);
+            dashboardWS.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                updateDashboard(data);
+            };
+
+            dashboardWS.onclose = function() {
+                console.log('Dashboard WebSocket closed, attempting to reconnect...');
+                setTimeout(setupWebSockets, 5000);
+            };
+
+            // Connect log websocket for initially selected site
+            connectLogWS();
+        }
+
+        function connectLogWS() {
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const site = document.getElementById('test-site').value;
+            if (logWS) {
+                logWS.close();
+            }
+            logWS = new WebSocket(`${proto}://${window.location.host}/ws/sites/${site}/logs`);
+            logWS.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addLogEntry(data.level || 'INFO', data.message || '');
+                } catch (e) {
+                    console.error('Failed to parse log message', e);
+                }
+            };
+            logWS.onclose = function() {
+                setTimeout(connectLogWS, 5000);
+            };
+        }
+
+        function updateDashboard(data) {
+            // Update system metrics
+            document.getElementById('active-crawlers').textContent = data.system_metrics.total_active_crawlers;
+            document.getElementById('total-errors').textContent = data.system_metrics.total_errors_last_hour;
+            document.getElementById('avg-response-time').textContent = 
+                Math.round(data.system_metrics.avg_system_response_time || 0) + 'ms';
+
+            // Update site statuses
+            const sitesContainer = document.getElementById('sites-status');
+            sitesContainer.innerHTML = '';
+            
+            for (const [siteName, status] of Object.entries(data.sites)) {
+                const siteDiv = document.createElement('div');
+                siteDiv.className = 'site-status';
+                
+                const statusClass = status.active ? 'status-active' : 
+                                  status.rate_limited ? 'status-warning' : 'status-error';
+                
+                siteDiv.innerHTML = `
+                    <div class="status-indicator ${statusClass}"></div>
+                    <div style="flex: 1;">
+                        <strong>${siteName}</strong><br>
+                        <small>RPM: ${status.requests_per_minute || 0} |
+                               ${status.active ? 'Active' : 'Inactive'} |
+                               ${status.enabled ? 'Enabled' : 'Disabled'}</small>
+                    </div>
+                    <button class="button" onclick="testSpecificSite('${siteName}')">Test</button>
+                    <button class="button" onclick="resetSite('${siteName}')">Reset</button>
+                    ${status.enabled
+                        ? `<button class="button" onclick="disableSite('${siteName}')">Stop</button>`
+                        : `<button class="button" onclick="enableSite('${siteName}')">Start</button>`}
+                `;
+                sitesContainer.appendChild(siteDiv);
+            }
+
+            // Update performance chart
+            if (performanceChart) {
+                updatePerformanceChart(data);
+            }
+        }
+
+        function setupPerformanceChart() {
+            const ctx = document.getElementById('performance-chart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Active Crawlers',
+                        data: [],
+                        borderColor: '#3498db',
+                        tension: 0.1
+                    }, {
+                        label: 'Errors/Hour',
+                        data: [],
+                        borderColor: '#e74c3c',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updatePerformanceChart(data) {
+            const time = new Date().toLocaleTimeString();
+            
+            performanceChart.data.labels.push(time);
+            performanceChart.data.datasets[0].data.push(data.system_metrics.total_active_crawlers);
+            performanceChart.data.datasets[1].data.push(data.system_metrics.total_errors_last_hour);
+            
+            // Keep only last 20 data points
+            if (performanceChart.data.labels.length > 20) {
+                performanceChart.data.labels.shift();
+                performanceChart.data.datasets[0].data.shift();
+                performanceChart.data.datasets[1].data.shift();
+            }
+            
+            performanceChart.update();
+        }
+
+        async function refreshSiteStatus() {
+            try {
+                const response = await fetch('/api/v1/sites/status');
+                const data = await response.json();
+                
+                // Update sites dropdown
+                const siteSelect = document.getElementById('test-site');
+                siteSelect.innerHTML = '';
+                for (const siteName of Object.keys(data.sites)) {
+                    const option = document.createElement('option');
+                    option.value = siteName;
+                    option.textContent = siteName;
+                    siteSelect.appendChild(option);
+                }
+            } catch (error) {
+                addLogEntry('ERROR', `Failed to refresh site status: ${error.message}`);
+            }
+        }
+
+        async function testSite() {
+            const site = document.getElementById('test-site').value;
+            const origin = document.getElementById('test-origin').value;
+            const destination = document.getElementById('test-destination').value;
+            const date = document.getElementById('test-date').value;
+
+            if (!origin || !destination || !date) {
+                alert('Please fill in all test parameters');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div>Testing... Please wait</div>';
+
+            try {
+                const response = await fetch(`/api/v1/sites/${site}/test`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        origin: origin,
+                        destination: destination,
+                        date: date,
+                        passengers: 1,
+                        seat_class: 'economy'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultsDiv.innerHTML = `
+                        <div style="color: green;">
+                            ✅ Success! Found ${result.results_count} flights in ${result.execution_time.toFixed(2)}s
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div style="color: red;">
+                            ❌ Failed: ${result.error} (${result.execution_time.toFixed(2)}s)
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div style="color: red;">❌ Network Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testSpecificSite(siteName) {
+            document.getElementById('test-site').value = siteName;
+            await testSite();
+        }
+
+        async function resetSite(siteName) {
+            try {
+                const response = await fetch(`/api/v1/sites/${siteName}/reset`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                addLogEntry('INFO', `Reset ${siteName}: ${result.reset ? 'Success' : 'Failed'}`);
+            } catch (error) {
+                addLogEntry('ERROR', `Failed to reset ${siteName}: ${error.message}`);
+            }
+        }
+
+        async function enableSite(siteName) {
+            try {
+                await fetch(`/api/v1/sites/${siteName}/enable`, { method: 'POST' });
+                addLogEntry('INFO', `Enabled ${siteName}`);
+                refreshSiteStatus();
+            } catch (error) {
+                addLogEntry('ERROR', `Failed to enable ${siteName}: ${error.message}`);
+            }
+        }
+
+        async function disableSite(siteName) {
+            try {
+                await fetch(`/api/v1/sites/${siteName}/disable`, { method: 'POST' });
+                addLogEntry('INFO', `Disabled ${siteName}`);
+                refreshSiteStatus();
+            } catch (error) {
+                addLogEntry('ERROR', `Failed to disable ${siteName}: ${error.message}`);
+            }
+        }
+
+        function setDefaultDate() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('test-date').value = tomorrow.toISOString().split('T')[0];
+        }
+
+        function addLogEntry(level, message) {
+            const logViewer = document.getElementById('log-viewer');
+            const levelFilter = document.getElementById('log-level-filter').value;
+            
+            if (levelFilter !== 'all' && levelFilter !== level) {
+                return;
+            }
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = `${level.toLowerCase()}-log`;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = logClass;
+            logEntry.textContent = `[${timestamp}] ${level}: ${message}`;
+            
+            logViewer.appendChild(logEntry);
+            
+            if (autoScroll) {
+                logViewer.scrollTop = logViewer.scrollHeight;
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('log-viewer').innerHTML = '';
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+        }
+
+        async function loadRecentFlights() {
+            try {
+                const r = await fetch('/flights/recent?limit=20');
+                const data = await r.json();
+                displayRecentFlights(data.flights || []);
+            } catch (error) {
+                console.error('Failed to load recent flights', error);
+            }
+        }
+
+        function displayRecentFlights(flights) {
+            const tbody = document.getElementById('recent-flights-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            flights.forEach(f => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td class="border p-1">${f.flight_number}</td>` +
+                                `<td class="border p-1">${f.origin}</td>` +
+                                `<td class="border p-1">${f.destination}</td>` +
+                                `<td class="border p-1">${f.departure_time.split('T')[0]}</td>` +
+                                `<td class="border p-1">${f.price}</td>`;
+                tbody.appendChild(row);
+            });
+        }
+
+    </script>
+</body>
+</html>

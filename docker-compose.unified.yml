@@ -1,0 +1,201 @@
+version: '3.8'
+
+# ==============================================================================
+# FlightIO Unified Docker Compose
+# Simplified configuration using unified Dockerfile
+# ==============================================================================
+
+networks:
+  flightio:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_logs:
+  app_storage:
+
+services:
+  # ==============================================================================
+  # Core Services
+  # ==============================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: flightio-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-crawler}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-crawler_password}
+      POSTGRES_DB: ${DB_NAME:-flight_data}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - flightio
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-crawler} -d ${DB_NAME:-flight_data}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: flightio-redis
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - flightio
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ==============================================================================
+  # Application Services (all using unified image)
+  # ==============================================================================
+  
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: app
+    container_name: flightio-api
+    command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - SERVICE_TYPE=api
+      - DB_HOST=postgres
+      - DB_NAME=${DB_NAME:-flight_data}
+      - DB_USER=${DB_USER:-crawler}
+      - DB_PASSWORD=${DB_PASSWORD:-crawler_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - PORT=8000
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - app_logs:/app/logs
+      - app_storage:/app/data/storage
+    networks:
+      - flightio
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: app
+    container_name: flightio-crawler
+    command: ["python", "main_crawler.py"]
+    environment:
+      - SERVICE_TYPE=crawler
+      - DB_HOST=postgres
+      - DB_NAME=${DB_NAME:-flight_data}
+      - DB_USER=${DB_USER:-crawler}
+      - DB_PASSWORD=${DB_PASSWORD:-crawler_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+    volumes:
+      - app_logs:/app/logs
+      - app_storage:/app/data/storage
+    networks:
+      - flightio
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: app
+    container_name: flightio-worker
+    command: ["celery", "-A", "tasks", "worker", "--loglevel=info"]
+    environment:
+      - SERVICE_TYPE=worker
+      - DB_HOST=postgres
+      - DB_NAME=${DB_NAME:-flight_data}
+      - DB_USER=${DB_USER:-crawler}
+      - DB_PASSWORD=${DB_PASSWORD:-crawler_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+    volumes:
+      - app_logs:/app/logs
+      - app_storage:/app/data/storage
+    networks:
+      - flightio
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      target: app
+    container_name: flightio-frontend
+    command: ["npm", "start"]
+    working_dir: /app/frontend
+    environment:
+      - SERVICE_TYPE=frontend
+      - REACT_APP_API_URL=http://api:8000
+      - PORT=3000
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    networks:
+      - flightio
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ==============================================================================
+  # Monitoring (Optional - can be disabled in production)
+  # ==============================================================================
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: flightio-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - flightio
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: flightio-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./monitoring/grafana_dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    networks:
+      - flightio
+    profiles:
+      - monitoring
+    restart: unless-stopped 
