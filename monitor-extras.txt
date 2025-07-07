@@ -1,5 +1,0 @@
--r requirements.txt
-# Monitor-specific dependencies
-memory-profiler>=0.61.0
-python-statsd>=1.2.1
-statsd>=4.0.0

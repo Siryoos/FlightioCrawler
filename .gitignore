@@ -340,3 +340,85 @@ requests/pages/
 performance_reports/
 htmlcov/
 *_test_results*.json
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+*.cover
+.hypothesis/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+frontend/build/
+frontend/.next/
+
+# Environment
+.env
+.env.local
+.env.*.local
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Data
+data/postgres/
+data/redis/
+data/storage/
+*.db
+*.sqlite
+
+# Docker
+.docker/
+
+# Backups
+backup_*/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+*.bak
+
+# ChromeDriver
+chromedriver
+chromedriver.exe
+
+# Screenshots
+screenshots/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json 
